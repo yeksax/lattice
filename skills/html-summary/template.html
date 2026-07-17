@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Summary — starter</title>
+<style>
+  /* ============================================================
+     HTML SUMMARY — house style starter.
+     Mono · monochrome · sharp · hairline · flat · dense.
+     Delete this comment block and the demo content; keep the tokens.
+     ============================================================ */
+  :root{
+    --bg:#ffffff; --bg-sub:#fafafa;
+    --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
+    --line:#e4e4e4; --line-2:#111111;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#242424; --line-2:#f2f2f2;
+  }}
+  :root[data-theme="light"]{--bg:#fff;--bg-sub:#fafafa;--ink:#111;--ink-2:#555;--muted:#8a8a8a;--line:#e4e4e4;--line-2:#111}
+  :root[data-theme="dark"]{--bg:#0b0b0b;--bg-sub:#141414;--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#7d7d7d;--line:#242424;--line-2:#f2f2f2}
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:13.5px/1.5 var(--mono);
+    font-variant-numeric:tabular-nums;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+  /* ---- header (one of the few rules a summary needs) ---- */
+  header{
+    display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+    padding:18px 0;border-bottom:1px solid var(--line-2);
+  }
+  .brand{font-weight:500}
+  .meta{color:var(--muted);font-size:11px}
+  .toggle{
+    font:inherit;font-size:11px;
+    background:none;border:1px solid var(--line);color:var(--ink);
+    padding:4px 10px;cursor:pointer;
+  }
+  .toggle:hover{border-color:var(--line-2)}
+
+  /* ---- section: separated by SPACE + eyebrow, not a rule ---- */
+  section{padding:40px 0 8px}
+  .eyebrow{
+    font-size:11px;color:var(--muted);
+    margin:0 0 10px;
+  }
+  h1{font-size:24px;font-weight:500;margin:0 0 8px}
+  h2{font-size:17px;font-weight:500;margin:0 0 6px}
+  h3{font-size:13.5px;font-weight:500;margin:0 0 6px}
+  p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
+  a{color:var(--ink);text-underline-offset:3px}
+
+  /* ---- bento grid: cells joined by hairlines, no gaps/shadows ---- */
+  .grid{
+    display:grid;grid-template-columns:repeat(3,1fr);
+    gap:1px;background:var(--line);border:1px solid var(--line);margin-top:20px;
+  }
+  .grid .cell{background:var(--bg);padding:18px 18px 20px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .idx{color:var(--muted);font-size:11px}
+
+  /* ---- data table: dense, tabular, zebra ---- */
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+  th{
+    text-align:left;font-weight:500;color:var(--muted);font-size:11px;
+    padding:8px 12px;border-bottom:1px solid var(--line-2);
+  }
+  td{padding:8px 12px;border-bottom:1px solid var(--line)}
+  tbody tr:nth-child(even){background:var(--bg-sub)}
+  td.num,th.num{text-align:right}
+
+  /* ---- square hairline tag (ink only, no color, no dot) ---- */
+  .tag{
+    display:inline-block;font-size:11px;
+    border:1px solid var(--line);color:var(--ink-2);padding:2px 8px;
+  }
+
+  /* ---- metric ---- */
+  .metrics{display:flex;flex-wrap:wrap;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:20px}
+  .metric{background:var(--bg);padding:16px 20px;flex:1 1 160px}
+  .metric .val{font-size:26px;font-weight:500}
+  .metric .lbl{color:var(--muted);font-size:11px;margin-top:4px}
+
+  /* ---- stacked segmented bar: one ink, opacity ramp darkest→lightest ---- */
+  .bar{display:flex;width:100%;height:8px;gap:2px;overflow:hidden;background:var(--bg-sub);border:1px solid var(--line)}
+  .seg{min-width:2px;height:100%;background:var(--ink)}
+  .seg.s2{opacity:.72} .seg.s3{opacity:.52} .seg.s4{opacity:.34}
+
+  /* ---- hover disclosure: headline number, detail on hover ----
+     Each trigger owns its OWN popover. Never share one across triggers. */
+  .discloses{display:flex;gap:20px;justify-content:flex-end;margin-top:20px}
+  .disclose{position:relative;outline:0}
+  .disclose>.summary{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);cursor:pointer}
+  .disclose>.summary b{color:var(--ink);font-weight:500}
+  /* affordance: caret hints there's more; rotates toward the popover on hover */
+  .disclose>.summary .caret{display:inline-flex;color:var(--muted);transition:transform .14s ease-out,color .14s ease-out}
+  .disclose>.summary .caret svg{width:12px;height:12px;display:block}
+  .disclose:hover>.summary .caret,.disclose:focus-within>.summary .caret{transform:rotate(180deg);color:var(--ink)}
+  .disclose:hover>.summary,.disclose:focus-within>.summary{color:var(--ink)}
+  .pop{
+    position:absolute;right:0;bottom:calc(100% + 10px);width:min(420px,calc(100vw - 40px));
+    border:1px solid var(--line-2);background:var(--bg);padding:16px;
+    opacity:0;visibility:hidden;transform:translateY(4px);pointer-events:none;
+    transition:opacity .14s ease-out,transform .14s ease-out;z-index:8;
+  }
+  .disclose:hover .pop,.disclose:focus-within .pop{opacity:1;visibility:visible;transform:none}
+  .pop .row{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-2);padding:5px 0}
+  .pop .row+.row{border-top:1px solid var(--line)}
+  .pop .dot{display:inline-block;width:8px;height:8px;margin-right:8px;vertical-align:1px;background:var(--ink)}
+  .pop .dot.s2{opacity:.72} .pop .dot.s3{opacity:.52} .pop .dot.s4{opacity:.34}
+
+  /* ---- inverted block: the one loud move ---- */
+  .invert{background:var(--ink);color:var(--bg);padding:24px;margin-top:32px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+  .invert .lbl{font-size:11px;opacity:.6}
+
+  footer{margin-top:32px;padding:24px 0;border-top:1px solid var(--line-2);color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+  /* hand-coded inline SVG icon — replaces text symbols (→ ✓ ↗). Each glyph sets
+     its own stroke/fill via currentColor; here we only size it to the text (1em). */
+  .ico{display:inline-flex;width:1em;height:1em;vertical-align:-.14em}
+  .ico svg{width:100%;height:100%;display:block}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">Report title</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="meta">2026-07-14</span>
+      <button class="toggle" onclick="var r=document.documentElement;r.dataset.theme=r.dataset.theme==='dark'?'light':'dark'">theme</button>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">01 — Summary</p>
+    <h1>One-line statement of the outcome</h1>
+    <p>Lead with the conclusion. One or two sentences of context, no more. This
+      page moves information from A to B: a coworker scanning for fifteen seconds should
+      get the point before they reach the grid below.</p>
+    <div class="metrics">
+      <div class="metric"><div class="val">7,164<span style="font-size:13px;color:var(--muted)">ms</span></div><div class="lbl">latency p50</div></div>
+      <div class="metric"><div class="val">$0.0045</div><div class="lbl">cost / run</div></div>
+      <div class="metric"><div class="val">6 / 6</div><div class="lbl">cases passed</div></div>
+      <div class="metric"><div class="val">98.2%</div><div class="lbl">agreement</div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">02 — Breakdown</p>
+    <h2>Three things worth knowing</h2>
+    <div class="grid">
+      <div class="cell"><div class="idx">01</div><h3>First finding</h3><p style="font-size:12.5px">Terse explanation. Hairlines divide the cells — no gaps, no shadows, no rounded corners.</p></div>
+      <div class="cell"><div class="idx">02</div><h3>Second finding</h3><p style="font-size:12.5px">Everything is monospace. The only color is ink, white, and grays.</p></div>
+      <div class="cell"><div class="idx">03</div><h3>Third finding</h3><p style="font-size:12.5px">Dense by default. Works on a 1366×768 laptop without a hero eating the fold.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">03 — Data</p>
+    <h2>Results</h2>
+
+    <!-- two independent disclosures: cost owns a cost popover, time owns a time
+         popover. Each caret is a hand-coded inline SVG (no external file). -->
+    <div class="discloses">
+
+      <div class="disclose" tabindex="0">
+        <div class="summary"><span>total <b>$0.0094</b></span>
+          <span class="caret" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </div>
+        <div class="pop">
+          <div class="bar">
+            <span class="seg"    style="width:48%"></span>
+            <span class="seg s2" style="width:29%"></span>
+            <span class="seg s3" style="width:14%"></span>
+            <span class="seg s4" style="width:9%"></span>
+          </div>
+          <div style="margin-top:12px">
+            <div class="row"><span><span class="dot"></span>grade-suica</span><span>$0.00454</span></div>
+            <div class="row"><span><span class="dot s2"></span>colofao-editorial</span><span>$0.00354</span></div>
+            <div class="row"><span><span class="dot s3"></span>producao-atual</span><span>$0.00132</span></div>
+            <div class="row"><span><span class="dot s4"></span>overhead</span><span>$0.00090</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="disclose" tabindex="0">
+        <div class="summary"><span>elapsed <b>17.1s</b></span>
+          <span class="caret" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </div>
+        <div class="pop">
+          <div class="bar">
+            <span class="seg"    style="width:42%"></span>
+            <span class="seg s2" style="width:32%"></span>
+            <span class="seg s3" style="width:26%"></span>
+          </div>
+          <div style="margin-top:12px">
+            <div class="row"><span><span class="dot"></span>generation</span><span>7.1s</span></div>
+            <div class="row"><span><span class="dot s2"></span>segmentation</span><span>5.5s</span></div>
+            <div class="row"><span><span class="dot s3"></span>compose</span><span>4.5s</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <table>
+      <thead><tr><th>Engine</th><th>Model</th><th class="num">Latency</th><th class="num">Cost</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>grade-suica</td><td>claude-haiku-4.5</td><td class="num">7,164 ms</td><td class="num">$0.00454</td><td><span class="tag">pass</span></td></tr>
+        <tr><td>colofao-editorial</td><td>claude-haiku-4.5</td><td class="num">5,471 ms</td><td class="num">$0.00354</td><td><span class="tag">pass</span></td></tr>
+        <tr><td>producao-atual</td><td>gpt-4.1-mini</td><td class="num">4,416 ms</td><td class="num">$0.00132</td><td><span class="tag">pass</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="invert">
+    <div><div class="lbl">Recommendation</div><div style="font-size:15px;font-weight:500;margin-top:4px">Ship grade-suica. Retire the cream mocks.</div></div>
+    <div class="lbl"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg></span> next steps in thread</div>
+  </div>
+
+  <footer>
+    <span>São Paulo, BR · © 2026</span>
+    <span>Generated summary</span>
+  </footer>
+
+</div>
+</body>
+</html>

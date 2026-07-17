@@ -1,0 +1,6 @@
+packages:
+  - app
+  - cloud
+  - web
+
+saveExact: true

@@ -1,0 +1,78 @@
+name: Build continuous release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: continuous-release
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    name: Build macOS artifacts
+    runs-on: macos-14
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 10.29.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Rust targets
+        run: |
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-apple-darwin
+
+      - name: Verify Go and Worker
+        run: |
+          go vet ./...
+          go build ./...
+          pnpm --filter lattice-share typecheck
+
+      - name: Build website
+        run: |
+          pnpm --filter lattice-web build
+
+      - name: Build universal macOS app
+        run: |
+          pnpm --filter lattice-app exec tauri build --target universal-apple-darwin
+
+      - name: Prepare stable release assets
+        run: |
+          mkdir -p release
+          cp app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg release/Lattice.dmg
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o release/lattice-darwin-arm64 ./cmd/lattice
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o release/lattice-darwin-amd64 ./cmd/lattice
+          shasum -a 256 release/* > release/SHA256SUMS.txt
+
+      - name: Publish continuous release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf 'Automated build from [`%s`](https://github.com/%s/commit/%s).\n\nUnsigned development build for macOS.\n' "${GITHUB_SHA::7}" "$GITHUB_REPOSITORY" "$GITHUB_SHA" > release-notes.md
+          gh release view continuous >/dev/null 2>&1 || gh release create continuous --title "Continuous build" --prerelease --notes-file release-notes.md
+          gh release upload continuous release/* --clobber
+          gh release edit continuous --title "Continuous build" --prerelease --notes-file release-notes.md
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/continuous" -f sha="$GITHUB_SHA" -F force=true

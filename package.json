@@ -1,0 +1,14 @@
+{
+  "name": "lattice",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.29.3",
+  "scripts": {
+    "build": "pnpm --filter lattice-app build && pnpm --filter lattice-web build && pnpm --filter lattice-share typecheck",
+    "app": "pnpm --filter lattice-app dev",
+    "web": "pnpm --filter lattice-web dev",
+    "web:build": "pnpm --filter lattice-web build",
+    "cloud:dev": "pnpm --filter lattice-share dev",
+    "cloud:typecheck": "pnpm --filter lattice-share typecheck"
+  }
+}

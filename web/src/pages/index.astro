@@ -1,0 +1,289 @@
+---
+import '@phosphor-icons/web/regular';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
+import '../styles/global.css';
+
+const releaseBase = 'https://github.com/yeksax/lattice/releases/download/continuous';
+const githubUrl = 'https://github.com/yeksax/lattice';
+const skillBase = 'https://raw.githubusercontent.com/yeksax/lattice/main/skills/html-summary';
+
+const shelf = [
+  'q3-infra-review.html',
+  'auth-audit.html',
+  'migration-plan.html',
+  'api-bakeoff.html',
+  'latency-notes.html',
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Lattice keeps the HTML your agents write on your machine. Search it, open it, and share only what you choose."
+    />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f4f4" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c0c0c" />
+    <meta property="og:title" content="Lattice" />
+    <meta property="og:description" content="A local library for the HTML your agents write." />
+    <meta property="og:url" content="https://lattice.pub/" />
+    <meta property="og:type" content="website" />
+    <link rel="canonical" href="https://lattice.pub/" />
+    <title>Lattice | Keep the HTML your agents write</title>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="wordmark" href="/">lattice</a>
+        <nav aria-label="Primary">
+          <a href="#thesis">Why</a>
+          <a href="#how">Loop</a>
+          <a href="#skill">Skill</a>
+          <a href="/download">Download</a>
+          <a href={githubUrl} rel="noopener noreferrer">
+            GitHub
+            <i class="ph ph-arrow-up-right" aria-hidden="true"></i>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-brand">
+        <div class="hero-media" aria-hidden="true">
+          <picture>
+            <source srcset="/hero-documents.webp" type="image/webp" />
+            <img
+              src="/hero-documents.jpg"
+              alt=""
+              width="1536"
+              height="1024"
+              fetchpriority="high"
+              decoding="async"
+            />
+          </picture>
+          <div class="hero-scrim"></div>
+        </div>
+
+        <div class="wrap">
+          <div class="hero-content">
+            <p class="hero-brand reveal" id="hero-brand">lattice</p>
+            <h1 class="reveal delay-1">Your agents write HTML. Keep it.</h1>
+            <p class="hero-lede reveal delay-2">
+              A local library for agent-made documents. Find them fast. Share only what you mean to.
+            </p>
+            <div class="actions reveal delay-3">
+              <a class="button primary" data-platform-cta href="/download">
+                <i class="ph ph-download-simple" data-platform-cta-icon aria-hidden="true"></i>
+                <span data-platform-cta-label>Download</span>
+              </a>
+              <a class="button ghost" href={githubUrl} rel="noopener noreferrer">
+                View source
+                <i class="ph ph-arrow-up-right" aria-hidden="true"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="thesis wrap" id="thesis">
+        <h2 class="reveal">Chat is the scratchpad. The document is the keep.</h2>
+        <p class="thesis-body reveal delay-1">
+          Agents draft plans, audits, and reports that vanish into threads.
+          Lattice indexes standalone HTML on your disk so the useful output stays searchable, inspectable, and yours.
+        </p>
+
+        <dl class="compare reveal delay-2">
+          <div class="compare-row">
+            <dt>In chat</dt>
+            <dd>The useful version is buried in a thread. Hard to find. Easy to lose.</dd>
+          </div>
+          <div class="compare-row is-keep">
+            <dt>In Lattice</dt>
+            <dd>The same work is a file on disk. Searchable. Openable. Yours.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <!-- Library as a shelf of real paths, not an app chrome -->
+      <section class="library wrap" aria-labelledby="library-heading">
+        <div class="section-head reveal">
+          <h2 id="library-heading">Stop scrolling the chat. Search the shelf.</h2>
+          <p>
+            Every summary is a real file under <code>~/.summaries</code>. Hover a path to pick it out of the stack.
+          </p>
+        </div>
+
+        <ul class="shelf reveal delay-1" data-shelf>
+          {
+            shelf.map((file) => (
+              <li class="shelf-item" tabindex="0">
+                <span class="shelf-root" aria-hidden="true">~/.summaries/</span>
+                <span class="shelf-file">{file}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <!-- Principles -->
+      <section class="principles wrap" aria-label="What you get">
+        <div class="principle-visual reveal">
+          <picture>
+            <source srcset="/local-machine.webp" type="image/webp" />
+            <img
+              src="/local-machine.jpg"
+              alt=""
+              width="1536"
+              height="1024"
+              loading="lazy"
+              decoding="async"
+            />
+          </picture>
+          <div class="principle-visual-copy">
+            <h2>Local by default.</h2>
+            <p>Offline is the happy path. The library lives on your machine, not someone else's vault.</p>
+          </div>
+        </div>
+
+        <ul class="principle-list">
+          <li class="principle reveal" data-principle>
+            <button type="button" class="principle-trigger">
+              <span class="principle-title">Filesystem is truth</span>
+              <i class="ph ph-caret-down" aria-hidden="true"></i>
+            </button>
+            <p class="principle-body">
+              Edit the HTML anywhere. Lattice follows the file, not a copy locked in a database.
+            </p>
+          </li>
+          <li class="principle reveal delay-1" data-principle>
+            <button type="button" class="principle-trigger">
+              <span class="principle-title">One small daemon</span>
+              <i class="ph ph-caret-down" aria-hidden="true"></i>
+            </button>
+            <p class="principle-body">
+              Search, hot reload, CLI, and a native macOS menu bar app. Quiet until you need it.
+            </p>
+          </li>
+          <li class="principle reveal delay-2" data-principle>
+            <button type="button" class="principle-trigger">
+              <span class="principle-title">Share is a choice</span>
+              <i class="ph ph-caret-down" aria-hidden="true"></i>
+            </button>
+            <p class="principle-body">
+              Publish one immutable snapshot. The rest of the library never leaves the machine.
+            </p>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Loop: hover verbs to type the command -->
+      <section class="loop wrap" id="how">
+        <h2 class="reveal">Three verbs. One loop.</h2>
+        <div class="loop-board reveal delay-1" data-loop>
+          <div class="loop-verbs" role="tablist" aria-label="Lattice commands">
+            <button type="button" class="loop-verb is-active" role="tab" aria-selected="true" data-verb="add">
+              add
+            </button>
+            <button type="button" class="loop-verb" role="tab" aria-selected="false" data-verb="open">
+              open
+            </button>
+            <button type="button" class="loop-verb" role="tab" aria-selected="false" data-verb="share">
+              share
+            </button>
+          </div>
+          <div class="loop-panel" role="tabpanel">
+            <pre class="loop-terminal" aria-live="polite"><code id="loop-line"><span class="prompt">$</span> <span id="loop-cmd">lattice add report.html</span><span class="caret" aria-hidden="true"></span></code></pre>
+            <p class="loop-explain" id="loop-explain">
+              Symlink, metadata, full-text index. The file stays where you put it.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="skill wrap" id="skill">
+        <div class="section-head reveal">
+          <h2>Teach the agent once with <code>/html-summary</code></h2>
+          <p>
+            House style: one self-contained HTML file, readable offline, no external requests.
+            Last step registers it in Lattice when the daemon is around.
+          </p>
+        </div>
+
+        <div class="skill-row reveal delay-1">
+          <div class="skill-copy">
+            <p>
+              No daemon? You still get a clean standalone document. Install the skill alone if you want.
+            </p>
+            <a class="text-cta" href={`${githubUrl}/tree/main/skills/html-summary`}>
+              Read the skill source
+              <i class="ph ph-arrow-right" aria-hidden="true"></i>
+            </a>
+          </div>
+          <div class="install-block" aria-label="Install the companion skill">
+            <div class="install-head">
+              <span>install skill</span>
+              <button type="button" class="copy-btn" data-copy-install>
+                <i class="ph ph-copy" aria-hidden="true"></i>
+                <span data-copy-label>Copy</span>
+              </button>
+            </div>
+            <pre id="install-code"><code>mkdir -p ~/.claude/skills/html-summary
+curl -fsSL {skillBase}/SKILL.md \
+  -o ~/.claude/skills/html-summary/SKILL.md
+curl -fsSL {skillBase}/template.html \
+  -o ~/.claude/skills/html-summary/template.html</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="contract wrap" aria-label="Product contract">
+        <h2 class="reveal">Open source local tool. Hosted share is optional.</h2>
+        <ul class="contract-list reveal delay-1">
+          <li><i class="ph ph-check" aria-hidden="true"></i> Plain HTML in</li>
+          <li><i class="ph ph-check" aria-hidden="true"></i> Plain HTML out</li>
+          <li><i class="ph ph-check" aria-hidden="true"></i> Local by default</li>
+          <li><i class="ph ph-check" aria-hidden="true"></i> Sharing by consent</li>
+        </ul>
+        <a class="text-cta reveal delay-2" href={githubUrl} rel="noopener noreferrer">
+          Browse the source
+          <i class="ph ph-arrow-right" aria-hidden="true"></i>
+        </a>
+      </section>
+
+      <section class="cta-band">
+        <div class="wrap cta-inner reveal">
+          <h2>Keep the work.</h2>
+          <p>Open source. macOS now. Windows and Linux soon.</p>
+          <div class="actions">
+            <a class="button primary invert" data-platform-cta href="/download">
+              <i class="ph ph-download-simple" data-platform-cta-icon aria-hidden="true"></i>
+              <span data-platform-cta-label>Download</span>
+            </a>
+            <a class="text-link" data-platform-mac-only href={`${releaseBase}/lattice-darwin-arm64`}>
+              macOS CLI
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="wordmark" href="/">lattice</a>
+        <p>Documents worth keeping.</p>
+        <a href={githubUrl} rel="noopener noreferrer">GitHub</a>
+      </div>
+    </footer>
+
+    <script>
+      import '../scripts/landing.ts';
+    </script>
+  </body>
+</html>

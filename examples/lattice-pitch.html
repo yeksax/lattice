@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lattice - um lar para o HTML que seus agentes escrevem</title>
+<style>
+  :root{
+    --bg:#ffffff; --bg-sub:#fafafa;
+    --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
+    --line:#e4e4e4; --line-2:#111111;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#242424; --line-2:#f2f2f2;
+  }}
+  :root[data-theme="light"]{--bg:#fff;--bg-sub:#fafafa;--ink:#111;--ink-2:#555;--muted:#8a8a8a;--line:#e4e4e4;--line-2:#111}
+  :root[data-theme="dark"]{--bg:#0b0b0b;--bg-sub:#141414;--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#7d7d7d;--line:#242424;--line-2:#f2f2f2}
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:13.5px/1.5 var(--mono);
+    font-variant-numeric:tabular-nums;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+  header{
+    display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+    padding:18px 0;border-bottom:1px solid var(--line-2);
+  }
+  .brand{font-weight:500}
+  .brand .v{color:var(--muted);font-size:11px;margin-left:8px}
+  .meta{color:var(--muted);font-size:11px}
+  .toggle{
+    font:inherit;font-size:11px;
+    background:none;border:1px solid var(--line);color:var(--ink);
+    padding:4px 10px;cursor:pointer;
+  }
+  .toggle:hover{border-color:var(--line-2)}
+
+  section{padding:40px 0 8px}
+  .eyebrow{font-size:11px;color:var(--muted);margin:0 0 10px}
+  h1{font-size:25px;font-weight:500;margin:0 0 10px;max-width:26ch}
+  h2{font-size:17px;font-weight:500;margin:0 0 6px}
+  h3{font-size:13.5px;font-weight:500;margin:0 0 6px}
+  p{margin:0 0 12px;color:var(--ink-2);max-width:72ch}
+  a{color:var(--ink);text-underline-offset:3px}
+  code{background:var(--bg-sub);border:1px solid var(--line);padding:1px 5px;font-size:12px;color:var(--ink)}
+  .lead{font-size:15px;color:var(--ink);max-width:66ch}
+
+  .metrics{display:flex;flex-wrap:wrap;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:22px}
+  .metric{background:var(--bg);padding:16px 20px;flex:1 1 150px}
+  .metric .val{font-size:26px;font-weight:500}
+  .metric .val .u{font-size:13px;color:var(--muted)}
+  .metric .lbl{color:var(--muted);font-size:11px;margin-top:4px}
+
+  .grid{
+    display:grid;grid-template-columns:repeat(3,1fr);
+    gap:1px;background:var(--line);border:1px solid var(--line);margin-top:20px;
+  }
+  .grid .cell{background:var(--bg);padding:18px 18px 20px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .idx{color:var(--muted);font-size:11px}
+  .cell p{font-size:12.5px;margin:0}
+
+  table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12.5px}
+  th{text-align:left;font-weight:500;color:var(--muted);font-size:11px;padding:8px 12px;border-bottom:1px solid var(--line-2)}
+  td{padding:8px 12px;border-bottom:1px solid var(--line);color:var(--ink-2);vertical-align:top}
+  tbody tr:nth-child(even){background:var(--bg-sub)}
+  td b{color:var(--ink);font-weight:500}
+
+  .tag{display:inline-block;font-size:11px;border:1px solid var(--line);color:var(--ink-2);padding:2px 8px}
+
+  /* fluxo: A -> B -> C, o pipeline dos agentes */
+  .flow{display:flex;align-items:stretch;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:22px;flex-wrap:wrap}
+  .flow .node{background:var(--bg);padding:16px 18px;flex:1 1 200px;min-width:180px}
+  .flow .node .n{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .flow .node .n .ico{color:var(--muted)}
+  .flow .node h3{margin:8px 0 4px}
+  .flow .node p{font-size:12px;margin:0}
+
+  /* injeção: arquivo no disco vs. resposta servida */
+  .inject{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:22px}
+  .inject .col{background:var(--bg);padding:16px 18px}
+  .inject .col .hd{font-size:11px;color:var(--muted);margin-bottom:10px}
+  .inject pre{margin:0;font-size:11.5px;line-height:1.75;color:var(--ink-2);white-space:pre-wrap;word-break:break-word}
+  .inject .add{color:var(--ink);font-weight:500}
+  .inject .note{font-size:11px;color:var(--muted);margin-top:12px}
+  @media(max-width:760px){.inject{grid-template-columns:1fr}}
+
+  .ico{display:inline-flex;width:1em;height:1em;vertical-align:-.14em}
+  .ico svg{width:100%;height:100%;display:block}
+
+  .invert{background:var(--ink);color:var(--bg);padding:24px;margin-top:32px}
+  .invert .lbl{font-size:11px;opacity:.6}
+  .invert .big{font-size:16px;font-weight:500;margin-top:6px;max-width:60ch}
+  .invert code{background:transparent;border:1px solid rgba(255,255,255,.25);color:var(--bg)}
+  .invert-row{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+
+  /* enquete */
+  .poll{border:1px solid var(--line-2);margin-top:22px}
+  .poll .phd{padding:16px 18px;border-bottom:1px solid var(--line)}
+  .poll .phd h2{margin:0 0 4px}
+  .poll .phd .sub{font-size:11px;color:var(--muted)}
+  .poll .body{padding:18px}
+  .poll .name{display:block;margin-bottom:14px}
+  .poll .name input{
+    font:inherit;font-size:12.5px;background:var(--bg);color:var(--ink);
+    border:1px solid var(--line);padding:7px 10px;width:min(280px,100%);
+  }
+  .poll .name input:focus{outline:0;border-color:var(--line-2)}
+  .poll .name .cap{display:block;font-size:11px;color:var(--muted);margin-bottom:6px}
+  .choices{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line)}
+  .choice{
+    background:var(--bg);border:0;text-align:left;font:inherit;font-size:12.5px;color:var(--ink);
+    padding:13px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;
+    transition:background .12s ease-out;
+  }
+  .choice:hover{background:var(--bg-sub)}
+  .choice .key{font-size:11px;color:var(--muted);border:1px solid var(--line);padding:1px 7px;min-width:20px;text-align:center}
+  .choice .txt b{font-weight:500}
+  .choice .txt span{color:var(--ink-2);font-size:11.5px}
+  .choice[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+  .choice[aria-pressed="true"] .key{border-color:rgba(255,255,255,.3);color:var(--bg)}
+  .choice[aria-pressed="true"] .txt span{color:rgba(255,255,255,.7)}
+  .choice[disabled]{cursor:default;opacity:.55}
+  .poll .status{font-size:11px;color:var(--muted);margin-top:14px;min-height:16px}
+  .poll .status b{color:var(--ink);font-weight:500}
+  .poll .status .muted{color:var(--muted)}
+  /* resultado: preenchimento proporcional em tinta atrás de cada linha + % · contagem */
+  .choice{position:relative;overflow:hidden}
+  .choice .bar{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ink);opacity:.12;
+    transition:width .4s ease-out;pointer-events:none}
+  .choice .key,.choice .txt,.choice .pct{position:relative;z-index:1}
+  .choice .pct{margin-left:auto;padding-left:12px;font-size:11.5px;color:var(--ink-2);white-space:nowrap;
+    font-variant-numeric:tabular-nums;opacity:0;transition:opacity .2s ease-out}
+  .choice .pct b{color:var(--ink);font-weight:500}
+  .poll.voted .choice .pct{opacity:1}
+  .poll.voted .choice.mine .bar{opacity:.2}
+  .poll.voted .choice.mine .key{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  /* no modo resultado, mantém as barras visíveis - não inverte a linha escolhida */
+  .poll.voted .choice[aria-pressed="true"]{background:var(--bg);color:var(--ink)}
+  .poll.voted .choice[aria-pressed="true"] .txt span{color:var(--ink-2)}
+
+  footer{margin-top:36px;padding:24px 0;border-top:1px solid var(--line-2);color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  footer code{background:transparent;border:0;padding:0;color:var(--ink-2)}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">lattice<span class="v">go · um binário · 127.0.0.1:4600</span></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="meta">2026-07-14</span>
+      <button class="toggle" onclick="var r=document.documentElement;r.dataset.theme=r.dataset.theme==='dark'?'light':'dark'">tema</button>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">01 - A ideia</p>
+    <h1>Um lar para o HTML que seus agentes escrevem.</h1>
+    <p class="lead">Seu agente de código vive produzindo HTML de arquivo único -
+      relatórios, bake-offs, resumos de status, páginas de comparação. Eles se
+      espalham pelo <code>~/Downloads</code>, por threads de chat e abas mortas.
+      O <b>lattice</b> é um daemon Go minúsculo que é dono do
+      <code>~/.summaries/</code> e transforma essa pilha numa base de conhecimento
+      local, buscável e sempre no ar - servida em
+      <code>http://127.0.0.1:4600</code>, rodando 24/7 sob o launchd.</p>
+    <div class="metrics">
+      <div class="metric"><div class="val">1</div><div class="lbl">binário - servidor + CLI</div></div>
+      <div class="metric"><div class="val">0</div><div class="lbl">bancos de dados</div></div>
+      <div class="metric"><div class="val">~1.650</div><div class="lbl">linhas de Go</div></div>
+      <div class="metric"><div class="val">0<span class="u"> ms</span></div><div class="lbl">passo de build</div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">02 - Por que é diferente</p>
+    <h2>O filesystem é o banco de dados.</h2>
+    <p>Sem Postgres, sem índice SQLite pra corromper, sem migration. Todo summary
+      é um <b>symlink pro arquivo original</b> - dá <code>ln -s</code> ou
+      <code>rm</code> na mão e o lattice se reconcilia. O índice de busca vive na
+      memória, é reconstruído no start e mantido fresco com fsnotify. Nada é
+      copiado; o original nunca é tocado.</p>
+    <div class="grid">
+      <div class="cell"><div class="idx">01</div><h3>Hot reload, sem piscar</h3><p>Abrir <code>/s/&lt;slug&gt;</code> injeta um cliente <i>só na resposta</i>. Edita o arquivo-fonte e o DOM ao vivo faz morph no lugar - os arquivos no disco continuam intactos.</p></div>
+      <div class="cell"><div class="idx">02</div><h3>Nome local bonito</h3><p>Também responde na porta 80, então o browser chega por <code>summaries.localhost</code> - protegido pra só loopback, sem editar <code>/etc/hosts</code>.</p></div>
+      <div class="cell"><div class="idx">03</div><h3>Compartilhe exatamente um</h3><p><code>lattice share &lt;slug&gt;</code> põe um único summary em <code>&lt;slug&gt;.example.dev</code> por um túnel Cloudflare. Porta própria, listener próprio - o dashboard e todo o resto ficam inalcançáveis por construção.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">03 - A sacada</p>
+    <h2>O lattice nunca toca no seu arquivo. Ele injeta na resposta.</h2>
+    <p>Esse é o truque que faz tudo funcionar. No disco, cada summary continua
+      sendo um <code>.html</code> único, offline, compartilhável - do jeitinho que
+      seu agente escreveu. Quando você abre <code>/s/&lt;slug&gt;</code>, o lattice
+      insere alguns <code>&lt;script&gt;</code> <b>só na resposta HTTP</b>, nunca no
+      arquivo. Uma ideia só, e ela entrega duas coisas: o <b>hot reload</b> e o
+      <b>bridge de enquetes</b>. Peça <code>?raw=1</code> (ou o
+      <b>download</b>) e você recebe os bytes originais, sem nada injetado.</p>
+    <div class="inject">
+      <div class="col">
+        <div class="hd">no disco - ~/.summaries/&lt;slug&gt;.html</div>
+<pre>&lt;!doctype html&gt;
+&lt;h1&gt;Bake-off&lt;/h1&gt;
+  … seu conteúdo …
+&lt;/body&gt;</pre>
+        <div class="note">intacto. é isso que <code>lattice share</code> e o download entregam.</div>
+      </div>
+      <div class="col">
+        <div class="hd">na resposta de /s/&lt;slug&gt;</div>
+<pre>&lt;!doctype html&gt;
+&lt;h1&gt;Bake-off&lt;/h1&gt;
+  … seu conteúdo …
+<span class="add">+ &lt;script id="lattice-poll"&gt;…&lt;/script&gt;</span>
+<span class="add">+ &lt;script id="lattice-reload"&gt;…&lt;/script&gt;</span>
+&lt;/body&gt;</pre>
+        <div class="note">injetado só aqui. o arquivo no disco nunca muda.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">04 - Interatividade</p>
+    <h2>Bake-offs que colhem votos de verdade.</h2>
+    <p>O script injetado entrega pra página um <code>window.lattice</code>. A
+      página chama <code>submit()</code> pra registrar um voto e
+      <code>results()</code> pra ler o agregado ao vivo - sem código de export,
+      sem colar voto no chat, sem planilha. Cada navegador ganha um id de votante
+      persistente, então recarregar não conta duas vezes e votar de novo
+      <b>troca</b> o voto. Aposentou de vez aquele esquema de "copie seu código e
+      me manda".</p>
+    <div class="grid">
+      <div class="cell"><div class="idx">01</div><h3>Enquete ao vivo</h3><p>Votou → a % aparece na hora em barras. Dá pra mudar de ideia, e o resultado <b>persiste no reload</b>. É exatamente o que rola aqui embaixo.</p></div>
+      <div class="cell"><div class="idx">02</div><h3>Bake-off cego</h3><p>Um voto por case, resultado <b>escondido até o fim</b>. Votos parciais são salvos, então recarregar no meio retoma de onde parou.</p></div>
+      <div class="cell"><div class="idx">03</div><h3>Privado por construção</h3><p><code>GET /results</code> devolve <b>só contagem</b> - nunca IP nem quem votou. O voto cru vira JSONL em <code>~/.summaries/.lattice/polls/</code>; some com <code>lattice results</code>.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">05 - O que importa</p>
+    <h2>Tudo que seus agentes produzem cai no seu contexto imediato.</h2>
+    <p>O lattice vem com um <b>skill</b> companheiro (<code>html-summary</code>).
+      Qualquer agente que você roda - Claude Code, um subagente, um cron - invoca
+      ele sempre que monta um relatório, e o último passo desse skill é
+      <code>lattice add</code>. Então a saída não é entregue pra você e perdida:
+      <b>ela se registra sozinha na base de conhecimento.</b></p>
+    <p>A consequência é a tese. Seu <code>~/.summaries</code> deixa de ser uma
+      pasta e vira o <b>contexto imediato e compartilhado de todo agente que você
+      roda</b> - cada um escreve na mesma superfície local e buscável no instante
+      em que termina, e qualquer outro agente (e você) lê de volta no segundo
+      seguinte. Sem copiar-colar, sem re-subir arquivo pro próximo agente
+      enxergar. Os agentes constroem a base de conhecimento como efeito colateral
+      de trabalhar.</p>
+    <div class="flow">
+      <div class="node">
+        <div class="n"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span> agente</div>
+        <h3>escreve um summary</h3>
+        <p>Um <code>.html</code> autocontido, na house style, zero asset externo.</p>
+      </div>
+      <div class="node">
+        <div class="n"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg></span> skill</div>
+        <h3>roda <code>lattice add</code></h3>
+        <p>Faz o symlink, taggeia, indexa - sem passo humano no meio.</p>
+      </div>
+      <div class="node">
+        <div class="n"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/></svg></span> lattice</div>
+        <h3>contexto imediato</h3>
+        <p>Buscável, com hot reload, ao vivo em <code>127.0.0.1:4600</code> pra você e pro próximo agente.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">06 - Na prática</p>
+    <h2>Toda a superfície</h2>
+    <table>
+      <thead><tr><th>Faça isso</th><th>Ganhe</th></tr></thead>
+      <tbody>
+        <tr><td><b>lattice add</b> report.html --tags infra,q3</td><td>Symlink + indexado + aberto no browser.</td></tr>
+        <tr><td><b>lattice ls</b></td><td>Todo summary, mais novo primeiro.</td></tr>
+        <tr><td><b>lattice open</b> [slug]</td><td>O dashboard, ou um summary com hot reload.</td></tr>
+        <tr><td><b>lattice share</b> slug --random</td><td>URL pública via Cloudflare; bridge de enquete injetado.</td></tr>
+        <tr><td><b>lattice shares</b></td><td>Shares ativos + contagem de votos.</td></tr>
+        <tr><td><b>lattice results</b> slug</td><td>Cada voto como JSONL - timestamp, IP, UA.</td></tr>
+        <tr><td><b>lattice unshare</b> slug</td><td>Para de compartilhar. Os votos ficam guardados.</td></tr>
+        <tr><td><b>summaries.localhost</b></td><td>O dashboard na porta 80, só loopback.</td></tr>
+        <tr><td><b>rm ~/.summaries/slug</b></td><td>Sumiu. O arquivo original nunca é ferido.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <p class="eyebrow">07 - Sua vez</p>
+    <div class="poll" id="poll">
+      <div class="phd">
+        <h2>Você rodaria isso no seu PC?</h2>
+        <div class="sub">Um daemon local dono do HTML que seus agentes geram. Respostas honestas - essa é uma enquete ao vivo, e é o próprio lattice colhendo os votos.</div>
+      </div>
+      <div class="body">
+        <label class="name">
+          <span class="cap">nome (opcional)</span>
+          <input id="voter" type="text" autocomplete="name" placeholder="quem tá votando" maxlength="60">
+        </label>
+        <div class="choices" role="group" aria-label="Você rodaria o lattice">
+          <button class="choice" data-choice="yes-today">
+            <span class="key">a</span>
+            <span class="txt"><b>Sim - instalaria hoje.</b> <span>é um problema que eu tenho de verdade.</span></span>
+          </button>
+          <button class="choice" data-choice="yes-packaged">
+            <span class="key">b</span>
+            <span class="txt"><b>Sim, se fosse empacotado.</b> <span>brew install / binário assinado e tô dentro.</span></span>
+          </button>
+          <button class="choice" data-choice="maybe">
+            <span class="key">c</span>
+            <span class="txt"><b>Talvez - me mostra mais.</b> <span>curioso, mas não convencido ainda.</span></span>
+          </button>
+          <button class="choice" data-choice="no">
+            <span class="key">d</span>
+            <span class="txt"><b>Não.</b> <span>uma pasta e um browser me bastam.</span></span>
+          </button>
+        </div>
+        <div class="status" id="pollStatus" aria-live="polite">Escolha uma - o resultado aparece na hora que você vota, e dá pra mudar de ideia.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="invert">
+    <div class="invert-row">
+      <div>
+        <div class="lbl">Instala - roda 24/7 sob o launchd</div>
+        <div class="big"><code>make install</code> → compila, joga o binário em <code>~/.local/bin</code>, sobe o LaunchAgent. É esse o setup inteiro.</div>
+      </div>
+      <div class="lbl"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg></span> depois é só <code>lattice add</code></div>
+    </div>
+  </div>
+
+  <footer>
+    <span>lattice · base de conhecimento pessoal para HTML de arquivo único · São Paulo, BR</span>
+    <span><code>github.com/yeksax/lattice</code></span>
+  </footer>
+
+</div>
+
+<script>
+(() => {
+  const POLL = 'would-you-run-it';
+  const poll = document.getElementById('poll');
+  const buttons = [...document.querySelectorAll('.choice')];
+  const status = document.getElementById('pollStatus');
+  const voter = document.getElementById('voter');
+
+  const label = { 'yes-today':'Sim, instalar hoje', 'yes-packaged':'Sim, se empacotado',
+                  'maybe':'Talvez', 'no':'Não' };
+
+  // dá a cada linha uma barra de preenchimento + um slot de % (fora do arquivo
+  // compartilhável - o markup fica limpo; isso é injetado em runtime)
+  buttons.forEach(b => {
+    b.insertAdjacentHTML('afterbegin', '<span class="bar" aria-hidden="true"></span>');
+    b.insertAdjacentHTML('beforeend', '<span class="pct"></span>');
+  });
+
+  // pinta o agregado: preenche cada linha com sua fatia, marca o meu voto
+  function render(agg, mine) {
+    const q = (agg && agg.polls && agg.polls[POLL]) || { total: 0, counts: {} };
+    const total = q.total || 0;
+    poll.classList.add('voted');
+    buttons.forEach(b => {
+      const c = b.dataset.choice, n = (q.counts && q.counts[c]) || 0;
+      const pct = total ? Math.round(n / total * 100) : 0;
+      b.querySelector('.bar').style.width = pct + '%';
+      const isMine = c === mine;
+      b.classList.toggle('mine', isMine);
+      b.setAttribute('aria-pressed', isMine ? 'true' : 'false');
+      b.querySelector('.pct').innerHTML = '<b>' + pct + '%</b> · ' + n + (isMine ? ' · você' : '');
+    });
+    const v = agg && agg.voters || 0;
+    status.innerHTML = 'Você votou <b>' + (label[mine] || mine) +
+      '</b> - clique em outra pra mudar. <span class="muted">' +
+      (v ? v + (v === 1 ? ' voto' : ' votos') + ' até agora' : '') + '</span>';
+  }
+
+  async function refresh(mine) { render(await window.lattice.results(), mine); }
+
+  async function vote(choice) {
+    // O bridge é injetado no fim do <body> em tempo de request - cheque na hora
+    // do voto, não no load. Aberto como arquivo cru, degrada com elegância.
+    if (!(window.lattice && window.lattice.poll)) {
+      poll.classList.add('voted');
+      buttons.forEach(b => b.setAttribute('aria-pressed', b.dataset.choice === choice ? 'true' : 'false'));
+      status.innerHTML = 'Você escolheu <b>' + (label[choice] || choice) +
+        '</b>. Esse arquivo está aberto fora do lattice, então nada foi registrado - ' +
+        'abra pelo link do lattice pra valer o voto.';
+      return;
+    }
+    status.textContent = 'registrando…';
+    const ok = await window.lattice.submit({ poll: POLL, choice, name: (voter.value || '').trim() || 'anon' });
+    if (!ok) { status.innerHTML = 'Deu ruim na rede - <b>toque de novo</b> pra tentar.'; return; }
+    await refresh(choice); // já inclui o voto recém-dado
+  }
+
+  buttons.forEach(b => b.addEventListener('click', () => vote(b.dataset.choice)));
+
+  // teclado: a/b/c/d escolhe (e re-escolher muda o voto)
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || document.activeElement === voter) return;
+    const i = { a:0, b:1, c:2, d:3 }[e.key.toLowerCase()];
+    if (i != null && buttons[i]) buttons[i].click();
+  });
+
+  // persiste entre reloads: se este navegador já votou → mostra o resultado agora.
+  // O bridge é injetado DEPOIS deste script, então espere o lattice:ready em vez
+  // de ler window.lattice de forma síncrona aqui.
+  const restore = () => { const mine = window.lattice.recall(POLL); if (mine) refresh(mine); };
+  if (window.lattice && window.lattice.poll) restore();
+  else document.addEventListener('lattice:ready', restore, { once: true });
+})();
+</script>
+</body>
+</html>

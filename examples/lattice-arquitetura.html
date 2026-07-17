@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lattice - o que é e como funciona</title>
+<meta name="description" content="Documento técnico do lattice: daemon Go que transforma ~/.summaries num knowledge base de sumários HTML, com hot reload, busca e compartilhamento público via túnel.">
+<style>
+  :root{
+    --bg:#ffffff; --bg-sub:#fafafa;
+    --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
+    --line:#e4e4e4; --line-2:#111111;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#242424; --line-2:#f2f2f2;
+  }}
+  :root[data-theme="light"]{--bg:#fff;--bg-sub:#fafafa;--ink:#111;--ink-2:#555;--muted:#8a8a8a;--line:#e4e4e4;--line-2:#111}
+  :root[data-theme="dark"]{--bg:#0b0b0b;--bg-sub:#141414;--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#7d7d7d;--line:#242424;--line-2:#f2f2f2}
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:13.5px/1.5 var(--mono);
+    font-variant-numeric:tabular-nums;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+  header{
+    display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+    padding:18px 0;border-bottom:1px solid var(--line-2);
+  }
+  .brand{font-weight:500}
+  .meta{color:var(--muted);font-size:11px}
+  .toggle{
+    font:inherit;font-size:11px;
+    background:none;border:1px solid var(--line);color:var(--ink);
+    padding:4px 10px;cursor:pointer;
+  }
+  .toggle:hover{border-color:var(--line-2)}
+
+  section{padding:40px 0 8px}
+  .eyebrow{font-size:11px;color:var(--muted);margin:0 0 10px}
+  h1{font-size:24px;font-weight:500;margin:0 0 8px}
+  h2{font-size:17px;font-weight:500;margin:0 0 6px}
+  h3{font-size:13.5px;font-weight:500;margin:0 0 6px}
+  p{margin:0 0 12px;color:var(--ink-2);max-width:72ch}
+  a{color:var(--ink);text-underline-offset:3px}
+  code{font-family:var(--mono);background:var(--bg-sub);border:1px solid var(--line);padding:0 4px}
+
+  .grid{
+    display:grid;grid-template-columns:repeat(3,1fr);
+    gap:1px;background:var(--line);border:1px solid var(--line);margin-top:20px;
+  }
+  .grid.two{grid-template-columns:repeat(2,1fr)}
+  .grid .cell{background:var(--bg);padding:18px 18px 20px}
+  .grid .cell p{font-size:12.5px;margin-bottom:0}
+  @media(max-width:760px){.grid,.grid.two{grid-template-columns:1fr}}
+  .idx{color:var(--muted);font-size:11px}
+
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+  th{
+    text-align:left;font-weight:500;color:var(--muted);font-size:11px;
+    padding:8px 12px;border-bottom:1px solid var(--line-2);
+  }
+  td{padding:8px 12px;border-bottom:1px solid var(--line);color:var(--ink-2);vertical-align:top}
+  td b{color:var(--ink);font-weight:500}
+  tbody tr:nth-child(even){background:var(--bg-sub)}
+  td.num,th.num{text-align:right}
+  .scroll{overflow-x:auto}
+
+  .tag{display:inline-block;font-size:11px;border:1px solid var(--line);color:var(--ink-2);padding:2px 8px}
+
+  .metrics{display:flex;flex-wrap:wrap;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:20px}
+  .metric{background:var(--bg);padding:16px 20px;flex:1 1 150px}
+  .metric .val{font-size:26px;font-weight:500}
+  .metric .val span{font-size:13px;color:var(--muted)}
+  .metric .lbl{color:var(--muted);font-size:11px;margin-top:4px}
+
+  .bar{display:flex;width:100%;height:8px;gap:2px;overflow:hidden;background:var(--bg-sub);border:1px solid var(--line)}
+  .seg{min-width:2px;height:100%;background:var(--ink)}
+  .seg.s2{opacity:.72} .seg.s3{opacity:.52} .seg.s4{opacity:.34}
+
+  .discloses{display:flex;gap:20px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap}
+  .disclose{position:relative;outline:0}
+  .disclose>.summary{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);cursor:pointer}
+  .disclose>.summary b{color:var(--ink);font-weight:500}
+  .disclose>.summary .caret{display:inline-flex;color:var(--muted);transition:transform .14s ease-out,color .14s ease-out}
+  .disclose>.summary .caret svg{width:12px;height:12px;display:block}
+  .disclose:hover>.summary .caret,.disclose:focus-within>.summary .caret{transform:rotate(180deg);color:var(--ink)}
+  .disclose:hover>.summary,.disclose:focus-within>.summary{color:var(--ink)}
+  .pop{
+    position:absolute;right:0;bottom:calc(100% + 10px);width:min(420px,calc(100vw - 40px));
+    border:1px solid var(--line-2);background:var(--bg);padding:16px;
+    opacity:0;visibility:hidden;transform:translateY(4px);pointer-events:none;
+    transition:opacity .14s ease-out,transform .14s ease-out;z-index:8;
+  }
+  .disclose:hover .pop,.disclose:focus-within .pop{opacity:1;visibility:visible;transform:none}
+  .pop .row{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-2);padding:5px 0;gap:16px}
+  .pop .row+.row{border-top:1px solid var(--line)}
+  .pop .dot{display:inline-block;width:8px;height:8px;margin-right:8px;vertical-align:1px;background:var(--ink)}
+  .pop .dot.s2{opacity:.72} .pop .dot.s3{opacity:.52} .pop .dot.s4{opacity:.34}
+
+  .invert{background:var(--ink);color:var(--bg);padding:24px;margin-top:32px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+  .invert .lbl{font-size:11px;opacity:.6}
+
+  pre{
+    background:var(--bg-sub);border:1px solid var(--line);
+    padding:14px 16px;overflow-x:auto;font-size:12px;line-height:1.6;
+    color:var(--ink-2);margin:14px 0 0;
+  }
+  pre b{color:var(--ink);font-weight:500}
+
+  /* ---- comparativo: o mesmo plano em .md e como sumário ---- */
+  .compare{border:1px solid var(--line);margin-top:20px}
+  .tabs{display:flex;border-bottom:1px solid var(--line)}
+  .tabs button{
+    font:inherit;font-size:11px;background:none;border:0;
+    border-right:1px solid var(--line);color:var(--muted);
+    padding:10px 16px;cursor:pointer;
+  }
+  .tabs button:hover{color:var(--ink);background:var(--bg-sub)}
+  .tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+  .tabs .hint{margin-left:auto;align-self:center;padding:0 16px;font-size:11px;color:var(--muted)}
+  .panel{display:none}
+  .panel.on{display:block}
+  .panel pre{margin:0;border:0;background:var(--bg-sub);max-height:300px;overflow:auto;font-size:11.5px;color:var(--ink-2)}
+  .panel .cut{padding:8px 16px;border-top:1px solid var(--line);color:var(--muted);font-size:11px}
+  .render{padding:18px}
+  .render .rmeta{display:flex;gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:14px}
+  .render .rmeta>div{background:var(--bg);padding:10px 14px;flex:1}
+  .render .rmeta .v{font-size:18px;font-weight:500}
+  .render .rmeta .k{font-size:10px;color:var(--muted);margin-top:2px}
+  .render h4{margin:0 0 4px;font-size:13px;font-weight:500}
+  .render p{font-size:12px;margin:0 0 10px}
+  .render table{margin-top:0}
+
+  /* ---- fluxograma: árvore SVG, hairline, sem cor ---- */
+  .flowwrap{border:1px solid var(--line);margin-top:20px;padding:18px 12px 12px;overflow-x:auto}
+  .flow{display:block;width:100%;min-width:760px;height:auto;font-family:var(--mono);color:var(--ink)}
+  .flow .edge{
+    fill:none;stroke:var(--line);stroke-width:1;
+    stroke-dasharray:1;stroke-dashoffset:1;
+  }
+  .flow.drawn .edge{stroke-dashoffset:0;transition:stroke-dashoffset .45s ease-out}
+  .flow.drawn .d2{transition-delay:.12s} .flow.drawn .d3{transition-delay:.24s}
+  .flow.drawn .d4{transition-delay:.36s} .flow.drawn .d5{transition-delay:.48s}
+  /* Depois do desenho o pathLength sai (via JS) e o dash volta a ser absoluto -
+     senão cada trecho marcharia num passo diferente, proporcional ao próprio
+     comprimento. */
+  .flow.done .edge{stroke-dasharray:none;stroke-dashoffset:0;transition:none}
+  /* aceso: o traço marcha na direção do fluxo - é a informação, não enfeite */
+  .flow.done .edge.lit{stroke:var(--ink);stroke-width:1.4;stroke-dasharray:6 5;animation:march 1.4s linear infinite}
+  .flow .edge.lit{stroke:var(--ink);stroke-width:1.4}
+  @keyframes march{to{stroke-dashoffset:-11}}
+  .flow .node{cursor:pointer;outline:0;opacity:0}
+  .flow.drawn .node{opacity:1;transition:opacity .3s ease-out}
+  .flow.drawn .l2{transition-delay:.1s} .flow.drawn .l3{transition-delay:.22s}
+  .flow.drawn .l4{transition-delay:.34s} .flow.drawn .l5{transition-delay:.46s}
+  .flow .node rect{fill:var(--bg);stroke:var(--line);stroke-width:1;transition:stroke .14s ease-out,fill .14s ease-out}
+  .flow .node .t{fill:var(--ink);font-size:11.5px}
+  .flow .node .sub{fill:var(--muted);font-size:10px}
+  .flow .node.lit rect{stroke:var(--line-2)}
+  .flow .node.lit .sub{fill:var(--ink-2)}
+  .flow .node.self rect{fill:var(--ink)}
+  .flow .node.self .t{fill:var(--bg)}
+  .flow .node.self .sub{fill:var(--bg);opacity:.65}
+  .flow .node:focus-visible rect{stroke:var(--line-2);stroke-width:1.6}
+  .flownote{
+    display:flex;gap:10px;align-items:baseline;
+    margin-top:12px;padding-top:12px;border-top:1px solid var(--line);
+    font-size:11px;color:var(--ink-2);min-height:32px;
+  }
+  .flownote .who{color:var(--muted);flex:0 0 auto}
+
+  .ico{display:inline-flex;width:1em;height:1em;vertical-align:-.14em}
+  .ico svg{width:100%;height:100%;display:block}
+
+  /* ---- enquete ---- */
+  .poll{border:1px solid var(--line-2);margin-top:20px}
+  .poll .head{padding:16px 18px;border-bottom:1px solid var(--line)}
+  .poll .head h3{margin:0}
+  .poll .head .q{color:var(--muted);font-size:11px;margin-top:4px}
+  .opt{
+    position:relative;display:flex;align-items:center;gap:12px;
+    width:100%;text-align:left;font:inherit;font-size:12.5px;
+    background:none;border:0;border-bottom:1px solid var(--line);
+    color:var(--ink);padding:14px 18px;cursor:pointer;overflow:hidden;
+  }
+  .opt:last-of-type{border-bottom:0}
+  .opt:hover{background:var(--bg-sub)}
+  .opt .fill{
+    position:absolute;left:0;top:0;bottom:0;width:0;
+    background:var(--ink);opacity:.12;transition:width .18s ease-out;
+  }
+  .opt .key{
+    position:relative;display:inline-flex;align-items:center;justify-content:center;
+    width:20px;height:20px;border:1px solid var(--line-2);font-size:11px;flex:0 0 auto;
+  }
+  .opt.mine .key{background:var(--ink);color:var(--bg)}
+  .opt .txt{position:relative;flex:1}
+  .opt .you{color:var(--muted);font-size:11px}
+  .opt .pct{position:relative;color:var(--muted);font-size:11px;opacity:0;transition:opacity .18s ease-out}
+  .poll.voted .opt .pct{opacity:1}
+  .poll .foot{padding:12px 18px;border-top:1px solid var(--line);color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+  footer{margin-top:32px;padding:24px 0;border-top:1px solid var(--line-2);color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">lattice - documento técnico</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="meta">2026-07-15</span>
+      <button class="toggle" onclick="var r=document.documentElement;r.dataset.theme=r.dataset.theme==='dark'?'light':'dark'">tema</button>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">01 - o que é</p>
+    <h1>Um daemon de 1.680 linhas de Go que transforma uma pasta em knowledge base</h1>
+    <p>O lattice resolve um problema chato: você gera dezenas de sumários HTML soltos pelo
+      disco (<code>~/dev/x/relatorio.html</code>, <code>~/Downloads/bakeoff.html</code>) e nunca
+      mais acha nenhum. Ele adota <code>~/.summaries/</code> como biblioteca - cada entrada é
+      um <b>symlink pro arquivo original</b>, nunca uma cópia - indexa o texto visível de todos,
+      e serve um dashboard em <code>http://127.0.0.1:4600</code> pra navegar, ler e buscar.</p>
+    <p>Três coisas o separam de "uma pasta com um <code>python -m http.server</code> em cima":
+      <b>hot reload sem flash</b> (editar o original mistura o DOM ao vivo), <b>busca lexical</b>
+      no corpo dos documentos, e <b>compartilhamento público de um único sumário</b> por túnel
+      Cloudflare - com coleta de votos de enquete embutida. Nada disso toca o arquivo em disco.</p>
+    <div class="metrics">
+      <div class="metric"><div class="val">1.680</div><div class="lbl">linhas de Go · 7 arquivos</div></div>
+      <div class="metric"><div class="val">2</div><div class="lbl">dependências diretas</div></div>
+      <div class="metric"><div class="val">0</div><div class="lbl">bancos de dados</div></div>
+      <div class="metric"><div class="val">6,8<span> MB</span></div><div class="lbl">binário único (server + CLI)</div></div>
+      <div class="metric"><div class="val">4600</div><div class="lbl">porta · loopback</div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">02 - por que existe</p>
+    <h2>O alvo real: aposentar o arquivo de planejamento em Markdown</h2>
+    <p>Todo projeto acumula os mesmos arquivos - <code>PLANO.md</code>,
+      <code>ARQUITETURA.md</code>, <code>NOTAS.md</code>. Eles são escritos por uma máquina que
+      não se cansa, e lidos por um humano que se cansa. O resultado é sempre o mesmo: <b>massivo,
+      chato, texto demais</b>. Você rola trezentas linhas atrás de um número. Você lê a sintaxe
+      junto com o conteúdo - <code>##</code>, <code>**</code>, pipes de tabela que só viram tabela
+      na sua cabeça. Você precisa de um editor decente aberto pra que aquilo fique
+      minimamente apresentável. E nada ali te diz o que importa primeiro: cabeçalho de nível 2
+      e um item de lista perdido têm exatamente o mesmo peso visual.</p>
+    <p>A proposta destes sumários é trocar o formato do entregável. <b>Duplo clique e a
+      informação já está visualizada</b> - número grande é número grande, tabela é tabela,
+      a conclusão está em cima e o detalhe fica atrás de um hover. Sem editor, sem build, sem
+      renderizador, sem dependência. É um arquivo, e o navegador que todo mundo já tem aberto
+      sabe abrir. Quinze segundos de escaneio contra dez minutos de rolagem.</p>
+
+    <div class="compare">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tab-md" aria-controls="p-md" aria-selected="true">plano.md</button>
+        <button role="tab" id="tab-html" aria-controls="p-html" aria-selected="false">plano.html</button>
+        <span class="hint">o mesmo conteúdo, dois formatos</span>
+      </div>
+      <div class="panel on" id="p-md" role="tabpanel" aria-labelledby="tab-md">
+<pre># Plano de migração - Q3
+
+## 1. Contexto
+
+O serviço de ingestão hoje roda em três instâncias dedicadas, provisionadas
+manualmente em 2023, e o custo mensal tem crescido de forma consistente desde
+então. Este documento descreve o plano de migração para o novo runtime, os
+riscos identificados, o cronograma proposto e os critérios de aceite que
+devem ser satisfeitos antes de considerarmos a migração concluída.
+
+### 1.1 Situação atual
+
+- Três instâncias `m5.2xlarge`, provisionamento manual
+- Custo mensal atual: **$4.180** (era $2.900 em janeiro)
+- Latência p50: **340ms**; p99: **1.240ms**
+- Deploy manual, ~40 minutos de janela por release
+- Sem autoscaling; capacidade dimensionada para o pico
+
+### 1.2 Restrições
+
+> A migração não pode causar downtime na janela comercial (09h-19h BRT),
+> e o rollback precisa ser possível em menos de 5 minutos.
+
+## 2. Fases
+
+| Fase | Descrição | Duração | Risco |
+|------|-----------|---------|-------|
+| 1 | Espelhar tráfego para o novo runtime | 2 semanas | baixo |
+| 2 | Migrar 10% do tráfego real | 1 semana | médio |
+| 3 | Migrar 50% e observar | 1 semana | médio |
+| 4 | Cutover completo, manter o antigo de pé | 1 semana | alto |
+| 5 | Desprovisionar o legado | 3 dias | baixo |
+
+### 2.1 Fase 1 - espelhamento
+
+Nesta fase o tráfego de produção é duplicado para o novo runtime sem que as
+respostas sejam servidas aos clientes. O objetivo é validar paridade de
+comportamento sob carga real, coletar métricas de latência e identificar
+divergências de resposta antes de qualquer exposição...</pre>
+        <div class="cut">… continua por mais 340 linhas. Onde estava mesmo o custo atual?</div>
+      </div>
+      <div class="panel" id="p-html" role="tabpanel" aria-labelledby="tab-html">
+        <div class="render">
+          <div class="rmeta">
+            <div><div class="v">$4.180</div><div class="k">custo/mês hoje</div></div>
+            <div><div class="v">+44%</div><div class="k">desde janeiro</div></div>
+            <div><div class="v">340<span style="font-size:11px;color:var(--muted)">ms</span></div><div class="k">latência p50</div></div>
+            <div><div class="v">5</div><div class="k">fases · 5 semanas</div></div>
+          </div>
+          <h4>Migrar a ingestão pro novo runtime, em 5 fases, sem downtime comercial</h4>
+          <p>Três <code>m5.2xlarge</code> provisionadas na mão em 2023, sem autoscaling,
+            dimensionadas pro pico. Rollback precisa caber em 5 minutos.</p>
+          <table>
+            <thead><tr><th>Fase</th><th>O quê</th><th class="num">Duração</th><th>Risco</th></tr></thead>
+            <tbody>
+              <tr><td><b>1</b></td><td>Espelhar tráfego</td><td class="num">2 sem</td><td><span class="tag">baixo</span></td></tr>
+              <tr><td><b>2</b></td><td>10% do tráfego real</td><td class="num">1 sem</td><td><span class="tag">médio</span></td></tr>
+              <tr><td><b>3</b></td><td>50% e observar</td><td class="num">1 sem</td><td><span class="tag">médio</span></td></tr>
+              <tr><td><b>4</b></td><td>Cutover, legado de pé</td><td class="num">1 sem</td><td><span class="tag">alto</span></td></tr>
+              <tr><td><b>5</b></td><td>Desprovisionar</td><td class="num">3 dias</td><td><span class="tag">baixo</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top:16px">Mesma informação: no <code>.md</code> você caça, no sumário você
+      <b>vê</b>. E a diferença não é diagramação bonita - é que o segundo formato <b>força quem
+      escreve a decidir</b> o que é conclusão, o que é número e o que é detalhe. O Markdown deixa
+      empilhar parágrafo indefinidamente sem nunca tomar essa decisão, e é por isso que ele
+      sempre incha.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">03 - princípios</p>
+    <h2>Quatro decisões que explicam o resto do código</h2>
+    <div class="grid">
+      <div class="cell">
+        <div class="idx">01</div>
+        <h3>O filesystem é o banco</h3>
+        <p>Não existe SQLite, não existe migração. A verdade é <code>ls ~/.summaries</code>.
+          O índice de busca vive só em RAM e é reconstruído no boot. Você pode fazer
+          <code>ln -s</code> ou <code>rm</code> na mão que o daemon reconcilia sozinho via
+          fsnotify. Vale pros votos também: JSONL append-only por slug.</p>
+      </div>
+      <div class="cell">
+        <div class="idx">02</div>
+        <h3>O arquivo original é sagrado</h3>
+        <p>O lattice <b>nunca</b> escreve no seu HTML. Symlink em vez de cópia; o cliente de
+          hot reload e a ponte de enquete são injetados <b>na resposta HTTP</b>, entre o
+          conteúdo e o <code>&lt;/body&gt;</code>. <code>rm &lt;slug&gt;</code> apaga o link,
+          jamais o alvo. <code>?raw=1</code> devolve os bytes puros.</p>
+      </div>
+      <div class="cell">
+        <div class="idx">03</div>
+        <h3>Isolamento estrutural, não filtrado</h3>
+        <p>Cada share sobe <b>seu próprio listener</b> numa porta dedicada que só sabe servir
+          um sumário e aceitar votos dele. O túnel aponta pra essa porta. Dashboard, API e os
+          outros sumários são inalcançáveis de fora por construção - não por regra de
+          firewall que alguém pode esquecer de escrever.</p>
+      </div>
+      <div class="cell">
+        <div class="idx">04</div>
+        <h3>Degrada, não quebra</h3>
+        <p>Servidor fora do ar? <code>add</code> e <code>rm</code> escrevem o symlink direto e o
+          watcher reconcilia depois. Porta 80 ocupada? O alias
+          <code>summaries.localhost</code> desliga e o listener principal segue. Alvo do symlink
+          deletado? O sidecar mantém título e tags, marcado <span class="tag">missing</span>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">04 - arquitetura</p>
+    <h2>O caminho de um sumário, do disco até o navegador</h2>
+    <p>O binário é um só e acumula três papéis: daemon (<code>serve</code>, sob launchd),
+      cliente CLI (fala HTTP com o daemon), e servidor de shares (um listener por sumário
+      público).</p>
+
+    <div class="flowwrap">
+      <svg class="flow" id="flow" viewBox="0 0 940 450" role="img"
+           aria-label="Fluxo: arquivo .html passa por lattice add e pelo índice, então bifurca em servir local e compartilhar público; cada ramo bifurca de novo, e o voto termina no arquivo JSONL.">
+        <defs>
+          <marker id="arw" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+            <path d="M2,2 L9,5 L2,8" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+
+        <!-- tronco -->
+        <path class="edge d1" id="e1" pathLength="1" marker-end="url(#arw)" d="M470,54 V80"/>
+        <path class="edge d2" id="e2" pathLength="1" marker-end="url(#arw)" d="M470,124 V150"/>
+        <!-- primeira bifurcação: local ↔ público -->
+        <path class="edge d3" id="e3" pathLength="1" marker-end="url(#arw)" d="M470,194 V214 H250 V230"/>
+        <path class="edge d3" id="e4" pathLength="1" marker-end="url(#arw)" d="M470,194 V214 H690 V230"/>
+        <!-- segunda bifurcação -->
+        <path class="edge d4" id="e5" pathLength="1" marker-end="url(#arw)" d="M250,274 V294 H130 V310"/>
+        <path class="edge d4" id="e6" pathLength="1" marker-end="url(#arw)" d="M250,274 V294 H370 V310"/>
+        <path class="edge d4" id="e7" pathLength="1" marker-end="url(#arw)" d="M690,274 V294 H570 V310"/>
+        <path class="edge d4" id="e8" pathLength="1" marker-end="url(#arw)" d="M690,274 V294 H810 V310"/>
+        <!-- o voto persiste -->
+        <path class="edge d5" id="e9" pathLength="1" marker-end="url(#arw)" d="M810,354 V390"/>
+
+        <g class="node l1" id="n_file" tabindex="0" data-edges="" data-nodes=""
+           data-note="Um .html solto em qualquer lugar do disco. O lattice nunca o move, nunca o copia e nunca escreve nele.">
+          <rect x="390" y="14" width="160" height="40"/>
+          <text class="t"   x="470" y="32" text-anchor="middle">arquivo .html</text>
+          <text class="sub" x="470" y="46" text-anchor="middle">qualquer lugar do disco</text>
+        </g>
+
+        <g class="node l2" id="n_add" tabindex="0" data-edges="e1" data-nodes="n_file"
+           data-note="lattice add valida a extensão, gera o slug, cria o symlink em ~/.summaries e grava o sidecar com título, descrição e tags.">
+          <rect x="390" y="84" width="160" height="40"/>
+          <text class="t"   x="470" y="102" text-anchor="middle">lattice add</text>
+          <text class="sub" x="470" y="116" text-anchor="middle">symlink + sidecar</text>
+        </g>
+
+        <g class="node l3" id="n_index" tabindex="0" data-edges="e1 e2" data-nodes="n_file n_add"
+           data-note="O parser tolerante extrai título, meta description e o texto visível. Tudo vive em RAM; fsnotify mantém fresco com debounce de 150 ms.">
+          <rect x="380" y="154" width="180" height="40"/>
+          <text class="t"   x="470" y="172" text-anchor="middle">índice em RAM</text>
+          <text class="sub" x="470" y="186" text-anchor="middle">título · texto · tags</text>
+        </g>
+
+        <g class="node l4" id="n_local" tabindex="0" data-edges="e1 e2 e3" data-nodes="n_file n_add n_index"
+           data-note="Ramo local: o daemon na 4600, só no loopback. É aqui que você lê, busca e edita - com a ponte de enquete e o hot reload injetados na resposta.">
+          <rect x="170" y="234" width="160" height="40"/>
+          <text class="t"   x="250" y="252" text-anchor="middle">/s/&lt;slug&gt;</text>
+          <text class="sub" x="250" y="266" text-anchor="middle">loopback · 4600</text>
+        </g>
+
+        <g class="node l4" id="n_share" tabindex="0" data-edges="e1 e2 e4" data-nodes="n_file n_add n_index"
+           data-note="Ramo público: um listener próprio numa porta dedicada, que só sabe servir ESTE sumário. O túnel aponta pra essa porta - o dashboard não existe deste lado.">
+          <rect x="610" y="234" width="160" height="40"/>
+          <text class="t"   x="690" y="252" text-anchor="middle">lattice share</text>
+          <text class="sub" x="690" y="266" text-anchor="middle">listener + túnel</text>
+        </g>
+
+        <g class="node l5" id="n_reload" tabindex="0" data-edges="e1 e2 e3 e5" data-nodes="n_file n_add n_index n_local"
+           data-note="Salvou o original? O SSE avisa, o cliente busca o doc novo e faz patch da árvore no lugar. Sem flash, sem perder scroll nem foco.">
+          <rect x="50" y="314" width="160" height="40"/>
+          <text class="t"   x="130" y="332" text-anchor="middle">hot reload</text>
+          <text class="sub" x="130" y="346" text-anchor="middle">SSE + morph do DOM</text>
+        </g>
+
+        <g class="node l5" id="n_search" tabindex="0" data-edges="e1 e2 e3 e6" data-nodes="n_file n_add n_index n_local"
+           data-note="Busca lexical no corpo de todos os sumários: título 100, tag 60, descrição 40, corpo 2× por ocorrência. Sub-milissegundo, com snippet.">
+          <rect x="290" y="314" width="160" height="40"/>
+          <text class="t"   x="370" y="332" text-anchor="middle">busca</text>
+          <text class="sub" x="370" y="346" text-anchor="middle">lexical + snippet</text>
+        </g>
+
+        <g class="node l5" id="n_read" tabindex="0" data-edges="e1 e2 e4 e7" data-nodes="n_file n_add n_index n_share"
+           data-note="Quem tem o link lê o sumário - e só ele. Nada de dashboard, nada de API, nada dos outros sumários: o listener não tem rota pra isso.">
+          <rect x="490" y="314" width="160" height="40"/>
+          <text class="t"   x="570" y="332" text-anchor="middle">leitura</text>
+          <text class="sub" x="570" y="346" text-anchor="middle">só este sumário</text>
+        </g>
+
+        <g class="node l5" id="n_vote" tabindex="0" data-edges="e1 e2 e4 e8" data-nodes="n_file n_add n_index n_share"
+           data-note="A ponte injetada dá à página window.lattice.submit(). O id do votante vem do localStorage, então dá pra desduplicar sem login e sem cookie.">
+          <rect x="730" y="314" width="160" height="40"/>
+          <text class="t"   x="810" y="332" text-anchor="middle">voto</text>
+          <text class="sub" x="810" y="346" text-anchor="middle">POST /submit</text>
+        </g>
+
+        <g class="node l5" id="n_jsonl" tabindex="0" data-edges="e1 e2 e4 e8 e9" data-nodes="n_file n_add n_index n_share n_vote"
+           data-note="Voto público e voto seu caem no MESMO arquivo. Consolidação é last-write-wins por (votante, pergunta): recarregar não conta duas vezes.">
+          <rect x="720" y="394" width="180" height="40"/>
+          <text class="t"   x="810" y="412" text-anchor="middle">polls/&lt;slug&gt;.jsonl</text>
+          <text class="sub" x="810" y="426" text-anchor="middle">append-only</text>
+        </g>
+      </svg>
+      <div class="flownote">
+        <span class="who" id="flow-who">passe o mouse</span>
+        <span id="flow-note">Passe o mouse (ou tabule) por qualquer etapa pra acender o percurso da origem até ela.</span>
+      </div>
+    </div>
+
+    <div class="grid two" style="margin-top:24px">
+      <div class="cell">
+        <h3>Ingest - <code>store.go</code></h3>
+        <p>Valida que é <code>.html</code>, resolve o caminho absoluto, gera o slug
+          (<code>My Report (final).html</code> → <code>my-report-final</code>) e desduplica com
+          sufixo <code>-2</code>, <code>-3</code>. Re-adicionar a mesma origem é no-op. Escreve
+          um sidecar em <code>.lattice/meta/&lt;slug&gt;.json</code> com título, descrição, tags e
+          data - o cache que faz a entrada sobreviver ao alvo sumir.</p>
+      </div>
+      <div class="cell">
+        <h3>Índice - <code>index.go</code> + <code>extract.go</code></h3>
+        <p>Tudo em RAM sob <code>sync.RWMutex</code>. O parser de <code>x/net/html</code> extrai
+          <code>&lt;title&gt;</code>, meta description e o texto visível (pulando script, style,
+          noscript, template). Rescan completo de centenas de sumários leva milissegundos -
+          por isso corretude ganha de esperteza aqui. fsnotify mantém fresco, com debounce de
+          150 ms por slug.</p>
+      </div>
+      <div class="cell">
+        <h3>Busca - scoring lexical</h3>
+        <p>Todo termo precisa casar em algum campo (AND). Peso: título 100, tag 60,
+          descrição 40, ocorrência no corpo 2× (teto de 20). Empate desempata por data.
+          Snippet de ~200 caracteres em volta do primeiro hit, grudado em fronteira de rune
+          pra não cortar acento no meio. Sub-milissegundo. A resposta já carrega
+          <code>"mode":"lexical"</code> - gancho pra busca por embeddings depois.</p>
+      </div>
+      <div class="cell">
+        <h3>Hot reload - <code>reload.js</code></h3>
+        <p>SSE em <code>/api/watch/&lt;slug&gt;</code> avisa a mudança; o cliente busca o doc novo
+          e faz um patch da árvore no estilo idiomorph - texto atualizado no lugar,
+          atributos sincronizados, scroll e foco preservados, sem
+          <code>location.reload()</code>. Único fallback pra reload completo: quando o conteúdo
+          de um <code>&lt;script&gt;</code> muda, porque morphing não reexecuta script com
+          segurança.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">05 - stack</p>
+    <h2>Ferramentas, e por que cada uma está aí</h2>
+
+    <div class="discloses">
+      <div class="disclose" tabindex="0">
+        <div class="summary"><span>código <b>2.380 linhas</b></span>
+          <span class="caret" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </div>
+        <div class="pop">
+          <div class="bar">
+            <span class="seg"    style="width:41%"></span>
+            <span class="seg s2" style="width:29%"></span>
+            <span class="seg s3" style="width:19%"></span>
+            <span class="seg s4" style="width:11%"></span>
+          </div>
+          <div style="margin-top:12px">
+            <div class="row"><span><span class="dot"></span>servidor + shares (Go)</span><span>974 linhas</span></div>
+            <div class="row"><span><span class="dot s2"></span>índice + store + extract (Go)</span><span>706 linhas</span></div>
+            <div class="row"><span><span class="dot s3"></span>dashboard (js + css)</span><span>469 linhas</span></div>
+            <div class="row"><span><span class="dot s4"></span>reload + poll (js)</span><span>231 linhas</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="disclose" tabindex="0">
+        <div class="summary"><span>dependências <b>3</b></span>
+          <span class="caret" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </div>
+        <div class="pop">
+          <div class="bar">
+            <span class="seg"    style="width:45%"></span>
+            <span class="seg s2" style="width:35%"></span>
+            <span class="seg s3" style="width:20%"></span>
+          </div>
+          <div style="margin-top:12px">
+            <div class="row"><span><span class="dot"></span>fsnotify/fsnotify v1.8.0</span><span>direta</span></div>
+            <div class="row"><span><span class="dot s2"></span>golang.org/x/net v0.34.0</span><span>direta</span></div>
+            <div class="row"><span><span class="dot s3"></span>golang.org/x/sys v0.29.0</span><span>indireta</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Ferramenta</th><th>Papel</th><th>Por que ela</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Go 1.23</b></td>
+          <td>Linguagem, binário único</td>
+          <td>Compila estático com <code>CGO_ENABLED=0</code>; um arquivo copiado pro PATH é a instalação inteira. Sem runtime, sem venv, sem node_modules.</td>
+        </tr>
+        <tr>
+          <td><b>net/http (stdlib)</b></td>
+          <td>Servidor e cliente</td>
+          <td>Zero framework. Usa o roteamento por padrão do Go 1.22 (<code>GET /s/{slug}</code>) que já cobre método e path param - a razão de não ter chi/gin aqui.</td>
+        </tr>
+        <tr>
+          <td><b>embed (stdlib)</b></td>
+          <td>Dashboard dentro do binário</td>
+          <td><code>//go:embed web</code> assa HTML, CSS e JS no executável, pré-hasheados com SHA-256 pra virar ETag e responder 304.</td>
+        </tr>
+        <tr>
+          <td><b>fsnotify v1.8.0</b></td>
+          <td>Watch de <code>~/.summaries</code></td>
+          <td>Eventos de FS pra reindexar e disparar o SSE. Debounce por slug evita tempestade em salvamento de editor.</td>
+        </tr>
+        <tr>
+          <td><b>golang.org/x/net/html</b></td>
+          <td>Parser de HTML</td>
+          <td>Parser tolerante de verdade (o do WHATWG) pra extrair texto de HTML gerado por LLM, que raramente é bem-formado.</td>
+        </tr>
+        <tr>
+          <td><b>SSE</b></td>
+          <td>Streams de mudança</td>
+          <td><code>/api/watch</code> (biblioteca) e <code>/api/watch/{slug}</code> (um doc). Unidirecional serve - não precisa do peso de WebSocket.</td>
+        </tr>
+        <tr>
+          <td><b>launchd</b></td>
+          <td>Daemon 24/7 no macOS</td>
+          <td>LaunchAgent <code>dev.yeksax.lattice</code> instalado pelo <code>make install</code>. Sobe no login, reinicia se cair.</td>
+        </tr>
+        <tr>
+          <td><b>expose + cloudflared</b></td>
+          <td>Compartilhamento público</td>
+          <td>Reusa o CLI <code>expose</code>: túnel Cloudflare até <code>&lt;sub&gt;.example.dev</code>. Daemons destacados sobrevivem ao restart do lattice.</td>
+        </tr>
+        <tr>
+          <td><b>localStorage</b></td>
+          <td>Identidade do votante</td>
+          <td>A ponte cunha um id por navegador e anexa em todo voto. É o que permite desduplicar sem login e sem cookie.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">06 - cli</p>
+    <h2>A superfície de comandos</h2>
+    <p>O mesmo binário. <code>serve</code> é o daemon; o resto é cliente HTTP contra ele - com
+      fallback direto pro disco em <code>add</code> e <code>rm</code> se o servidor estiver fora.</p>
+<pre><b>lattice add relatorio.html --tags infra,q3</b>   symlink + abre no browser
+<b>lattice ls</b>                                   lista (! = alvo sumido)
+<b>lattice rm &lt;slug&gt;</b>                            tira o link, nunca o original
+<b>lattice open [slug]</b>                           abre o dashboard ou um sumário
+<b>lattice serve</b>                                 servidor em foreground (o launchd faz isso)
+
+<b>lattice share &lt;slug&gt; [--random]</b>              → https://&lt;slug&gt;.example.dev
+<b>lattice unshare &lt;slug&gt;</b>                       para (os votos ficam)
+<b>lattice shares</b>                                shares ativos + contagem de votos
+<b>lattice results &lt;slug&gt;</b>                       dump dos votos crus (JSONL)</pre>
+    <p style="margin-top:14px">Detalhe de ergonomia que quase todo CLI em Go erra: o
+      <code>flag</code> da stdlib para de parsear no primeiro argumento posicional, então
+      <code>add arquivo.html --tags x</code> ignoraria a flag em silêncio.
+      <code>reorderFlags</code> reordena antes do parse pra flag depois do posicional
+      funcionar.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">07 - api</p>
+    <h2>HTTP, e o que cada rota existe pra fazer</h2>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Rota</th><th>O que faz</th></tr></thead>
+      <tbody>
+        <tr><td><b>GET /api/summaries</b></td><td>Lista tudo, mais novo primeiro. Faz um stat por doc pra manter o flag <code>missing</code> honesto - os alvos vivem fora de <code>~/.summaries</code>, então o fsnotify não vê eles morrerem.</td></tr>
+        <tr><td><b>POST /api/summaries</b></td><td><code>{"path","title"?,"tags"?}</code> → symlink + index. Indexa de forma síncrona: deixar pro fsnotify criaria corrida com a resposta.</td></tr>
+        <tr><td><b>DELETE /api/summaries/{slug}</b></td><td>Remove link + sidecar. O original nunca é tocado.</td></tr>
+        <tr><td><b>GET /api/search?q=</b></td><td>Busca lexical com snippet.</td></tr>
+        <tr><td><b>GET /s/{slug}</b></td><td>O sumário com a ponte de enquete e o cliente de reload injetados na resposta.</td></tr>
+        <tr><td><b>GET /s/{slug}?raw=1</b></td><td>Os bytes originais, intocados.</td></tr>
+        <tr><td><b>GET /api/watch</b></td><td>SSE da biblioteca - é o que faz o dashboard se atualizar sozinho.</td></tr>
+        <tr><td><b>GET /api/watch/{slug}</b></td><td>SSE de um documento - alimenta o hot reload.</td></tr>
+        <tr><td><b>GET/POST /api/shares</b><br><b>DELETE /api/shares/{slug}</b></td><td>Gerencia os shares públicos.</td></tr>
+        <tr><td><b>GET /api/polls/{slug}</b></td><td>Votos crus, com IP e user-agent. <b>Só no loopback.</b></td></tr>
+        <tr><td><b>POST /api/polls/{slug}/submit</b></td><td>Voto local - cai no mesmo JSONL do voto público.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p style="margin-top:16px">Variáveis: <code>LATTICE_ADDR</code> (padrão
+      <code>127.0.0.1:4600</code>), <code>LATTICE_DIR</code> (padrão <code>~/.summaries</code>),
+      <code>LATTICE_ALIAS_ADDR</code> (padrão <code>:80</code>, <code>off</code> desliga).</p>
+    <h3 style="margin-top:24px">O truque do summaries.localhost</h3>
+    <p>Navegador resolve <code>*.localhost</code> pra loopback sozinho, sem
+      <code>/etc/hosts</code> - basta alguém responder na 80. Só que o macOS só deixa bind
+      não-privilegiado em porta baixa no endereço wildcard, o que exporia o dashboard pra LAN.
+      A solução é bind wildcard com <b>guarda de loopback</b>: requisição vinda de endereço de
+      rede leva 403. Todas as URLs do app são relativas, então as duas origens funcionam
+      indistintamente.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">08 - enquetes</p>
+    <h2>Como um sumário estático coleta voto</h2>
+    <p>Aqui mora a única exceção ao "arquivo único que funciona em qualquer lugar": voto
+      precisa de rede. O lattice injeta uma <b>ponte</b> - <code>window.lattice</code> - na hora
+      de servir, com <code>submit()</code>, <code>results()</code> e <code>recall()</code>. A
+      página nunca chumba endpoint: eles chegam por atributo <code>data-*</code> no script
+      injetado, então o mesmo HTML vota no <code>/s/&lt;slug&gt;</code> local e no
+      <code>&lt;sub&gt;.example.dev</code> público, caindo no mesmo arquivo.</p>
+    <div class="grid" style="margin-top:20px">
+      <div class="cell">
+        <div class="idx">01</div>
+        <h3>Dedup sem login</h3>
+        <p>Id de votante cunhado por navegador no localStorage e anexado a todo submit. O
+          servidor consolida <b>last-write-wins</b> por (votante, pergunta): recarregar não
+          conta duas vezes, e revotar troca o voto em vez de somar.</p>
+      </div>
+      <div class="cell">
+        <div class="idx">02</div>
+        <h3>Privacidade por rota</h3>
+        <p><code>/results</code>, a rota pública, devolve <b>só contagem</b> - nunca IP,
+          user-agent ou id. Quem votou o quê fica em <code>/api/polls/{slug}</code>, que só
+          existe no loopback. A separação é de rota, não de flag.</p>
+      </div>
+      <div class="cell">
+        <div class="idx">03</div>
+        <h3>Armazenamento</h3>
+        <p>JSONL append-only em <code>.lattice/polls/&lt;slug&gt;.jsonl</code>, com timestamp,
+          <code>CF-Connecting-IP</code> e UA. Body limitado a 64 KB. Mesma regra do resto:
+          filesystem é o banco.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">09 - instalação</p>
+    <h2>Três comandos, e nenhum deles é <code>brew</code></h2>
+<pre>git clone &lt;repo&gt; &amp;&amp; cd lattice
+<b>make install</b>     # compila, copia pro ~/.local/bin, sobe o LaunchAgent
+<b>make uninstall</b>   # bootout do agent, remove plist e binário</pre>
+    <p style="margin-top:14px">O <code>install</code> compila com
+      <code>-trimpath -ldflags "-s -w"</code>, cria <code>~/.summaries/.lattice/meta</code>,
+      interpola o <code>$HOME</code> no plist e faz bootstrap do LaunchAgent. Logs em
+      <code>~/.summaries/.lattice/lattice.log</code>.</p>
+    <p><b>Requisitos honestos:</b> Go 1.23 pra compilar, e macOS - o launchd, o
+      <code>open</code> do browser e a guarda da porta 80 são específicos da plataforma. Rodar
+      em Linux exige trocar o supervisor e o <code>open</code>. O <code>share</code> é o mais
+      preso ao dono: depende do <code>expose</code>, do login no cloudflared e da zona
+      <code>example.dev</code>. Tudo que não é <code>share</code> funciona sem isso.</p>
+    <p><b>Nota de macOS:</b> sob launchd, ler um sumário cujo alvo está numa pasta protegida
+      por TCC (<code>~/Downloads</code>, <code>~/Documents</code>) pode travar no prompt de
+      permissão. Por isso o scan inicial roda em goroutine - o servidor sobe de qualquer jeito.</p>
+  </section>
+
+  <div class="invert">
+    <div>
+      <div class="lbl">Resumo em uma linha</div>
+      <div style="font-size:15px;font-weight:500;margin-top:4px">Um binário, uma pasta, zero banco de dados. Symlinks entram, knowledge base sai.</div>
+    </div>
+    <div class="lbl"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg></span> a enquete é logo abaixo</div>
+  </div>
+
+  <section>
+    <p class="eyebrow">10 - enquete</p>
+    <h2>Victor, você instalaria isso na sua máquina?</h2>
+    <p>Leu até aqui, então já sabe o que é. Vote - o resultado aparece na hora, e você pode
+      mudar de ideia clicando de novo.</p>
+
+    <div class="poll" id="poll">
+      <div class="head">
+        <h3>Instalar o lattice</h3>
+        <div class="q" id="poll-q">uma escolha · seu voto fica guardado neste navegador</div>
+      </div>
+
+      <button class="opt" data-choice="sim">
+        <span class="fill"></span>
+        <span class="key">a</span>
+        <span class="txt">Sim, quero rodar isso hoje</span>
+        <span class="pct"></span>
+      </button>
+      <button class="opt" data-choice="curioso">
+        <span class="fill"></span>
+        <span class="key">b</span>
+        <span class="txt">Testo primeiro, decido depois</span>
+        <span class="pct"></span>
+      </button>
+      <button class="opt" data-choice="nao">
+        <span class="fill"></span>
+        <span class="key">c</span>
+        <span class="txt">Não, resolvo isso com uma pasta e um bookmark</span>
+        <span class="pct"></span>
+      </button>
+      <button class="opt" data-choice="linux">
+        <span class="fill"></span>
+        <span class="key">d</span>
+        <span class="txt">Instalaria, mas eu não uso macOS</span>
+        <span class="pct"></span>
+      </button>
+
+      <div class="foot">
+        <span id="poll-status">clique numa opção pra votar</span>
+        <span id="poll-total"></span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>lattice · São Paulo, BR · 2026</span>
+    <span>documento técnico gerado</span>
+  </footer>
+
+</div>
+
+<script>
+// ---- comparativo md ↔ sumário ----
+(() => {
+  'use strict';
+  const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
+  for (const t of tabs) {
+    t.addEventListener('click', () => {
+      for (const o of tabs) {
+        const on = o === t;
+        o.setAttribute('aria-selected', on);
+        document.getElementById(o.getAttribute('aria-controls')).classList.toggle('on', on);
+      }
+    });
+  }
+})();
+
+// ---- fluxograma: acende o percurso da origem até o nó apontado ----
+(() => {
+  'use strict';
+  const flow = document.getElementById('flow');
+  if (!flow) return;
+  const note = document.getElementById('flow-note');
+  const who = document.getElementById('flow-who');
+  const REST = note.textContent;
+  const ids = (s) => (s || '').split(' ').filter(Boolean);
+
+  const clear = () => {
+    for (const el of flow.querySelectorAll('.lit, .self')) el.classList.remove('lit', 'self');
+    note.textContent = REST;
+    who.textContent = 'passe o mouse';
+  };
+
+  for (const n of flow.querySelectorAll('.node')) {
+    const light = () => {
+      clear();
+      for (const id of ids(n.dataset.edges)) flow.querySelector('#' + id).classList.add('lit');
+      for (const id of ids(n.dataset.nodes)) flow.querySelector('#' + id).classList.add('lit');
+      n.classList.add('lit', 'self');
+      note.textContent = n.dataset.note;
+      who.textContent = n.querySelector('.t').textContent;
+    };
+    n.addEventListener('mouseenter', light);
+    n.addEventListener('focus', light);
+    n.addEventListener('mouseleave', clear);
+    n.addEventListener('blur', clear);
+  }
+
+  // desenha uma vez, quando entra em tela - mostra a ordem e a direção do fluxo
+  const draw = () => {
+    flow.classList.add('drawn');
+    // terminado o traço, larga o pathLength: o dash do hover passa a ser medido
+    // em px, igual em todos os trechos
+    setTimeout(() => {
+      for (const e of flow.querySelectorAll('.edge')) e.removeAttribute('pathLength');
+      flow.classList.add('done');
+    }, 1000);
+  };
+  if (!('IntersectionObserver' in window)) return draw();
+  const io = new IntersectionObserver((es) => {
+    for (const e of es) if (e.isIntersecting) { draw(); io.disconnect(); }
+  }, { threshold: 0.25 });
+  io.observe(flow);
+})();
+
+// ---- enquete ----
+(() => {
+  'use strict';
+  const POLL = 'victor-instala';
+  const box = document.getElementById('poll');
+  const opts = [...box.querySelectorAll('.opt')];
+  const status = document.getElementById('poll-status');
+  const totalEl = document.getElementById('poll-total');
+
+  const paint = (agg, mine) => {
+    const q = (agg && agg.polls && agg.polls[POLL]) || { total: 0, counts: {} };
+    box.classList.add('voted');
+    for (const o of opts) {
+      const n = q.counts[o.dataset.choice] || 0;
+      const pct = q.total ? Math.round((n / q.total) * 100) : 0;
+      o.querySelector('.fill').style.width = pct + '%';
+      o.querySelector('.pct').textContent = pct + '% · ' + n;
+      const isMine = o.dataset.choice === mine;
+      o.classList.toggle('mine', isMine);
+      let you = o.querySelector('.you');
+      if (isMine && !you) {
+        you = document.createElement('span');
+        you.className = 'you';
+        you.textContent = '· seu voto';
+        o.querySelector('.txt').after(you);
+      } else if (!isMine && you) {
+        you.remove();
+      }
+    }
+    totalEl.textContent = q.total + (q.total === 1 ? ' voto' : ' votos');
+    status.textContent = 'voto registrado - clique em outra pra trocar';
+  };
+
+  const vote = async (choice) => {
+    if (!window.lattice || !window.lattice.poll) {
+      status.textContent = 'este arquivo está aberto solto - vote pelo link que o dono mandou';
+      return;
+    }
+    status.textContent = 'enviando…';
+    const ok = await window.lattice.submit({ poll: POLL, choice });
+    if (!ok) {
+      status.textContent = 'não deu pra registrar - tenta de novo';
+      return;
+    }
+    paint(await window.lattice.results(), choice);
+  };
+
+  for (const o of opts) o.addEventListener('click', () => vote(o.dataset.choice));
+
+  const restore = async () => {
+    const mine = window.lattice.recall(POLL);
+    if (mine) paint(await window.lattice.results(), mine);
+  };
+  window.lattice && window.lattice.poll
+    ? restore()
+    : document.addEventListener('lattice:ready', restore, { once: true });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+---
+import '@phosphor-icons/web/regular';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
+import '../styles/global.css';
+
+const releaseBase = 'https://github.com/yeksax/lattice/releases/download/continuous';
+const githubUrl = 'https://github.com/yeksax/lattice';
+const releasesUrl = `${githubUrl}/releases/tag/continuous`;
+
+const macApp = `${releaseBase}/Lattice.dmg`;
+const macCli = `${releaseBase}/lattice-darwin-arm64`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Download Lattice for macOS. Windows and Linux are coming soon."
+    />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f4f4" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c0c0c" />
+    <meta property="og:title" content="Download Lattice" />
+    <meta property="og:description" content="Download Lattice for macOS. Windows and Linux are coming soon." />
+    <meta property="og:url" content="https://lattice.pub/download" />
+    <meta property="og:type" content="website" />
+    <link rel="canonical" href="https://lattice.pub/download" />
+    <title>Download | Lattice</title>
+  </head>
+  <body class="page-download">
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="site-header is-solid">
+      <div class="wrap header-inner">
+        <a class="wordmark" href="/">lattice</a>
+        <nav aria-label="Primary">
+          <a href="/">Home</a>
+          <a href="/download" aria-current="page">Download</a>
+          <a href={githubUrl} rel="noopener noreferrer">
+            GitHub
+            <i class="ph ph-arrow-up-right" aria-hidden="true"></i>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="download-main wrap">
+      <header class="download-intro">
+        <h1>Download</h1>
+        <p class="download-detect" id="download-detect" aria-live="polite">
+          Checking your system…
+        </p>
+      </header>
+
+      <section class="download-primary" id="download-primary" aria-labelledby="primary-heading">
+        <h2 class="visually-hidden" id="primary-heading">Recommended for you</h2>
+
+        <!-- macOS available -->
+        <div class="download-card" data-os-panel="macos" hidden>
+          <div class="download-card-top">
+            <i class="ph ph-apple-logo" aria-hidden="true"></i>
+            <div>
+              <h3>macOS</h3>
+              <p>Native app and CLI. Apple Silicon.</p>
+            </div>
+          </div>
+          <div class="download-card-actions">
+            <a class="button primary dark" href={macApp}>
+              <i class="ph ph-download-simple" aria-hidden="true"></i>
+              Download for macOS
+            </a>
+            <a class="text-link" href={macCli}>CLI binary (arm64)</a>
+          </div>
+        </div>
+
+        <!-- Windows soon -->
+        <div class="download-card is-soon" data-os-panel="windows" hidden>
+          <div class="download-card-top">
+            <i class="ph ph-windows-logo" aria-hidden="true"></i>
+            <div>
+              <h3>Windows</h3>
+              <p>Builds are not ready yet.</p>
+            </div>
+            <span class="soon-badge">Soon</span>
+          </div>
+          <p class="download-soon-note">
+            Lattice ships on macOS today. Windows is on the way.
+          </p>
+        </div>
+
+        <!-- Linux soon -->
+        <div class="download-card is-soon" data-os-panel="linux" hidden>
+          <div class="download-card-top">
+            <i class="ph ph-linux-logo" aria-hidden="true"></i>
+            <div>
+              <h3>Linux</h3>
+              <p>Builds are not ready yet.</p>
+            </div>
+            <span class="soon-badge">Soon</span>
+          </div>
+          <p class="download-soon-note">
+            Lattice ships on macOS today. Linux is on the way.
+          </p>
+        </div>
+
+        <!-- Unknown: nudge to pick below -->
+        <div class="download-card is-soon" data-os-panel="unknown" hidden>
+          <div class="download-card-top">
+            <i class="ph ph-desktop" aria-hidden="true"></i>
+            <div>
+              <h3>Couldn't pin your system</h3>
+              <p>Pick a platform below. macOS is available now.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="download-all" aria-labelledby="all-heading">
+        <h2 id="all-heading">All platforms</h2>
+        <ul class="platform-list">
+          <li class="platform-row" data-os-row="macos">
+            <div class="platform-meta">
+              <i class="ph ph-apple-logo" aria-hidden="true"></i>
+              <div>
+                <h3>macOS</h3>
+                <p>App + CLI</p>
+              </div>
+            </div>
+            <div class="platform-actions">
+              <a class="button primary dark compact" href={macApp}>Download</a>
+              <a class="text-link" href={macCli}>CLI</a>
+            </div>
+          </li>
+          <li class="platform-row is-soon" data-os-row="windows">
+            <div class="platform-meta">
+              <i class="ph ph-windows-logo" aria-hidden="true"></i>
+              <div>
+                <h3>Windows</h3>
+                <p>Native build</p>
+              </div>
+            </div>
+            <span class="soon-badge">Soon</span>
+          </li>
+          <li class="platform-row is-soon" data-os-row="linux">
+            <div class="platform-meta">
+              <i class="ph ph-linux-logo" aria-hidden="true"></i>
+              <div>
+                <h3>Linux</h3>
+                <p>Native build</p>
+              </div>
+            </div>
+            <span class="soon-badge">Soon</span>
+          </li>
+        </ul>
+      </section>
+
+      <p class="download-foot">
+        Prefer the release page?
+        <a href={releasesUrl} rel="noopener noreferrer">Browse continuous builds on GitHub</a>
+      </p>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="wordmark" href="/">lattice</a>
+        <p>Documents worth keeping.</p>
+        <a href={githubUrl} rel="noopener noreferrer">GitHub</a>
+      </div>
+    </footer>
+
+    <script>
+      import '../scripts/download.ts';
+    </script>
+  </body>
+</html>
