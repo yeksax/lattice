@@ -49,19 +49,27 @@ type Index struct {
 
 func newIndex() *Index { return &Index{docs: make(map[string]*Doc)} }
 
-// scan rebuilds the whole index from ~/.summaries.
+// scan rebuilds the whole index from ~/.summaries. Entries come from two
+// places: registered sidecars (.lattice/meta/*.json) and library-local .html
+// files (hand-dropped or legacy symlinks). The union is keyed by slug.
 func (ix *Index) scan() {
-	entries, err := os.ReadDir(summariesDir())
-	if err != nil {
-		return
-	}
-	fresh := make(map[string]*Doc, len(entries))
-	for _, e := range entries {
-		name := e.Name()
-		if !strings.HasSuffix(name, ".html") {
-			continue
+	slugs := map[string]bool{}
+	if entries, err := os.ReadDir(summariesDir()); err == nil {
+		for _, e := range entries {
+			if name := e.Name(); strings.HasSuffix(name, ".html") {
+				slugs[strings.TrimSuffix(name, ".html")] = true
+			}
 		}
-		slug := strings.TrimSuffix(name, ".html")
+	}
+	if entries, err := os.ReadDir(metaDir()); err == nil {
+		for _, e := range entries {
+			if name := e.Name(); strings.HasSuffix(name, ".json") {
+				slugs[strings.TrimSuffix(name, ".json")] = true
+			}
+		}
+	}
+	fresh := make(map[string]*Doc, len(slugs))
+	for slug := range slugs {
 		if d := buildDoc(slug); d != nil {
 			fresh[slug] = d
 		}
@@ -83,16 +91,21 @@ func (ix *Index) reindex(slug string) {
 	ix.mu.Unlock()
 }
 
-// buildDoc reads one entry off disk. Returns nil if the link itself is gone.
+// buildDoc reads one entry off disk. Returns nil if neither a sidecar nor a
+// library-local .html exists for the slug.
 func buildDoc(slug string) *Doc {
 	link := filepath.Join(summariesDir(), slug+".html")
-	li, err := os.Lstat(link)
-	if err != nil {
+	m := readMeta(slug)
+	li, lerr := os.Lstat(link)
+	if m == nil && lerr != nil {
 		return nil
 	}
 
-	d := &Doc{Slug: slug, Created: li.ModTime()}
-	if m := readMeta(slug); m != nil {
+	d := &Doc{Slug: slug}
+	if lerr == nil {
+		d.Created = li.ModTime()
+	}
+	if m != nil {
 		d.Title, d.Description, d.Tags = m.Title, m.Description, m.Tags
 		d.Source = m.Source
 		if !m.Created.IsZero() {
@@ -100,20 +113,16 @@ func buildDoc(slug string) *Doc {
 		}
 	}
 	if d.Source == "" {
-		if target, err := os.Readlink(link); err == nil {
-			d.Source = target
-		} else {
-			d.Source = link // real file dropped into ~/.summaries
-		}
+		d.Source = resolveSource(slug)
 	}
 
-	fi, err := os.Stat(link) // follows the symlink
+	fi, err := os.Stat(d.Source)
 	if err != nil {
-		d.Missing = true // target deleted - keep the cached sidecar view
+		d.Missing = true // source deleted - keep the cached sidecar view
 	} else {
 		d.Size = fi.Size()
 		d.Modified = fi.ModTime()
-		if b, err := os.ReadFile(link); err == nil {
+		if b, err := os.ReadFile(d.Source); err == nil {
 			ex := extractHTML(strings.NewReader(string(b)))
 			if ex.Title != "" {
 				d.Title = ex.Title
@@ -145,7 +154,7 @@ func (ix *Index) list() []*Doc {
 	ix.mu.RUnlock()
 
 	for i, d := range out {
-		fi, err := os.Stat(filepath.Join(summariesDir(), d.Slug+".html"))
+		fi, err := os.Stat(d.Source)
 		if (err != nil) != d.Missing || (err == nil && fi.ModTime() != d.Modified) {
 			ix.reindex(d.Slug)
 			if nd := ix.get(d.Slug); nd != nil {
@@ -254,8 +263,10 @@ func snippet(text string, at int) string {
 	return s
 }
 
-// watch keeps the index in sync with ~/.summaries. Events are debounced per
-// slug; meta-dir churn is ignored (reindex reads sidecars anyway).
+// watch keeps the index in sync with the library. It watches ~/.summaries for
+// hand-dropped .html files AND .lattice/meta for registered sidecars (the
+// metadata-only add path never touches ~/.summaries itself). Events are
+// debounced per slug.
 func (ix *Index) watch() {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -266,6 +277,18 @@ func (ix *Index) watch() {
 		log.Printf("watch disabled: %v", err)
 		return
 	}
+	if err := w.Add(metaDir()); err != nil {
+		log.Printf("meta watch disabled: %v", err) // non-fatal; scan catches up on restart
+	}
+
+	slugOf := func(path string) string {
+		name := filepath.Base(path)
+		switch ext := filepath.Ext(name); ext {
+		case ".html", ".json":
+			return strings.TrimSuffix(name, ext)
+		}
+		return ""
+	}
 
 	pending := make(map[string]*time.Timer)
 	var mu sync.Mutex
@@ -275,11 +298,10 @@ func (ix *Index) watch() {
 			if !ok {
 				return
 			}
-			name := filepath.Base(ev.Name)
-			if !strings.HasSuffix(name, ".html") {
+			slug := slugOf(ev.Name)
+			if slug == "" {
 				continue
 			}
-			slug := strings.TrimSuffix(name, ".html")
 			mu.Lock()
 			if t, ok := pending[slug]; ok {
 				t.Stop()

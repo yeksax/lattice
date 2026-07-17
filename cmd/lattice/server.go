@@ -14,7 +14,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -127,12 +126,20 @@ func (s *server) getConfig(w http.ResponseWriter, _ *http.Request) {
 // PUTs back the full object - last write wins, which is fine for a
 // single-user local tool.
 func (s *server) putConfig(w http.ResponseWriter, r *http.Request) {
-	var c Config
+	var c *Config
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&c); err != nil {
 		httpErr(w, http.StatusBadRequest, "body must be a Config JSON object")
 		return
 	}
-	if err := saveConfig(c); err != nil {
+	if c == nil {
+		httpErr(w, http.StatusBadRequest, "body must be a Config JSON object")
+		return
+	}
+	if err := validateConfig(*c); err != nil {
+		httpErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := saveConfig(*c); err != nil {
 		httpErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -210,9 +217,9 @@ func (s *server) serveSummary(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	b, err := os.ReadFile(filepath.Join(summariesDir(), slug+".html"))
+	b, err := os.ReadFile(resolveSource(slug))
 	if err != nil {
-		httpErr(w, http.StatusNotFound, "summary missing (target deleted?): "+slug)
+		httpErr(w, http.StatusNotFound, "summary missing (source deleted?): "+slug)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -290,13 +297,13 @@ func (s *server) pollResults(w http.ResponseWriter, r *http.Request) {
 }
 
 // watchSummary is the SSE stream behind hot reload. It stat-polls the
-// resolved target (editors save via atomic rename, which breaks per-file
-// fsnotify watches) and pushes a state event whenever mtime/size change.
+// resolved source (editors save via atomic rename, which breaks per-file
+// fsnotify watches) and pushes a state event whenever mtime/size change. The
+// source is re-resolved on every poll so rm/add cycles pick up a new path.
 func (s *server) watchSummary(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
-	path := filepath.Join(summariesDir(), slug+".html")
 	sse(w, r, func() string {
-		fi, err := os.Stat(path)
+		fi, err := os.Stat(resolveSource(slug))
 		if err != nil {
 			return "missing"
 		}

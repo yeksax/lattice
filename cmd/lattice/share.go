@@ -125,8 +125,8 @@ func (sm *shareManager) create(slug string, random bool) (*Share, error) {
 	if sh, ok := sm.shares[slug]; ok {
 		return sh, nil
 	}
-	if _, err := os.Stat(filepath.Join(summariesDir(), slug+".html")); err != nil {
-		return nil, fmt.Errorf("summary not found (or target missing): %s", slug)
+	if _, err := os.Stat(resolveSource(slug)); err != nil {
+		return nil, fmt.Errorf("summary not found (or source missing): %s", slug)
 	}
 
 	sub := slug
@@ -201,7 +201,7 @@ func (sm *shareManager) get(slug string) *Share {
 func (sm *shareManager) publicHandler(slug string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		b, err := os.ReadFile(filepath.Join(summariesDir(), slug+".html"))
+		b, err := os.ReadFile(resolveSource(slug))
 		if err != nil {
 			http.Error(w, "gone", http.StatusNotFound)
 			return
@@ -277,11 +277,17 @@ func readSubmissions(slug string) []json.RawMessage {
 	return out
 }
 
-// exposeCmd shells out to the expose CLI. launchd's PATH is minimal, so
-// extend it for cloudflared.
+// exposeCmd shells out to the expose CLI - personal infra, not something a
+// general install has. Check for it up front so the failure names the fix
+// (hosted sharing) instead of surfacing a bare "no such file" from exec.
+// launchd's PATH is minimal, so extend it for cloudflared.
 func exposeCmd(args ...string) (string, error) {
 	home, _ := os.UserHomeDir()
-	cmd := exec.Command(filepath.Join(home, ".local", "bin", "expose.py"), args...)
+	script := filepath.Join(home, ".local", "bin", "expose.py")
+	if _, err := os.Stat(script); err != nil {
+		return "", fmt.Errorf("local expose not available (%s missing); use hosted sharing instead: lattice login <token>", script)
+	}
+	cmd := exec.Command(script, args...)
 	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":/opt/homebrew/bin:/usr/local/bin")
 	out, err := cmd.CombinedOutput()
 	return string(out), err

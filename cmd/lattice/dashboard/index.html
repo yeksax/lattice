@@ -12,6 +12,10 @@
     <a class="brand" href="/" title="library">lattice</a>
     <span class="count" id="count"></span>
     <span class="spacer"></span>
+    <button id="settings-open" class="header-action" type="button" title="Customize Lattice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.18.4.4.75.6 1 .28.35.66.55 1.1.6h.09v4h-.09a1.7 1.7 0 0 0-1.7.4Z"/></svg>
+      <span>Settings</span>
+    </button>
     <label class="search" for="q">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
       <input id="q" type="search" placeholder="Search" autocomplete="off" spellcheck="false">
@@ -28,6 +32,116 @@
     <code>lattice add &lt;file.html&gt;</code>
   </div>
 </main>
+
+<section id="settings" hidden>
+  <div class="settings-bar">
+    <div class="settings-bar-inner">
+      <button id="settings-back" class="settings-back" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18 9 12l6-6"/></svg>
+        Library
+      </button>
+      <span class="settings-title">Settings</span>
+      <span class="spacer"></span>
+      <span id="settings-message" class="settings-message" role="status"></span>
+      <button id="settings-save" class="settings-save" type="button" disabled>Save changes</button>
+    </div>
+  </div>
+
+  <div class="settings-shell">
+    <div class="settings-copy">
+      <span class="settings-kicker">House style</span>
+      <h1>Make every summary feel like yours.</h1>
+      <p>These preferences are read by the HTML summary skill. New artifacts inherit them without changing their portability.</p>
+    </div>
+
+    <div class="settings-grid">
+      <form id="settings-form" class="settings-form">
+        <fieldset>
+          <legend>Appearance</legend>
+          <p class="fieldset-note">Defaults preserve Lattice's compact monochrome system.</p>
+
+          <label class="field">
+            <span>Preset</span>
+            <select id="setting-preset">
+              <option value="">Lattice default</option>
+              <option value="warm">Warm paper</option>
+              <option value="mono">Strict mono</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Typography</span>
+            <select id="setting-font">
+              <option value="">Mono</option>
+              <option value="sans">Sans</option>
+              <option value="serif">Serif</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Density</span>
+            <select id="setting-density">
+              <option value="">Compact</option>
+              <option value="comfortable">Comfortable</option>
+              <option value="spacious">Spacious</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Accent</span>
+            <div class="accent-field">
+              <input id="setting-accent-color" type="color" value="#6f8cff" aria-label="Choose accent color">
+              <input id="setting-accent" type="text" placeholder="None or #6f8cff" spellcheck="false" maxlength="7" list="accent-options">
+              <button id="accent-clear" type="button">Clear</button>
+            </div>
+            <datalist id="accent-options">
+              <option value="#e9e9e7"><option value="#6f8cff"><option value="#5fc987"><option value="#e57d5d">
+            </datalist>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Hosted sharing</legend>
+          <p class="fieldset-note">Optional. Local libraries and local sharing work without credentials.</p>
+
+          <label class="field">
+            <span>API base</span>
+            <input id="setting-api" type="url" placeholder="https://api.lattice.pub" spellcheck="false">
+          </label>
+
+          <label class="field">
+            <span>Access token</span>
+            <input id="setting-token" type="password" placeholder="Not configured" autocomplete="off" spellcheck="false">
+          </label>
+
+          <label class="field">
+            <span>Default share target</span>
+            <select id="setting-target">
+              <option value="">Hosted when signed in</option>
+              <option value="hosted">Always hosted</option>
+              <option value="local">Always local</option>
+            </select>
+          </label>
+        </fieldset>
+      </form>
+
+      <aside class="theme-preview-wrap" aria-label="Theme preview">
+        <div id="theme-preview" class="theme-preview">
+          <div class="preview-rule"></div>
+          <span class="preview-kicker">SYSTEM REVIEW / 07</span>
+          <h2>Signals worth keeping.</h2>
+          <p>A concise record of decisions, evidence, and the path forward.</p>
+          <div class="preview-metrics">
+            <div><strong>12</strong><span>findings</span></div>
+            <div><strong>04</strong><span>decisions</span></div>
+          </div>
+          <div class="preview-line"><span></span><b>Ready for review</b></div>
+        </div>
+        <p>Preview only. Existing HTML remains unchanged.</p>
+      </aside>
+    </div>
+  </div>
+</section>
 
 <section id="reader" hidden>
   <div class="bar">

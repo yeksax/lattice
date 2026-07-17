@@ -1,10 +1,12 @@
 package main
 
 // store.go - the filesystem is the database.
-// ~/.summaries/<slug>.html is a symlink to the original file (or a real file
-// if dropped in by hand); ~/.summaries/.lattice/meta/<slug>.json is an
-// optional sidecar caching ingest-time metadata so entries survive their
-// target being deleted.
+// Registration is metadata-only: ~/.summaries/.lattice/meta/<slug>.json is the
+// entry, recording the absolute path of the original file. Nothing is copied
+// or linked, so `lattice add` works identically on every OS (Windows symlinks
+// need privileges we can't assume). Two legacy/escape-hatch shapes are still
+// honoured everywhere: pre-portability symlinks at ~/.summaries/<slug>.html,
+// and real .html files dropped into ~/.summaries by hand.
 
 import (
 	"encoding/json"
@@ -60,22 +62,25 @@ func slugify(name string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-// uniqueSlug de-dupes against files already in ~/.summaries.
+// uniqueSlug de-dupes against entries already in the library - registered
+// sidecars, hand-dropped files, and legacy symlinks all reserve their slug.
 func uniqueSlug(base string) string {
 	if base == "" {
 		base = "summary"
 	}
 	slug := base
 	for i := 2; ; i++ {
-		if _, err := os.Lstat(filepath.Join(summariesDir(), slug+".html")); errors.Is(err, os.ErrNotExist) {
+		_, herr := os.Lstat(filepath.Join(summariesDir(), slug+".html"))
+		_, merr := os.Lstat(filepath.Join(metaDir(), slug+".json"))
+		if errors.Is(herr, os.ErrNotExist) && errors.Is(merr, os.ErrNotExist) {
 			return slug
 		}
 		slug = fmt.Sprintf("%s-%d", base, i)
 	}
 }
 
-// addSummary validates src, symlinks it into ~/.summaries and writes the
-// sidecar. It never modifies the source file.
+// addSummary validates src and registers it by writing the sidecar - no
+// symlink, no copy. It never modifies the source file.
 func addSummary(src, title string, tags []string) (*Meta, error) {
 	src, err := filepath.Abs(src)
 	if err != nil {
@@ -101,10 +106,6 @@ func addSummary(src, title string, tags []string) (*Meta, error) {
 	}
 
 	slug := uniqueSlug(slugify(filepath.Base(src)))
-	if err := os.Symlink(src, filepath.Join(summariesDir(), slug+".html")); err != nil {
-		return nil, err
-	}
-
 	m := &Meta{Slug: slug, Source: src, Title: title, Tags: tags, Created: time.Now()}
 	// Cache title/description from the content so the entry outlives its target.
 	if f, err := os.Open(src); err == nil {
@@ -124,16 +125,26 @@ func addSummary(src, title string, tags []string) (*Meta, error) {
 	return m, nil
 }
 
-// removeSummary deletes the symlink and sidecar - never the target file.
+// removeSummary deletes the sidecar and any library-local .html (a legacy
+// symlink or a hand-dropped file) - never the registered source file.
 func removeSummary(slug string) error {
 	link := filepath.Join(summariesDir(), slug+".html")
-	if _, err := os.Lstat(link); err != nil {
+	meta := filepath.Join(metaDir(), slug+".json")
+	_, lerr := os.Lstat(link)
+	_, merr := os.Lstat(meta)
+	if lerr != nil && merr != nil {
 		return fmt.Errorf("no such summary: %s", slug)
 	}
-	if err := os.Remove(link); err != nil {
-		return err
+	if lerr == nil {
+		if err := os.Remove(link); err != nil {
+			return fmt.Errorf("remove library entry: %w", err)
+		}
 	}
-	os.Remove(filepath.Join(metaDir(), slug+".json")) // best-effort
+	if merr == nil {
+		if err := os.Remove(meta); err != nil {
+			return fmt.Errorf("remove metadata: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -167,11 +178,25 @@ func findBySource(src string) *Meta {
 			continue
 		}
 		if m := readMeta(strings.TrimSuffix(e.Name(), ".json")); m != nil && m.Source == src {
-			// Only counts if the symlink still exists.
-			if _, err := os.Lstat(filepath.Join(summariesDir(), m.Slug+".html")); err == nil {
-				return m
-			}
+			return m
 		}
 	}
 	return nil
+}
+
+// resolveSource maps a slug to the file to serve/stat: the sidecar's recorded
+// source, a legacy symlink's target, or a hand-dropped file in ~/.summaries.
+// The returned path may not exist - callers stat and treat that as "missing".
+func resolveSource(slug string) string {
+	if m := readMeta(slug); m != nil && m.Source != "" {
+		return m.Source
+	}
+	p := filepath.Join(summariesDir(), slug+".html")
+	if target, err := os.Readlink(p); err == nil {
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(p), target)
+		}
+		return target
+	}
+	return p
 }

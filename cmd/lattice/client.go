@@ -1,8 +1,9 @@
 package main
 
 // client.go - the same binary doubles as the CLI. Commands talk to the
-// running server; `add` falls back to writing the symlink directly if the
-// server is down (the watcher reconciles once it's back).
+// running server; if it's down the CLI tries to auto-spawn it (see spawn.go),
+// and `add`/`rm` fall back to writing the library directly when even that
+// fails (a full rescan on the next daemon start reconciles).
 
 import (
 	"bytes"
@@ -10,7 +11,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,18 +23,24 @@ func baseURL() string {
 func apiClient() *http.Client { return &http.Client{Timeout: 5 * time.Second} }
 
 // addViaServer registers a summary and returns its slug. Relative paths are
-// resolved to absolute HERE, in the client - the daemon runs under launchd with
-// cwd `/`, so a path resolved server-side would point at the wrong file (or
-// nothing). viaServer reports whether the running daemon handled it or we fell
-// back to a direct symlink.
+// resolved to absolute HERE, in the client - the daemon's cwd is not the
+// user's, so a path resolved server-side would point at the wrong file (or
+// nothing). viaServer reports whether the running daemon handled it or we
+// fell back to a direct registration.
 func addViaServer(path, title string, tags []string) (slug string, viaServer bool, err error) {
 	if abs, aerr := filepath.Abs(path); aerr == nil {
 		path = abs
 	}
 	body, _ := json.Marshal(map[string]any{"path": path, "title": title, "tags": tags})
-	resp, err := apiClient().Post(baseURL()+"/api/summaries", "application/json", bytes.NewReader(body))
+	post := func() (*http.Response, error) {
+		return apiClient().Post(baseURL()+"/api/summaries", "application/json", bytes.NewReader(body))
+	}
+	resp, err := post()
+	if err != nil && ensureServer() == nil {
+		resp, err = post() // daemon was down; spawned it - retry once
+	}
 	if err != nil {
-		// Server down - create the symlink directly; fsnotify picks it up later.
+		// Server down for good - register directly; the next start rescans.
 		m, derr := addSummary(path, title, tags)
 		if derr != nil {
 			return "", false, derr
@@ -59,7 +65,7 @@ func cliAdd(path, title string, tags []string, noOpen bool) error {
 		return err
 	}
 	if !viaServer {
-		fmt.Printf("added %s (server not running - linked directly)\n", slug)
+		fmt.Printf("added %s (server not running - registered directly)\n", slug)
 		return nil
 	}
 	url := baseURL() + "/s/" + slug
@@ -71,6 +77,7 @@ func cliAdd(path, title string, tags []string, noOpen bool) error {
 }
 
 func cliLs() error {
+	ensureServer() // best-effort spawn; the request error below reports failure
 	resp, err := apiClient().Get(baseURL() + "/api/summaries")
 	if err != nil {
 		return fmt.Errorf("server not running at %s (start with: lattice serve)", baseURL())
@@ -99,14 +106,20 @@ func cliLs() error {
 }
 
 func cliRm(slug string) error {
-	req, _ := http.NewRequest(http.MethodDelete, baseURL()+"/api/summaries/"+slug, nil)
-	resp, err := apiClient().Do(req)
+	del := func() (*http.Response, error) {
+		req, _ := http.NewRequest(http.MethodDelete, baseURL()+"/api/summaries/"+slug, nil)
+		return apiClient().Do(req)
+	}
+	resp, err := del()
+	if err != nil && ensureServer() == nil {
+		resp, err = del() // spawned the daemon - retry once
+	}
 	if err != nil {
-		// Server down - remove directly.
+		// Server down for good - remove directly.
 		if derr := removeSummary(slug); derr != nil {
 			return derr
 		}
-		fmt.Printf("removed %s (server not running - unlinked directly)\n", slug)
+		fmt.Printf("removed %s (server not running - unregistered directly)\n", slug)
 		return nil
 	}
 	defer resp.Body.Close()
@@ -122,6 +135,7 @@ func cliRm(slug string) error {
 }
 
 func cliShare(slug string, random bool) error {
+	ensureServer()
 	body, _ := json.Marshal(map[string]any{"slug": slug, "random": random})
 	resp, err := apiClient().Post(baseURL()+"/api/shares", "application/json", bytes.NewReader(body))
 	if err != nil {
@@ -142,6 +156,7 @@ func cliShare(slug string, random bool) error {
 }
 
 func cliUnshare(slug string) error {
+	ensureServer()
 	req, _ := http.NewRequest(http.MethodDelete, baseURL()+"/api/shares/"+slug, nil)
 	resp, err := apiClient().Do(req)
 	if err != nil {
@@ -170,6 +185,7 @@ func cliShares() error {
 		}
 	}
 
+	ensureServer()
 	resp, err := apiClient().Get(baseURL() + "/api/shares")
 	if err != nil {
 		if loggedIn {
@@ -205,6 +221,7 @@ func cliShares() error {
 }
 
 func cliResults(slug string) error {
+	ensureServer()
 	resp, err := apiClient().Get(baseURL() + "/api/polls/" + slug)
 	if err != nil {
 		return fmt.Errorf("server not running at %s", baseURL())
@@ -231,6 +248,9 @@ func cliResults(slug string) error {
 // a path to an existing file - adds that file (idempotently) and opens it. The
 // last form is what makes `lattice open ./report.html` work from any directory.
 func cliOpen(arg string) error {
+	if err := ensureServer(); err != nil {
+		return fmt.Errorf("server not running at %s: %w", baseURL(), err)
+	}
 	url := baseURL()
 	if arg != "" {
 		slug := arg
@@ -244,10 +264,4 @@ func cliOpen(arg string) error {
 		url += "/s/" + slug
 	}
 	return openInBrowser(url)
-}
-
-func openInBrowser(url string) error {
-	cmd := exec.Command("open", url) // macOS
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	return cmd.Run()
 }

@@ -1,8 +1,8 @@
 package main
 
 // lattice - personal knowledge base for single-file HTML summaries.
-// One binary: `lattice serve` is the launchd daemon; add/ls/rm/open are the
-// CLI client against it.
+// One binary: `lattice serve` is the local daemon; add/ls/rm/open are the CLI
+// client against it and auto-spawn it when needed.
 
 import (
 	"flag"
@@ -23,15 +23,19 @@ func listenAddr() string {
 const usage = `lattice - HTML summary knowledge base
 
 usage:
-  lattice serve                      run the server (launchd does this)
-  lattice add <file.html> [flags]    symlink a summary into ~/.summaries
+  lattice serve                      run the local server
+  lattice add <file.html> [flags]    register a summary from its source path
       --title <t>    override the cached title
       --tags a,b,c   tag the summary
       --no-open      don't open the browser
   lattice ls                         list summaries
-  lattice rm <slug>                  remove symlink + metadata (never the original)
+  lattice rm <slug>                  unregister a summary (never the original)
   lattice open [slug|file.html]      open the dashboard, a summary by slug,
                                      or a file (added on the fly)
+  lattice config                     print config as JSON
+  lattice config get [key]           print config or one dotted key
+  lattice config set <key> <value>   update a dotted config key
+  lattice config unset <key>         clear a dotted config key
   lattice login <token> [--api url]  log in to hosted sharing (Cloudflare)
   lattice logout                     forget the hosted token (revert to local)
   lattice share <slug> [flags]       share ONE summary publicly
@@ -46,7 +50,8 @@ Once logged in, share/unshare/results default to hosted (stays up with your
 laptop closed). Without a token they use local expose.
 
 env: LATTICE_ADDR (default 127.0.0.1:4600), LATTICE_DIR (default ~/.summaries),
-     LATTICE_API_BASE (override hosted API base)`
+     LATTICE_API_BASE (override hosted API base), LATTICE_NO_AUTOSPAWN (disable
+     automatic daemon startup)`
 
 func main() {
 	log.SetFlags(log.LstdFlags)
@@ -90,6 +95,8 @@ func main() {
 			slug = os.Args[2]
 		}
 		err = cliOpen(slug)
+	case "config":
+		err = cliConfig(os.Args[2:])
 	case "login":
 		fs := flag.NewFlagSet("login", flag.ExitOnError)
 		api := fs.String("api", "", "override the hosted API base URL")

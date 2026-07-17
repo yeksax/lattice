@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 )
 
 // --- config access from the CLI ----------------------------------------------
@@ -35,6 +34,9 @@ func loadConfigClient() Config {
 }
 
 func saveConfigClient(c Config) error {
+	if err := validateConfig(c); err != nil {
+		return err
+	}
 	body, _ := json.Marshal(c)
 	req, _ := http.NewRequest(http.MethodPut, baseURL()+"/api/config", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -98,8 +100,8 @@ func hostedAPI(c Config, method, path string, body any) (*http.Response, error) 
 }
 
 // rawSummaryHTML returns the pristine snapshot bytes for a slug. Prefers the
-// daemon's ?raw=1 (resolves the symlink target), falling back to reading the
-// link directly when the server is down.
+// daemon's ?raw=1 (resolves the registered source), falling back to resolving
+// and reading the source directly when the server is down.
 func rawSummaryHTML(slug string) ([]byte, error) {
 	resp, err := apiClient().Get(baseURL() + "/s/" + slug + "?raw=1")
 	if err == nil {
@@ -108,7 +110,7 @@ func rawSummaryHTML(slug string) ([]byte, error) {
 			return io.ReadAll(resp.Body)
 		}
 	}
-	b, ferr := os.ReadFile(filepath.Join(summariesDir(), slug+".html"))
+	b, ferr := os.ReadFile(resolveSource(slug))
 	if ferr != nil {
 		return nil, fmt.Errorf("summary not found: %s", slug)
 	}

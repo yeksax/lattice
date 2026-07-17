@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -101,10 +102,10 @@ func writeConfigLocked(c Config) error {
 // config and the LATTICE_API_BASE env var (used by dev / self-host).
 func (c Config) resolvedAPIBase() string {
 	if e := os.Getenv("LATTICE_API_BASE"); e != "" {
-		return e
+		return strings.TrimRight(e, "/")
 	}
 	if c.Hosted.APIBase != "" {
-		return c.Hosted.APIBase
+		return strings.TrimRight(c.Hosted.APIBase, "/")
 	}
 	return defaultAPIBase
 }

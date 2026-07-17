@@ -4,8 +4,11 @@
   const $ = (id) => document.getElementById(id);
   const list = $('list'), q = $('q'), count = $('count'), eyebrow = $('eyebrow');
   const reader = $('reader'), frame = $('frame');
+  const settings = $('settings'), settingsSave = $('settings-save');
 
   let docs = []; // full library cache
+  let settingsConfig = null;
+  let settingsDirty = false;
 
   const esc = (s) => s.replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -25,11 +28,12 @@
   // Prefer ~/… when the path is under a home directory; else keep the tail.
   const shortPath = (p) => {
     if (!p) return '';
-    const home = p.match(/^\/(?:Users|home)\/[^/]+(\/.*)$/);
+    const normalized = p.replaceAll('\\', '/');
+    const home = normalized.match(/^(?:[A-Za-z]:)?\/(?:Users|home)\/[^/]+(\/.*)$/);
     if (home) return '~' + home[1];
-    if (p.startsWith('~/')) return p;
-    const parts = p.split('/').filter(Boolean);
-    if (parts.length <= 3) return p;
+    if (normalized.startsWith('~/')) return normalized;
+    const parts = normalized.split('/').filter(Boolean);
+    if (parts.length <= 3) return normalized;
     return '…/' + parts.slice(-2).join('/');
   };
 
@@ -107,6 +111,137 @@
 
   let deb;
   q.addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(search, 120); });
+
+  // ---- settings ------------------------------------------------------------
+  const settingIds = ['setting-preset', 'setting-font', 'setting-density', 'setting-accent', 'setting-api', 'setting-token', 'setting-target'];
+
+  function settingsMessage(text, error = false) {
+    const message = $('settings-message');
+    message.textContent = text;
+    message.classList.toggle('is-error', error);
+  }
+
+  function setSettingsDirty(value = true) {
+    settingsDirty = value;
+    settingsSave.disabled = !value;
+    settingsMessage(value ? 'Unsaved changes' : '');
+  }
+
+  function renderThemePreview() {
+    const preview = $('theme-preview');
+    const preset = $('setting-preset').value;
+    const font = $('setting-font').value;
+    const density = $('setting-density').value;
+    const accent = $('setting-accent').value.trim();
+
+    const palettes = {
+      warm: ['#eee9de', '#1d1a17', '#746b60'],
+      mono: ['#0e0e0f', '#f2f2ef', '#8a8a8c'],
+      lattice: ['#f1f1ef', '#161616', '#6f6f6a'],
+    };
+    const [bg, ink, muted] = palettes[preset] || palettes.lattice;
+    const fonts = {
+      sans: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
+      serif: 'ui-serif, "Iowan Old Style", Baskerville, Georgia, serif',
+      mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    };
+    const padding = { comfortable: '38px', spacious: '46px' }[density] || '31px';
+    preview.style.setProperty('--pv-bg', bg);
+    preview.style.setProperty('--pv-ink', ink);
+    preview.style.setProperty('--pv-muted', muted);
+    preview.style.setProperty('--pv-accent', /^#[0-9a-f]{6}$/i.test(accent) ? accent : ink);
+    preview.style.setProperty('--pv-font', fonts[font] || fonts.mono);
+    preview.style.padding = padding;
+  }
+
+  async function loadSettings() {
+    settingsMessage('Loading…');
+    settingsSave.disabled = true;
+    try {
+      const response = await fetch('/api/config');
+      if (!response.ok) throw new Error('Could not load config');
+      settingsConfig = await response.json();
+      const theme = settingsConfig.theme || {};
+      $('setting-preset').value = theme.preset === 'lattice' ? '' : (theme.preset || '');
+      $('setting-font').value = theme.font === 'mono' ? '' : (theme.font || '');
+      $('setting-density').value = theme.density === 'compact' ? '' : (theme.density || '');
+      $('setting-accent').value = theme.accent || '';
+      $('setting-accent-color').value = /^#[0-9a-f]{6}$/i.test(theme.accent || '') ? theme.accent : '#6f8cff';
+      const hosted = settingsConfig.hosted || {};
+      $('setting-api').value = hosted.apiBase || '';
+      $('setting-token').value = hosted.token || '';
+      $('setting-target').value = hosted.defaultTarget || '';
+      settingsDirty = false;
+      settingsSave.disabled = true;
+      settingsMessage('');
+      renderThemePreview();
+    } catch (error) {
+      settingsMessage(error.message || 'Could not load config', true);
+    }
+  }
+
+  async function saveSettings() {
+    if (!settingsConfig) return;
+    const accent = $('setting-accent').value.trim().toLowerCase();
+    if (accent && !/^#[0-9a-f]{6}$/.test(accent)) {
+      settingsMessage('Accent must be a six-digit hex color', true);
+      $('setting-accent').focus();
+      return;
+    }
+
+    settingsConfig.version ||= 1;
+    settingsConfig.theme = {
+      preset: $('setting-preset').value || undefined,
+      font: $('setting-font').value || undefined,
+      density: $('setting-density').value || undefined,
+      accent: accent || undefined,
+    };
+    settingsConfig.hosted = {
+      apiBase: $('setting-api').value.trim().replace(/\/$/, '') || undefined,
+      token: $('setting-token').value.trim() || undefined,
+      defaultTarget: $('setting-target').value || undefined,
+    };
+
+    settingsSave.disabled = true;
+    settingsMessage('Saving…');
+    try {
+      const response = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(settingsConfig),
+      });
+      if (!response.ok) {
+        const out = await response.json().catch(() => ({}));
+        throw new Error(out.error || 'Could not save config');
+      }
+      settingsConfig = await response.json();
+      settingsDirty = false;
+      settingsMessage('Changes saved');
+      setTimeout(() => { if (!settingsDirty) settingsMessage(''); }, 1800);
+    } catch (error) {
+      settingsSave.disabled = false;
+      settingsMessage(error.message || 'Could not save config', true);
+    }
+  }
+
+  settingIds.forEach((id) => $(id).addEventListener('input', () => {
+    setSettingsDirty();
+    renderThemePreview();
+  }));
+  $('setting-accent-color').addEventListener('input', (event) => {
+    $('setting-accent').value = event.target.value;
+    setSettingsDirty();
+    renderThemePreview();
+  });
+  $('accent-clear').addEventListener('click', () => {
+    $('setting-accent').value = '';
+    setSettingsDirty();
+    renderThemePreview();
+  });
+  $('settings-form').addEventListener('submit', (event) => event.preventDefault());
+  settingsSave.addEventListener('click', saveSettings);
+  $('settings-open').addEventListener('click', () => { location.hash = '#/settings'; });
+  $('settings-back').addEventListener('click', () => { location.hash = ''; });
 
   // ---- share popover -------------------------------------------------------
   const shareBtn = $('r-share'), sharePop = $('share-pop');
@@ -225,9 +360,18 @@
     else frame.src = url;
   };
 
-  // hash routing: '' = library, '#/read/<slug>' = reader
+  // hash routing: '' = library, '#/read/<slug>' = reader, '#/settings' = config
   function route() {
     closeShare();
+    if (location.hash === '#/settings') {
+      readerSlug = null;
+      reader.hidden = true;
+      frameTo('about:blank');
+      settings.hidden = false;
+      loadSettings();
+      return;
+    }
+    settings.hidden = true;
     const m = location.hash.match(/^#\/read\/([\w-]+)$/);
     if (m) {
       const slug = m[1];
@@ -246,12 +390,13 @@
   $('back').addEventListener('click', () => { location.hash = ''; });
 
   addEventListener('keydown', (e) => {
-    if (e.key === '/' && document.activeElement !== q && reader.hidden) {
+    if (e.key === '/' && document.activeElement !== q && reader.hidden && settings.hidden) {
       e.preventDefault();
       q.focus();
       q.select();
     } else if (e.key === 'Escape') {
       if (!sharePop.hidden) closeShare();
+      else if (!settings.hidden) location.hash = '';
       else if (!reader.hidden) location.hash = '';
       else if (q.value) { q.value = ''; search(); }
     }

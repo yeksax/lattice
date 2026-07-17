@@ -2,12 +2,12 @@
 
 **A local-first home for the HTML summaries your agents create.**
 
-Lattice is a tiny Go daemon and CLI that turns standalone HTML files into a
-searchable personal library. The filesystem stays the source of truth. A native
-macOS menu bar app manages the library, and optional hosted sharing publishes
-only the snapshot you choose.
+Lattice is a tiny cross-platform Go daemon and CLI that turns standalone HTML
+files into a searchable personal library. The filesystem stays the source of
+truth. Its embedded dashboard manages the library and appearance on macOS,
+Linux, and Windows; the native macOS app is an optional companion.
 
-[Download for macOS](https://github.com/yeksax/lattice/releases/download/continuous/Lattice.dmg) | [Website](https://lattice.pub) | [Continuous release](https://github.com/yeksax/lattice/releases/tag/continuous)
+[Download CLI builds](https://github.com/yeksax/lattice/releases/tag/continuous) | [macOS app](https://github.com/yeksax/lattice/releases/download/continuous/Lattice.dmg) | [Website](https://lattice.pub)
 
 ## Why
 
@@ -20,7 +20,7 @@ the durable object: portable, inspectable, and yours.
 | Directory | Purpose |
 |---|---|
 | `cmd/lattice/` | CLI, daemon, and embedded local dashboard |
-| `app/` | Tauri v2 macOS menu bar app |
+| `app/` | Optional Tauri v2 macOS menu bar app |
 | `web/` | Astro landing page for `lattice.pub` |
 | `cloud/` | Optional Cloudflare Worker for hosted snapshots |
 | `launchd/` | macOS LaunchAgent template |
@@ -32,18 +32,27 @@ hosted service is optional; local sharing remains available through `expose`.
 
 ## Install
 
-Download the current universal DMG from the link above, or build locally:
+Download the matching CLI from the continuous release:
+
+- `lattice-darwin-arm64` or `lattice-darwin-amd64`
+- `lattice-linux-arm64` or `lattice-linux-amd64`
+- `lattice-windows-amd64.exe`
+
+Rename it to `lattice` (`lattice.exe` on Windows), put it on your `PATH`, then
+run any command. The CLI starts the local daemon on demand and writes its log to
+`~/.summaries/.lattice/lattice.log`. Set `LATTICE_NO_AUTOSPAWN=1` if another
+service manager owns the daemon lifecycle.
+
+To build locally:
 
 ```sh
 git clone https://github.com/yeksax/lattice.git
 cd lattice
-make install
-make app-build
-open app/src-tauri/target/release/bundle/macos/Lattice.app
+go build -o lattice ./cmd/lattice
 ```
 
-The daemon runs at [http://127.0.0.1:4600](http://127.0.0.1:4600) through a
-LaunchAgent. Logs live at `~/.summaries/.lattice/lattice.log`.
+On macOS, `make install` remains available for a persistent LaunchAgent. The
+desktop app can be built separately with `make app-build`.
 
 ## CLI
 
@@ -52,6 +61,11 @@ lattice add report.html --tags infra,q3
 lattice ls
 lattice open report
 lattice rm report
+
+lattice config
+lattice config get theme.accent
+lattice config set theme.accent '#c2410c'
+lattice config unset theme.accent
 
 lattice login <token>
 lattice share report
@@ -65,14 +79,17 @@ logged in, hosted snapshots are the default; pass `--local` to override.
 
 ## How local storage works
 
-Lattice owns `~/.summaries/`. Each summary is a symlink to its original HTML
-file, accompanied by lightweight metadata. The in-memory search index rebuilds
-on startup and stays current through filesystem events. Open summaries receive
-a hot-reload bridge in the HTTP response only; source files are never modified.
+Lattice registers each summary by storing its absolute source path in a small
+metadata sidecar under `~/.summaries/.lattice/meta/`. It does not copy, move, or
+symlink newly added files, so registration behaves the same on every platform.
+Legacy symlinks and HTML files dropped directly into `~/.summaries/` remain
+supported. The in-memory search index rebuilds on startup and stays current
+through filesystem events. Open summaries receive a hot-reload bridge in the
+HTTP response only; source files are never modified.
 
-Configuration lives in `~/.summaries/.lattice/config.json` with `0600`
+Configuration lives in `~/.summaries/.lattice/config.json` with private file
 permissions. It contains theme preferences and, when configured, the hosted
-access token.
+access token. Edit it through `lattice config` or the dashboard's Settings view.
 
 ## Development
 
