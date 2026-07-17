@@ -60,7 +60,9 @@ function resolveTarget(url: URL, env: Env): { sub: string; rest: string } | null
     const suffix = '.' + env.SHARE_DOMAIN;
     if (host.endsWith(suffix)) {
       const sub = host.slice(0, -suffix.length);
-      if (sub && !sub.includes('.') && sub !== 'api' && sub !== 'www') {
+      // Reserved hosts are owned by the API, landing page, or legacy path-form
+      // share endpoint and must not be interpreted as snapshot subdomains.
+      if (sub && !sub.includes('.') && sub !== 'api' && sub !== 'www' && sub !== 'share') {
         return { sub, rest: url.pathname === '/' ? '' : url.pathname };
       }
     }

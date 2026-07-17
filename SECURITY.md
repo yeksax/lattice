@@ -16,4 +16,6 @@ uploads summaries selected explicitly by the user.
 
 Access tokens are stored locally in
 `~/.summaries/.lattice/config.json` with `0600` permissions. Never include that
-file, a production `cloud/wrangler.toml`, or environment files in bug reports.
+file, Wrangler credentials, or environment files in bug reports. The tracked
+`cloud/wrangler.toml` contains resource identifiers and routing configuration,
+not credentials.

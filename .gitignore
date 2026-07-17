@@ -17,7 +17,6 @@ node_modules/
 *.key
 *.p12
 *.pfx
-/cloud/wrangler.toml
 /cloud/.wrangler/
 /.claude/
 /.codex/

@@ -22,9 +22,10 @@ here instead of tunnelling to the local daemon; the local `--local` path (expose
 
 ## Public serving (no auth)
 
-Prod currently uses `https://share.lattice.pub/s/<sub>`. Dev uses the same
-`/s/<sub>` path on localhost. The Worker also supports
-`https://<sub>.<SHARE_DOMAIN>/` when wildcard DNS is enabled later.
+Production uses `https://<sub>.lattice.pub`. Existing
+`https://share.lattice.pub/s/<sub>` links remain supported. Development uses
+the same `/s/<sub>` path on localhost because `workers.dev` has no wildcard
+DNS.
 
 - `GET /` (or `/s/<sub>`) - the snapshot with the poll bridge injected
 - `POST /submit` - record a vote (`CF-Connecting-IP`, UA, timestamp)
@@ -39,15 +40,16 @@ daemon (`src/poll.bridge.txt` mirrors `cmd/lattice/dashboard/poll.js`; `aggregat
 ```sh
 cd cloud
 pnpm install
-cp wrangler.example.toml wrangler.toml
+# Self-hosters: copy wrangler.example.toml to wrangler.local.toml and pass
+# --config wrangler.local.toml to the Wrangler commands below.
 wrangler r2 bucket create lattice-snapshots
-wrangler d1 create lattice                      # paste the id into wrangler.toml
+wrangler d1 create lattice                      # paste the id into your local config
 pnpm db:init                                    # local; use db:init:remote for prod
 # mint a token for a friend:
 wrangler d1 execute lattice --command \
   "INSERT INTO tokens (token, owner, created) VALUES ('tok_demo', 'demo', unixepoch())"
 pnpm dev           # http://localhost:8787  (share URLs are /s/<sub>)
-pnpm run deploy    # production on api.lattice.pub + share.lattice.pub
+pnpm run deploy    # production API + wildcard and legacy share URLs
 ```
 
 ## Dev round-trip

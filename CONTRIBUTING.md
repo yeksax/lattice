@@ -13,9 +13,10 @@ make app
 make web
 ```
 
-For the hosted backend, copy `cloud/wrangler.example.toml` to
-`cloud/wrangler.toml`, provision your own D1 database and R2 bucket, and fill in
-your own resource identifiers. Never commit the resulting file.
+For a self-hosted backend, copy `cloud/wrangler.example.toml` to a separate
+local config, provision your own D1 database and R2 bucket, and pass that file
+to Wrangler with `--config`. Do not replace the tracked production
+`cloud/wrangler.toml` or commit credentials and access tokens.
 
 JavaScript dependencies are managed as one pnpm workspace. Run `pnpm install`
 from the repository root; do not create package-level npm lockfiles.

@@ -1,0 +1,57 @@
+# lattice hosted share backend — Cloudflare Worker.
+#
+# Two responsibilities on one Worker:
+#   1. api.lattice.pub/v1/*   authenticated share API (CLI talks to this)
+#   2. <sub>.lattice.pub/     public serving of a snapshot + poll collection
+#
+# The API keeps its explicit custom domain. A wildcard route serves public
+# snapshots at <sub>.lattice.pub while share.lattice.pub/s/<sub> remains as a
+# backwards-compatible path-based URL.
+
+name = "lattice-share"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# Cloudflare account where the lattice.pub zone and production resources live.
+account_id = "de6dcfa16a40b737085a15eab0aa69cd"
+
+# Import the poll bridge as raw text so it stays byte-identical to the copy the
+# daemon injects. Keep cloud/src/poll.bridge.txt in sync with dashboard/poll.js.
+rules = [
+  { type = "Text", globs = ["**/*.txt"], fallthrough = true },
+]
+
+[vars]
+# Public shares use <sub>.lattice.pub. PUBLIC_BASE keeps the original
+# share.lattice.pub/s/<sub> URL form working for existing links.
+SHARE_DOMAIN = "lattice.pub"
+PUBLIC_BASE = "https://share.lattice.pub"
+MAX_SNAPSHOT_BYTES = "2097152"   # 2 MiB per snapshot
+DEFAULT_MAX_SHARES = "10"        # active shares per token on the free tier
+
+# Snapshots: one HTML object per share at key snap/<sub>.
+[[r2_buckets]]
+binding = "SNAPSHOTS"
+bucket_name = "lattice-snapshots"
+
+# Metadata + votes.
+[[d1_databases]]
+binding = "DB"
+database_name = "lattice"
+database_id = "c500043f-8ef1-43ed-9fe4-a8288f69d96d"
+
+# Custom domains — wrangler provisions DNS + TLS automatically on deploy.
+# api.lattice.pub    → the /v1 share API (CLI talks here)
+# share.lattice.pub  → public snapshot serving at /s/<sub>
+# *.lattice.pub      → public snapshot serving at <sub>.lattice.pub
+[[routes]]
+pattern = "api.lattice.pub"
+custom_domain = true
+
+[[routes]]
+pattern = "share.lattice.pub"
+custom_domain = true
+
+[[routes]]
+pattern = "*.lattice.pub/*"
+zone_name = "lattice.pub"

@@ -106,15 +106,16 @@ from the repository root after cloning.
 
 The cloud backend requires your own Cloudflare resources. Follow
 [`cloud/README.md`](cloud/README.md) and start from
-[`cloud/wrangler.example.toml`](cloud/wrangler.example.toml). Production
-resource identifiers belong only in the ignored `cloud/wrangler.toml`.
+[`cloud/wrangler.example.toml`](cloud/wrangler.example.toml). The tracked
+`cloud/wrangler.toml` contains the deployment topology for the hosted service;
+credentials and access tokens remain outside the repository.
 
 ## Security and privacy
 
 - The daemon binds to loopback by default.
 - The local filesystem is the source of truth.
 - Sharing uploads one selected HTML snapshot, never the full library.
-- Production credentials and infrastructure configuration are gitignored.
+- Production credentials and access tokens are kept outside the repository.
 
 See [SECURITY.md](SECURITY.md) for reporting and trust-model details.
 
