@@ -9,6 +9,7 @@
   let docs = []; // full library cache
   let settingsConfig = null;
   let settingsDirty = false;
+  let settingsReturnFocus = null;
 
   const esc = (s) => s.replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -240,8 +241,48 @@
   });
   $('settings-form').addEventListener('submit', (event) => event.preventDefault());
   settingsSave.addEventListener('click', saveSettings);
-  $('settings-open').addEventListener('click', () => { location.hash = '#/settings'; });
+  $('settings-open').addEventListener('click', () => {
+    settingsReturnFocus = document.activeElement;
+    location.hash = '#/settings';
+  });
   $('settings-back').addEventListener('click', () => { location.hash = ''; });
+
+  const settingsContent = settings.querySelector('.settings-content');
+  const settingsSections = [...settings.querySelectorAll('.settings-section')];
+  const settingsNav = [...settings.querySelectorAll('[data-settings-target]')];
+
+  function activateSettingsSection(id, scroll = true) {
+    const section = $(id);
+    if (!section) return;
+    settingsNav.forEach((button) => {
+      const active = button.dataset.settingsTarget === id;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-current', active ? 'page' : 'false');
+    });
+    $('settings-title').textContent = section.dataset.settingsName;
+    if (scroll) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  settingsNav.forEach((button) => button.addEventListener('click', () => {
+    activateSettingsSection(button.dataset.settingsTarget);
+  }));
+
+  let settingsScrollFrame = 0;
+  settingsContent.addEventListener('scroll', () => {
+    cancelAnimationFrame(settingsScrollFrame);
+    settingsScrollFrame = requestAnimationFrame(() => {
+      const top = settingsContent.getBoundingClientRect().top + 110;
+      let current = settingsSections[0];
+      for (const section of settingsSections) {
+        if (section.getBoundingClientRect().top <= top) current = section;
+      }
+      activateSettingsSection(current.id, false);
+    });
+  }, { passive: true });
+
+  settings.addEventListener('mousedown', (event) => {
+    if (event.target === settings) location.hash = '';
+  });
 
   // ---- share popover -------------------------------------------------------
   const shareBtn = $('r-share'), sharePop = $('share-pop');
@@ -368,10 +409,15 @@
       reader.hidden = true;
       frameTo('about:blank');
       settings.hidden = false;
+      settingsContent.scrollTop = 0;
+      activateSettingsSection('settings-appearance', false);
       loadSettings();
+      requestAnimationFrame(() => $('settings-back').focus());
       return;
     }
+    const settingsWasOpen = !settings.hidden;
     settings.hidden = true;
+    if (settingsWasOpen) settingsReturnFocus?.focus();
     const m = location.hash.match(/^#\/read\/([\w-]+)$/);
     if (m) {
       const slug = m[1];
