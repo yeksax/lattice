@@ -412,7 +412,8 @@ mark {
   border-bottom: 1px solid var(--line);
 }
 .settings-toolbar h1 { margin: 0; font-size: 14.5px; line-height: 1.25; font-weight: 550; letter-spacing: -.015em; }
-.settings-message { display: block; min-height: 16px; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.settings-message { color: var(--muted); font-size: 11px; white-space: nowrap; margin-right: 4px; }
+.settings-message:empty { margin-right: 0; }
 .settings-message.is-error { color: #d07676; }
 .settings-actions { display: flex; align-items: center; gap: 6px; }
 .settings-save {
@@ -486,16 +487,37 @@ mark {
 .setting-row > select:hover { background: var(--fill-strong); }
 .setting-row > input:focus,
 .setting-row > select:focus { background: var(--bg-elev); border-color: var(--line-strong); box-shadow: 0 0 0 3px var(--fill); }
-.accent-field { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.accent-field input[type="color"] {
+.accent-field { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* custom swatch: shows the current accent; click opens the hidden native picker */
+.accent-swatch {
+  position: relative;
   flex: 0 0 36px;
   width: 36px;
   height: 36px;
-  padding: 3px;
-  background: var(--settings-control);
-  border: 1px solid transparent;
+  padding: 0;
+  background: var(--swatch, var(--fill));
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: box-shadow 120ms var(--ease), transform 80ms var(--ease);
+}
+.accent-swatch:hover { box-shadow: 0 0 0 3px var(--fill); }
+.accent-swatch:active { transform: scale(.97); }
+.accent-swatch:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--fill); border-color: var(--line-strong); }
+/* empty state: a faint diagonal "no color" mark */
+.accent-swatch.is-empty {
+  background:
+    linear-gradient(135deg, transparent calc(50% - 1px), var(--line-strong) calc(50% - 1px), var(--line-strong) calc(50% + 1px), transparent calc(50% + 1px)),
+    var(--fill);
+}
+.accent-native {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 36px;
+  height: 36px;
+  opacity: 0;
+  pointer-events: none;
 }
 .accent-field input[type="text"] {
   min-width: 0;
@@ -511,20 +533,103 @@ mark {
   transition: border-color 120ms var(--ease), background-color 120ms var(--ease), box-shadow 120ms var(--ease);
 }
 .accent-field input[type="text"]:focus { background: var(--bg-elev); border-color: var(--line-strong); box-shadow: 0 0 0 3px var(--fill); }
-.accent-field button {
+.accent-field #accent-clear {
   min-width: 52px;
   min-height: 36px;
   padding: 0 12px;
   color: var(--ink-2);
   background: transparent;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font: 500 12px/1 var(--sans);
   cursor: pointer;
   transition: color 120ms var(--ease), background-color 120ms var(--ease), transform 80ms var(--ease);
 }
-.accent-field button:hover { color: var(--ink); background: var(--fill); }
-.accent-field button:active { transform: scale(.97); }
+.accent-field #accent-clear:hover { color: var(--ink); background: var(--fill); }
+.accent-field #accent-clear:active { transform: scale(.97); }
+/* custom select */
+.uisel { position: relative; width: 100%; min-width: 0; }
+.uisel-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  pointer-events: none;
+}
+.uisel-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 11px;
+  color: var(--ink);
+  background: var(--settings-control);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: 12.5px/1.3 var(--sans);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms var(--ease), background-color 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+.uisel-trigger:hover { background: var(--fill-strong); }
+.uisel-trigger:focus-visible,
+.uisel[data-open] .uisel-trigger {
+  background: var(--bg-elev);
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px var(--fill);
+  outline: none;
+}
+.uisel-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uisel-caret { flex: 0 0 14px; width: 14px; height: 14px; color: var(--muted); transition: transform 140ms var(--ease); }
+.uisel[data-open] .uisel-caret { transform: rotate(180deg); }
+.uisel-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 6;
+  padding: 4px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 14px 38px rgb(0 0 0 / .3);
+  max-height: 264px;
+  overflow: auto;
+  animation: uisel-in 120ms var(--ease) both;
+}
+.uisel-menu[data-drop="up"] { top: auto; bottom: calc(100% + 6px); }
+.uisel-menu[hidden] { display: none; }
+@keyframes uisel-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.uisel-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 10px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: 500 12.5px/1 var(--sans);
+  text-align: left;
+  cursor: pointer;
+  transition: color 100ms var(--ease), background-color 100ms var(--ease);
+}
+.uisel-option:hover,
+.uisel-option:focus-visible { color: var(--ink); background: var(--fill); outline: none; }
+.uisel-option[aria-selected="true"] { color: var(--ink); }
+.uisel-check { flex: 0 0 14px; width: 14px; height: 14px; opacity: 0; }
+.uisel-option[aria-selected="true"] .uisel-check { opacity: 1; }
+
 .preview-block { margin-top: 34px; }
 .theme-preview {
   --pv-bg: #f1f1ef;

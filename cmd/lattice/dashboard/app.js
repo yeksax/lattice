@@ -155,6 +155,118 @@
     preview.style.padding = padding;
   }
 
+  // ---- custom controls -----------------------------------------------------
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function icon(cls, d) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('class', cls);
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+    return svg;
+  }
+
+  const uiSelects = []; // { sync } for each enhanced <select>
+  const closeAllSelects = (except) => uiSelects.forEach((s) => { if (s.wrap !== except) s.close(); });
+
+  // Replace a native <select> with a monochrome custom dropdown while keeping
+  // the native element as the source of truth (value, form, existing listeners).
+  function enhanceSelect(native) {
+    const wrap = el('div', { class: 'uisel' });
+    native.parentNode.insertBefore(wrap, native);
+    wrap.appendChild(native);
+    native.classList.add('uisel-native');
+    native.tabIndex = -1;
+    native.setAttribute('aria-hidden', 'true');
+
+    const label = el('span', { class: 'uisel-value' });
+    const trigger = el('button', {
+      type: 'button', class: 'uisel-trigger',
+      'aria-haspopup': 'listbox', 'aria-expanded': 'false',
+    });
+    trigger.append(label, icon('uisel-caret', 'm6 9 6 6 6-6'));
+    const menu = el('div', { class: 'uisel-menu', role: 'listbox', hidden: 'hidden' });
+
+    const options = [...native.options].map((opt) => {
+      const item = el('button', { type: 'button', class: 'uisel-option', role: 'option' });
+      item.dataset.value = opt.value;
+      item.append(el('span', {}, opt.textContent), icon('uisel-check', 'M20 6 9 17l-5-5'));
+      item.addEventListener('click', () => { choose(opt.value); close(); trigger.focus(); });
+      menu.appendChild(item);
+      return item;
+    });
+    wrap.append(trigger, menu);
+
+    function sync() {
+      const opt = native.options[native.selectedIndex] || native.options[0];
+      label.textContent = opt ? opt.textContent : '';
+      options.forEach((item) => item.setAttribute('aria-selected', item.dataset.value === native.value ? 'true' : 'false'));
+    }
+    function choose(value) {
+      if (native.value !== value) {
+        native.value = value;
+        native.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      sync();
+    }
+    function open() {
+      if (!menu.hidden) return;
+      closeAllSelects(wrap);
+      menu.hidden = false;
+      wrap.dataset.open = '';
+      trigger.setAttribute('aria-expanded', 'true');
+      // flip upward when there isn't room below
+      const room = window.innerHeight - trigger.getBoundingClientRect().bottom;
+      menu.dataset.drop = room < menu.offsetHeight + 16 ? 'up' : 'down';
+      (options.find((i) => i.getAttribute('aria-selected') === 'true') || options[0])?.focus();
+    }
+    function close() {
+      if (menu.hidden) return;
+      menu.hidden = true;
+      delete wrap.dataset.open;
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    trigger.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden ? open() : close(); });
+    trigger.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    });
+    menu.addEventListener('keydown', (e) => {
+      const i = options.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); options[Math.min(i + 1, options.length - 1)].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); options[Math.max(i - 1, 0)].focus(); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); trigger.focus(); }
+      else if (e.key === 'Tab') close();
+    });
+
+    sync();
+    uiSelects.push({ wrap, sync, close });
+  }
+
+  // ---- accent swatch -------------------------------------------------------
+  const accentSwatch = $('accent-swatch');
+  const accentColor = $('setting-accent-color');
+  const accentText = $('setting-accent');
+  function updateSwatch() {
+    const value = accentText.value.trim();
+    const valid = /^#[0-9a-f]{6}$/i.test(value);
+    accentSwatch.classList.toggle('is-empty', !valid);
+    accentSwatch.style.setProperty('--swatch', valid ? value : '');
+    if (valid) accentColor.value = value;
+  }
+
+  function syncCustomControls() {
+    uiSelects.forEach((s) => s.sync());
+    updateSwatch();
+  }
+
   async function loadSettings() {
     settingsMessage('Loading…');
     settingsSave.disabled = true;
@@ -176,6 +288,7 @@
       settingsSave.disabled = true;
       settingsMessage('');
       renderThemePreview();
+      syncCustomControls();
     } catch (error) {
       settingsMessage(error.message || 'Could not load config', true);
     }
@@ -229,16 +342,25 @@
     setSettingsDirty();
     renderThemePreview();
   }));
-  $('setting-accent-color').addEventListener('input', (event) => {
-    $('setting-accent').value = event.target.value;
+  accentText.addEventListener('input', updateSwatch);
+  accentSwatch.addEventListener('click', () => accentColor.click());
+  accentColor.addEventListener('input', (event) => {
+    accentText.value = event.target.value;
     setSettingsDirty();
     renderThemePreview();
+    updateSwatch();
   });
   $('accent-clear').addEventListener('click', () => {
-    $('setting-accent').value = '';
+    accentText.value = '';
     setSettingsDirty();
     renderThemePreview();
+    updateSwatch();
   });
+
+  // enhance selects and dismiss any open menu on outside click
+  settings.querySelectorAll('select[data-uisel]').forEach(enhanceSelect);
+  addEventListener('click', () => closeAllSelects());
+  const anySelectOpen = () => uiSelects.some((s) => s.wrap.hasAttribute('data-open'));
   $('settings-form').addEventListener('submit', (event) => event.preventDefault());
   settingsSave.addEventListener('click', saveSettings);
   $('settings-open').addEventListener('click', () => {
@@ -441,7 +563,8 @@
       q.focus();
       q.select();
     } else if (e.key === 'Escape') {
-      if (!sharePop.hidden) closeShare();
+      if (anySelectOpen()) closeAllSelects();
+      else if (!sharePop.hidden) closeShare();
       else if (!settings.hidden) location.hash = '';
       else if (!reader.hidden) location.hash = '';
       else if (q.value) { q.value = ''; search(); }
