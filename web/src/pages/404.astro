@@ -1,0 +1,24 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Page not found: Lattice" description="Lattice could not find this page." solidHeader localize>
+  <section class="flex min-h-[70svh] items-center pt-16">
+    <div class="wrap">
+      <p class="eyebrow">404</p>
+      <h1
+        class="mt-5 font-serif text-ink"
+        style="font-size: clamp(2.2rem, 4.6vw, 3.4rem); line-height: 1.08; letter-spacing: -0.02em; font-variation-settings: 'opsz' 120; font-weight: 440;"
+      >
+        This page is not in the library.
+      </h1>
+      <p class="lede mt-5">
+        The address may have changed, or the link may be incomplete. Your local reports are unaffected.
+      </p>
+      <div class="mt-10 flex flex-wrap gap-4">
+        <a class="btn btn-primary" href="/">Return home</a>
+        <a class="btn btn-ghost" href="/download">View downloads</a>
+      </div>
+    </div>
+  </section>
+</Layout>

@@ -1,0 +1,109 @@
+---
+import '@fontsource-variable/fraunces/full.css';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+  solidHeader?: boolean;
+  localize?: boolean;
+}
+
+const { title, description, solidHeader = false, localize = false } = Astro.props;
+const github = 'https://github.com/yeksax/lattice';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#ffffff" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    <noscript>
+      <style>
+        .reveal {
+          opacity: 1 !important;
+          transform: none !important;
+        }
+      </style>
+    </noscript>
+  </head>
+  <body data-localized-page={localize || undefined}>
+    <a
+      href="#main"
+      class="fixed top-2 left-2 z-100 -translate-y-20 rounded-full border border-line-strong bg-paper px-3 py-2 font-mono text-xs focus:translate-y-0"
+    >
+      Skip to content
+    </a>
+
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class:list={['site-header', { 'is-solid': solidHeader }]}>
+      <div class="wrap flex h-[4.5rem] items-center justify-between">
+        <a href="/" class="text-ink" aria-label="Lattice home">
+          <span class="font-serif text-[21px] leading-none font-medium tracking-tight">lattice</span>
+        </a>
+        <nav class="flex items-center gap-5 sm:gap-8" aria-label="Main">
+          <a href="/#reports" class="nav-link hidden sm:block">Reports</a>
+          <a href="/#skill" class="nav-link hidden sm:block">Skill</a>
+          <a href="/#library" class="nav-link hidden sm:block">Library</a>
+          <a href={github} class="nav-link" rel="noopener">GitHub</a>
+          <a
+            href="/download"
+            class="rounded-full border border-ink bg-ink px-4 py-2 font-mono text-[13px] text-paper transition-colors duration-200 hover:border-[#3a3a3a] hover:bg-[#3a3a3a]"
+          >
+            Download
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <footer class="border-t border-line">
+      <div
+        class:list={[
+          'wrap grid gap-8 py-10 font-mono text-[13px] text-ink2 sm:items-start sm:gap-12',
+          localize ? 'sm:grid-cols-[minmax(0,1fr)_auto_auto]' : 'sm:grid-cols-[minmax(0,1fr)_auto]',
+        ]}
+      >
+        <div class="flex items-baseline gap-4">
+          <span class="font-serif text-[15px] font-medium text-ink">lattice</span>
+          <span class="text-muted">Local-first reports for agent-made work.</span>
+        </div>
+        <div class="flex items-center gap-6">
+          <a href="/download" class="transition-colors duration-200 hover:text-ink">Downloads</a>
+          <a href={github} class="transition-colors duration-200 hover:text-ink" rel="noopener">Source</a>
+          <a href={`${github}/blob/main/LICENSE`} class="transition-colors duration-200 hover:text-ink" rel="noopener">MIT</a>
+        </div>
+        {
+          localize && (
+            <div aria-label="Language" class="flex flex-col items-start gap-2">
+              <span class="mb-1 text-muted">Language</span>
+              <button class="locale-option transition-colors duration-200 hover:text-ink" type="button" data-locale-option="pt-BR">
+                Português (Brasil)
+              </button>
+              <button class="locale-option transition-colors duration-200 hover:text-ink" type="button" data-locale-option="en">
+                English
+              </button>
+            </div>
+          )
+        }
+      </div>
+    </footer>
+
+    <script>
+      import '../scripts/main.ts';
+    </script>
+  </body>
+</html>

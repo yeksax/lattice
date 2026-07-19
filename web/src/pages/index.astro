@@ -1,289 +1,868 @@
 ---
-import '@phosphor-icons/web/regular';
-import '@fontsource-variable/geist';
-import '@fontsource-variable/geist-mono';
-import '../styles/global.css';
+import Layout from '../layouts/Layout.astro';
 
-const releaseBase = 'https://github.com/yeksax/lattice/releases/download/continuous';
-const githubUrl = 'https://github.com/yeksax/lattice';
+const github = 'https://github.com/yeksax/lattice';
+const releaseBase = `${github}/releases/download/continuous`;
 const skillBase = 'https://raw.githubusercontent.com/yeksax/lattice/main/skills/html-summary';
 
-const shelf = [
-  'q3-infra-review.html',
-  'auth-audit.html',
-  'migration-plan.html',
-  'api-bakeoff.html',
-  'latency-notes.html',
+const consequences = [
+  {
+    title: 'Buried in chat',
+    text: 'Useful work becomes one more message in a thread that keeps moving.',
+  },
+  {
+    title: 'Hard to review',
+    text: 'Markdown can hold the answer, but not always the hierarchy, controls, or context readers need.',
+  },
+  {
+    title: 'Easy to detach',
+    text: 'Feedback lands elsewhere, so the recommendation and the decision slowly drift apart.',
+  },
 ];
+
+const ledger = [
+  {
+    cmd: 'lattice add report.html',
+    text: 'Index a report in place. Lattice stores its path, not another copy.',
+  },
+  {
+    cmd: 'lattice ls',
+    text: 'List what is in the library while filesystem events keep the index current.',
+  },
+  {
+    cmd: 'lattice open five-options',
+    text: 'Open the local reader and refresh it automatically as the file changes.',
+  },
+  {
+    cmd: 'lattice share five-options',
+    text: 'Publish one selected snapshot. The dashboard and every other report stay out of reach.',
+  },
+  {
+    cmd: 'polls · added at serve time',
+    text: 'Collect a response beside the report and reveal aggregate counts without rewriting the HTML.',
+  },
+];
+
+const shelfIndex = [
+  { slug: 'postgres-17-migration', meta: 'db · plan · decided' },
+  { slug: 'auth-flow-audit', meta: 'security · 2 polls' },
+  { slug: 'api-framework-bakeoff', meta: 'blind vote · decided' },
+  { slug: 'p99-latency-notes', meta: 'perf' },
+  { slug: 'pricing-model-q3', meta: 'finance · voted' },
+];
+
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="Lattice keeps the HTML your agents write on your machine. Search it, open it, and share only what you choose."
-    />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f4f4" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c0c0c" />
-    <meta property="og:title" content="Lattice" />
-    <meta property="og:description" content="A local library for the HTML your agents write." />
-    <meta property="og:url" content="https://lattice.pub/" />
-    <meta property="og:type" content="website" />
-    <link rel="canonical" href="https://lattice.pub/" />
-    <title>Lattice | Keep the HTML your agents write</title>
-  </head>
-  <body>
-    <a class="skip" href="#main">Skip to content</a>
-
-    <header class="site-header">
-      <div class="wrap header-inner">
-        <a class="wordmark" href="/">lattice</a>
-        <nav aria-label="Primary">
-          <a href="#thesis">Why</a>
-          <a href="#how">Loop</a>
-          <a href="#skill">Skill</a>
-          <a href="/download">Download</a>
-          <a href={githubUrl} rel="noopener noreferrer">
-            GitHub
-            <i class="ph ph-arrow-up-right" aria-hidden="true"></i>
-          </a>
-        </nav>
-      </div>
-    </header>
-
-    <main id="main">
-      <section class="hero" aria-labelledby="hero-brand">
-        <div class="hero-media" aria-hidden="true">
-          <picture>
-            <source srcset="/hero-documents.webp" type="image/webp" />
-            <img
-              src="/hero-documents.jpg"
-              alt=""
-              width="1536"
-              height="1024"
-              fetchpriority="high"
-              decoding="async"
-            />
-          </picture>
-          <div class="hero-scrim"></div>
-        </div>
-
-        <div class="wrap">
-          <div class="hero-content">
-            <p class="hero-brand reveal" id="hero-brand">lattice</p>
-            <h1 class="reveal delay-1">Your agents write HTML. Keep it.</h1>
-            <p class="hero-lede reveal delay-2">
-              A local library for agent-made documents. Find them fast. Share only what you mean to.
-            </p>
-            <div class="actions reveal delay-3">
-              <a class="button primary" data-platform-cta href="/download">
-                <i class="ph ph-download-simple" data-platform-cta-icon aria-hidden="true"></i>
-                <span data-platform-cta-label>Download</span>
-              </a>
-              <a class="button ghost" href={githubUrl} rel="noopener noreferrer">
-                View source
-                <i class="ph ph-arrow-up-right" aria-hidden="true"></i>
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="thesis wrap" id="thesis">
-        <h2 class="reveal">Chat is the scratchpad. The document is the keep.</h2>
-        <p class="thesis-body reveal delay-1">
-          Agents draft plans, audits, and reports that vanish into threads.
-          Lattice indexes standalone HTML on your disk so the useful output stays searchable, inspectable, and yours.
+<Layout
+  title="Lattice: A local-first library for agent-made reports"
+  description="Keep agent-made HTML reports searchable, share one isolated snapshot, and collect decisions beside the work. Local-first, open source, and MIT licensed."
+  localize
+>
+  <!-- ============ 1 · hero ============ -->
+  <section class="hero relative flex min-h-[88svh] items-center overflow-hidden">
+    <div class="absolute inset-0" aria-hidden="true">
+      <picture class="block h-full w-full">
+        <source srcset="/images/lattice-forest-hero.webp" type="image/webp" />
+        <img
+          src="/images/lattice-forest-hero.png"
+          alt=""
+          width="1440"
+          height="940"
+          class="h-full w-full object-cover object-[62%_center] sm:object-center"
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
+        />
+      </picture>
+      <div
+        class="absolute inset-0"
+        style="background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.5) 9%, rgba(255,255,255,0) 19%), linear-gradient(90deg, rgba(255,255,255,0.99) 0%, rgba(255,255,255,0.96) 36%, rgba(255,255,255,0.82) 52%, rgba(255,255,255,0.18) 72%, rgba(255,255,255,0) 82%);"
+      ></div>
+      <div
+        class="absolute inset-0 sm:hidden"
+        style="background: linear-gradient(90deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.9) 58%, rgba(255,255,255,0.28) 100%);"
+      ></div>
+    </div>
+    <div class="wrap relative w-full">
+      <div class="hero-copy max-w-[600px] py-24">
+        <p class="eyebrow reveal">A local-first library for agent-made reports</p>
+        <h1
+          class="hero-title reveal mt-7 font-serif text-ink"
+          style="--d: 0.06s; font-size: clamp(2.9rem, 6vw, 4.8rem); line-height: 1.04; letter-spacing: -0.02em; text-wrap: balance; font-variation-settings: 'opsz' 144; font-weight: 440;"
+        >
+          Turn agent output into reports your team can use.
+        </h1>
+        <p class="lede reveal mt-7" style="--d: 0.12s">
+          Lattice turns standalone HTML into a searchable library. Open the original file, share one
+          isolated report, and collect the decision beside the work.
         </p>
-
-        <dl class="compare reveal delay-2">
-          <div class="compare-row">
-            <dt>In chat</dt>
-            <dd>The useful version is buried in a thread. Hard to find. Easy to lose.</dd>
-          </div>
-          <div class="compare-row is-keep">
-            <dt>In Lattice</dt>
-            <dd>The same work is a file on disk. Searchable. Openable. Yours.</dd>
-          </div>
-        </dl>
-      </section>
-
-      <!-- Library as a shelf of real paths, not an app chrome -->
-      <section class="library wrap" aria-labelledby="library-heading">
-        <div class="section-head reveal">
-          <h2 id="library-heading">Stop scrolling the chat. Search the shelf.</h2>
-          <p>
-            Every summary is a real file under <code>~/.summaries</code>. Hover a path to pick it out of the stack.
-          </p>
+        <div class="reveal mt-10 flex flex-wrap items-center gap-4" style="--d: 0.18s">
+          <a class="btn btn-primary" href="/download">
+            Download Lattice
+            <svg class="h-[13px] w-[13px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="12" x2="20" y2="12" /><polyline points="14 6 20 12 14 18" /></svg>
+          </a>
+          <a class="btn btn-ghost" href="/download#skill">Install the report skill</a>
         </div>
+        <p class="reveal mt-10 font-mono text-xs text-muted" style="--d: 0.24s">
+          One binary&ensp;·&ensp;macOS, Linux, Windows&ensp;·&ensp;MIT licensed
+        </p>
+      </div>
+    </div>
+  </section>
 
-        <ul class="shelf reveal delay-1" data-shelf>
-          {
-            shelf.map((file) => (
-              <li class="shelf-item" tabindex="0">
-                <span class="shelf-root" aria-hidden="true">~/.summaries/</span>
-                <span class="shelf-file">{file}</span>
-              </li>
-            ))
-          }
-        </ul>
-      </section>
-
-      <!-- Principles -->
-      <section class="principles wrap" aria-label="What you get">
-        <div class="principle-visual reveal">
-          <picture>
-            <source srcset="/local-machine.webp" type="image/webp" />
-            <img
-              src="/local-machine.jpg"
-              alt=""
-              width="1536"
-              height="1024"
-              loading="lazy"
-              decoding="async"
-            />
-          </picture>
-          <div class="principle-visual-copy">
-            <h2>Local by default.</h2>
-            <p>Offline is the happy path. The library lives on your machine, not someone else's vault.</p>
-          </div>
-        </div>
-
-        <ul class="principle-list">
-          <li class="principle reveal" data-principle>
-            <button type="button" class="principle-trigger">
-              <span class="principle-title">Filesystem is truth</span>
-              <i class="ph ph-caret-down" aria-hidden="true"></i>
-            </button>
-            <p class="principle-body">
-              Edit the HTML anywhere. Lattice follows the file, not a copy locked in a database.
-            </p>
-          </li>
-          <li class="principle reveal delay-1" data-principle>
-            <button type="button" class="principle-trigger">
-              <span class="principle-title">One small daemon</span>
-              <i class="ph ph-caret-down" aria-hidden="true"></i>
-            </button>
-            <p class="principle-body">
-              Search, hot reload, CLI, and a native macOS menu bar app. Quiet until you need it.
-            </p>
-          </li>
-          <li class="principle reveal delay-2" data-principle>
-            <button type="button" class="principle-trigger">
-              <span class="principle-title">Share is a choice</span>
-              <i class="ph ph-caret-down" aria-hidden="true"></i>
-            </button>
-            <p class="principle-body">
-              Publish one immutable snapshot. The rest of the library never leaves the machine.
-            </p>
-          </li>
-        </ul>
-      </section>
-
-      <!-- Loop: hover verbs to type the command -->
-      <section class="loop wrap" id="how">
-        <h2 class="reveal">Three verbs. One loop.</h2>
-        <div class="loop-board reveal delay-1" data-loop>
-          <div class="loop-verbs" role="tablist" aria-label="Lattice commands">
-            <button type="button" class="loop-verb is-active" role="tab" aria-selected="true" data-verb="add">
-              add
-            </button>
-            <button type="button" class="loop-verb" role="tab" aria-selected="false" data-verb="open">
-              open
-            </button>
-            <button type="button" class="loop-verb" role="tab" aria-selected="false" data-verb="share">
-              share
-            </button>
-          </div>
-          <div class="loop-panel" role="tabpanel">
-            <pre class="loop-terminal" aria-live="polite"><code id="loop-line"><span class="prompt">$</span> <span id="loop-cmd">lattice add report.html</span><span class="caret" aria-hidden="true"></span></code></pre>
-            <p class="loop-explain" id="loop-explain">
-              Symlink, metadata, full-text index. The file stays where you put it.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section class="skill wrap" id="skill">
-        <div class="section-head reveal">
-          <h2>Teach the agent once with <code>/html-summary</code></h2>
-          <p>
-            House style: one self-contained HTML file, readable offline, no external requests.
-            Last step registers it in Lattice when the daemon is around.
-          </p>
-        </div>
-
-        <div class="skill-row reveal delay-1">
-          <div class="skill-copy">
-            <p>
-              No daemon? You still get a clean standalone document. Install the skill alone if you want.
-            </p>
-            <a class="text-cta" href={`${githubUrl}/tree/main/skills/html-summary`}>
-              Read the skill source
-              <i class="ph ph-arrow-right" aria-hidden="true"></i>
-            </a>
-          </div>
-          <div class="install-block" aria-label="Install the companion skill">
-            <div class="install-head">
-              <span>install skill</span>
-              <button type="button" class="copy-btn" data-copy-install>
-                <i class="ph ph-copy" aria-hidden="true"></i>
-                <span data-copy-label>Copy</span>
-              </button>
+  <!-- ============ 2 · the problem ============ -->
+  <section id="problem" class="section">
+    <div class="mx-auto w-full max-w-[900px] px-6 md:px-10">
+      <p class="eyebrow reveal"><span class="idx">01</span>the gap</p>
+      <h2 class="h-display reveal mt-5" style="--d: 0.06s">Your agent finished the work. The result still got lost.</h2>
+      <div class="prose-plain reveal mt-8" style="--d: 0.12s">
+        <p>
+          Agents can produce careful audits, plans, and comparisons in minutes. The finished artifact
+          still tends to disappear into chat history, a shared folder, or a long Markdown file.
+        </p>
+        <p>
+          The problem is not the analysis. It is the handoff from generated output to team review.
+        </p>
+      </div>
+      <div class="reveal mt-12 border-t border-line" style="--d: 0.18s">
+        {
+          consequences.map((c) => (
+            <div class="grid grid-cols-1 gap-1 border-b border-line py-5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-8">
+              <p class="font-mono text-[13px] text-ink">{c.title}</p>
+              <p class="text-[15px] text-ink2">{c.text}</p>
             </div>
-            <pre id="install-code"><code>mkdir -p ~/.claude/skills/html-summary
+          ))
+        }
+      </div>
+      <p class="reveal mt-10 max-w-[60ch] text-ink2" style="--d: 0.22s">
+        Keep the artifact, the conversation, and the outcome connected.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 3 · the interaction layer ============ -->
+  <section id="decision" class="section border-t border-line">
+    <div class="wrap">
+      <div class="interaction-grid">
+        <header class="interaction-copy">
+          <p class="eyebrow reveal"><span class="idx">02</span>the response layer</p>
+          <h2 class="interaction-title reveal mt-5" style="--d: 0.06s">
+            Keep the file. Add the workflow.
+          </h2>
+          <p class="interaction-lede reveal" style="--d: 0.12s">
+            Lattice serves the HTML from disk and adds live reload, isolated sharing, and reader input
+            to the response. Nothing is written back into the source.
+          </p>
+          <p class="interaction-command reveal" style="--d: 0.16s">
+            <span>$</span> lattice open api-framework-bakeoff
+          </p>
+          <p class="interaction-note reveal" style="--d: 0.2s">
+            Open the raw file anywhere. It stays portable, inspectable HTML.
+          </p>
+        </header>
+
+        <figure class="interaction-composition reveal" style="--d: 0.16s">
+          <article class="interaction-source-file" aria-label="Original HTML source file">
+            <header>
+              <span>Original file</span>
+              <strong>api-framework-bakeoff.html</strong>
+            </header>
+            <pre><code>&lt;article&gt;
+  &lt;h1&gt;API framework review&lt;/h1&gt;
+  &lt;comparison-table&gt;&lt;/comparison-table&gt;
+  &lt;form data-lattice-poll&gt;...&lt;/form&gt;
+&lt;/article&gt;</code></pre>
+            <footer>
+              <span>Normal HTML</span>
+              <span>Untouched on disk</span>
+            </footer>
+          </article>
+
+          <article class="interaction-reader" aria-label="Interactive report opened in Lattice">
+            <header class="interaction-reader-bar">
+              <span class="interaction-back">← Library</span>
+              <div class="interaction-reader-id">
+                <strong>API framework review</strong>
+                <span>api-framework-bakeoff.html</span>
+              </div>
+              <nav aria-label="Report actions">
+                <span>Share</span>
+                <span>Raw</span>
+                <span>Download</span>
+              </nav>
+            </header>
+
+            <div class="interaction-report-body">
+              <p class="interaction-report-kicker">Architecture decision</p>
+              <h3>Choosing an API framework</h3>
+              <p class="interaction-report-summary">
+                Three approaches compared by runtime cost, migration effort, and maintenance.
+              </p>
+
+              <form class="interaction-poll" data-lattice-poll>
+                <input type="hidden" name="poll" value="preferred-framework" />
+                <fieldset>
+                  <legend>Which option should the team take forward?</legend>
+                  <label><input type="radio" name="choice" value="a" /> <span>A</span> Edge-native path</label>
+                  <label><input type="radio" name="choice" value="b" /> <span>B</span> Node standard</label>
+                  <label><input type="radio" name="choice" value="c" /> <span>C</span> Typed runtime</label>
+                </fieldset>
+                <div class="interaction-poll-footer">
+                  <p>Blind until you vote</p>
+                  <button type="button">Submit vote</button>
+                </div>
+              </form>
+            </div>
+          </article>
+
+          <aside class="interaction-layer" aria-label="Features added when Lattice serves the report">
+            <p>Added when Lattice serves</p>
+            <dl>
+              <div><dt>Edit</dt><dd>Live reload</dd></div>
+              <div><dt>Share</dt><dd>Isolated snapshot</dd></div>
+              <div><dt>Decide</dt><dd>Polls and counts</dd></div>
+            </dl>
+          </aside>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4 · why HTML reports ============ -->
+  <section id="reports" class="section border-t border-line">
+    <div class="wrap">
+      <p class="eyebrow reveal"><span class="idx">03</span>why HTML</p>
+      <h2 class="h-display reveal mt-5" style="--d: 0.06s">Built for browsers. Easy for agents.</h2>
+
+      <div class="reveal mt-14 grid grid-cols-1 gap-12 md:grid-cols-2" style="--d: 0.12s">
+        <div>
+          <p class="font-mono text-[13px] text-ink">For readers</p>
+          <p class="mt-4 max-w-[44ch] text-ink2">
+            HTML gives a report real hierarchy, responsive layouts, charts, comparisons, and controls.
+            It opens in a browser without a proprietary viewer.
+          </p>
+        </div>
+        <div class="md:border-l md:border-line md:pl-12">
+          <p class="font-mono text-[13px] text-ink">For agents</p>
+          <p class="mt-4 max-w-[44ch] text-ink2">
+            Agents can write, inspect, and revise HTML directly. A self-contained file keeps the
+            content, presentation, and interaction in one portable artifact.
+          </p>
+        </div>
+      </div>
+
+      <p
+        class="reveal mt-24 max-w-[30ch] font-serif text-ink"
+        style="--d: 0.1s; font-size: clamp(1.6rem, 3.2vw, 2.4rem); line-height: 1.25; letter-spacing: -0.01em; font-variation-settings: 'opsz' 60;"
+      >
+        One artifact moves from generation to review without a conversion step.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 5 · the report skill ============ -->
+  <section id="skill" class="section border-t border-line">
+    <div class="wrap grid grid-cols-1 items-start gap-14 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      <div>
+        <p class="eyebrow reveal"><span class="idx">04</span>the report skill</p>
+        <h2 class="h-display reveal mt-5" style="--d: 0.06s">A report format your agent can reuse.</h2>
+        <div class="prose-plain reveal mt-8" style="--d: 0.12s">
+          <p>
+            The html-summary skill gives compatible agents a practical structure for concise,
+            self-contained HTML reports with no external requests.
+          </p>
+          <p>
+            Use the skill by itself to create portable reports. Add Lattice when you want a library,
+            local preview, sharing, and reader responses around those files.
+          </p>
+        </div>
+        <p class="reveal mt-6 font-mono text-[13px]" style="--d: 0.16s">
+          <a
+            href={`${github}/blob/main/skills/html-summary/SKILL.md`}
+            class="text-ink2 underline underline-offset-4 transition-colors hover:text-ink"
+            rel="noopener"
+          >
+            Inspect the skill
+          </a>
+        </p>
+      </div>
+
+      <div class="reveal" style="--d: 0.14s">
+        <div class="cmdblock">
+          <div class="cmdblock-head">
+            <span>html-summary · works without Lattice</span>
+            <button class="copy-btn" data-copy-target="#skill-code" type="button">
+              <span data-copy-label>Copy</span>
+            </button>
+          </div>
+          <pre class="cmdblock-body"><code id="skill-code">mkdir -p ~/.claude/skills/html-summary
 curl -fsSL {skillBase}/SKILL.md \
   -o ~/.claude/skills/html-summary/SKILL.md
 curl -fsSL {skillBase}/template.html \
   -o ~/.claude/skills/html-summary/template.html</code></pre>
-          </div>
         </div>
-      </section>
-
-      <section class="contract wrap" aria-label="Product contract">
-        <h2 class="reveal">Open source local tool. Hosted share is optional.</h2>
-        <ul class="contract-list reveal delay-1">
-          <li><i class="ph ph-check" aria-hidden="true"></i> Plain HTML in</li>
-          <li><i class="ph ph-check" aria-hidden="true"></i> Plain HTML out</li>
-          <li><i class="ph ph-check" aria-hidden="true"></i> Local by default</li>
-          <li><i class="ph ph-check" aria-hidden="true"></i> Sharing by consent</li>
-        </ul>
-        <a class="text-cta reveal delay-2" href={githubUrl} rel="noopener noreferrer">
-          Browse the source
-          <i class="ph ph-arrow-right" aria-hidden="true"></i>
-        </a>
-      </section>
-
-      <section class="cta-band">
-        <div class="wrap cta-inner reveal">
-          <h2>Keep the work.</h2>
-          <p>Open source. macOS now. Windows and Linux soon.</p>
-          <div class="actions">
-            <a class="button primary invert" data-platform-cta href="/download">
-              <i class="ph ph-download-simple" data-platform-cta-icon aria-hidden="true"></i>
-              <span data-platform-cta-label>Download</span>
-            </a>
-            <a class="text-link" data-platform-mac-only href={`${releaseBase}/lattice-darwin-arm64`}>
-              macOS CLI
-            </a>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="wrap footer-inner">
-        <a class="wordmark" href="/">lattice</a>
-        <p>Documents worth keeping.</p>
-        <a href={githubUrl} rel="noopener noreferrer">GitHub</a>
       </div>
-    </footer>
+    </div>
+  </section>
 
-    <script>
-      import '../scripts/landing.ts';
-    </script>
-  </body>
-</html>
+  <!-- ============ 6 · what Lattice adds ============ -->
+  <section id="library" class="section border-t border-line">
+    <div class="wrap">
+      <p class="eyebrow reveal"><span class="idx">05</span>the local library</p>
+      <h2 class="h-display reveal mt-5" style="--d: 0.06s">From one file to a working record.</h2>
+      <p class="lede reveal mt-6" style="--d: 0.12s">
+        Register a report where it already lives. Lattice makes it quick to retrieve, preview, and
+        share without taking ownership away from the filesystem.
+      </p>
+
+      <div class="reveal mt-14 border-t border-line" style="--d: 0.16s">
+        {
+          ledger.map((row) => (
+            <div class="grid grid-cols-1 gap-1.5 border-b border-line py-6 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-10">
+              <p class="font-mono text-[13.5px] text-ink">{row.cmd}</p>
+              <p class="text-[15px] text-ink2">{row.text}</p>
+            </div>
+          ))
+        }
+      </div>
+
+      <p class="reveal mt-8 max-w-[60ch] text-[15px] text-ink2" style="--d: 0.2s">
+        The filesystem remains the source of truth. Lattice handles discovery and the response layer
+        around it.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 7 · the record ============ -->
+  <section id="record" class="relative overflow-hidden border-t border-line">
+    <div class="absolute inset-0" aria-hidden="true">
+      <picture class="block h-full w-full">
+        <source srcset="/images/lattice-forest-record.webp" type="image/webp" />
+        <img
+          src="/images/lattice-forest-record.png"
+          alt=""
+          width="1440"
+          height="560"
+          class="h-full w-full object-cover object-center"
+          loading="lazy"
+          decoding="async"
+        />
+      </picture>
+    </div>
+    <div class="wrap section relative">
+      <div class="grid grid-cols-1 items-start gap-14 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
+        <div>
+          <p class="eyebrow reveal"><span class="idx">06</span>the working memory</p>
+          <h2 class="h-display reveal mt-5 max-w-[16ch]" style="--d: 0.06s">
+            Past work stays useful.
+          </h2>
+          <div class="prose-plain reveal mt-8 max-w-[52ch]" style="--d: 0.12s">
+            <p>
+              Audits, plans, comparisons, and decisions build into a searchable working memory
+              instead of a trail of forgotten links.
+            </p>
+            <p>The next question can start with the evidence the team already has.</p>
+          </div>
+        </div>
+
+        <div class="reveal overflow-hidden rounded-[18px] border border-line bg-paper/90 shadow-[0_18px_50px_rgba(20,20,20,0.06)] backdrop-blur-sm" style="--d: 0.18s">
+          <p class="border-b border-line px-5 py-3 font-mono text-xs text-muted">recent reports</p>
+          <ul>
+            {
+              shelfIndex.map((item) => (
+                <li class="flex items-baseline justify-between gap-6 border-b border-line px-5 py-3.5 font-mono text-[12.5px] last:border-b-0">
+                  <span class="text-ink">{item.slug}</span>
+                  <span class="text-right text-muted">{item.meta}</span>
+                </li>
+              ))
+            }
+          </ul>
+          <p class="px-5 py-3.5 font-mono text-[12.5px] text-muted">+ the next useful artifact</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 8 · open source ============ -->
+  <section id="open-source" class="section border-t border-line">
+    <div class="wrap-narrow">
+      <p class="eyebrow reveal"><span class="idx">07</span>ownership</p>
+      <h2 class="h-display reveal mt-5" style="--d: 0.06s">Local-first. Open source. Yours to run.</h2>
+      <div class="prose-plain reveal mt-8" style="--d: 0.12s">
+        <p>
+          The CLI, daemon, dashboard, desktop companion, and report skill are MIT licensed. Run them,
+          inspect them, fork them, or ship your own build.
+        </p>
+        <p>
+          Local flows bind to your machine, source files stay on disk, and sharing publishes only the
+          report you select.
+        </p>
+      </div>
+      <div class="reveal mt-8 flex flex-wrap gap-x-8 gap-y-3 font-mono text-[13px]" style="--d: 0.16s">
+        <a href={github} class="inline-flex items-center gap-2 text-ink underline underline-offset-4" rel="noopener">
+          Browse the repository
+          <svg class="h-[12px] w-[12px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7" /><polyline points="8 7 17 7 17 16" /></svg>
+        </a>
+        <a href={`${github}/blob/main/LICENSE`} class="inline-flex items-center gap-2 text-ink2 underline underline-offset-4 transition-colors hover:text-ink" rel="noopener">
+          Read the MIT license
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 9 · final CTA ============ -->
+  <section id="start" class="section border-t border-line">
+    <div class="wrap">
+      <div class="final-cta reveal" style="--d: 0.06s">
+        <div class="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,7fr)_minmax(260px,4fr)] lg:gap-x-16">
+          <div>
+            <p class="eyebrow"><span class="idx">08</span>start here</p>
+            <h2
+              class="mt-6 max-w-[15ch] font-serif text-ink"
+              style="font-size: clamp(2.2rem, 4.6vw, 3.6rem); line-height: 1.08; letter-spacing: -0.025em; text-wrap: balance; font-variation-settings: 'opsz' 120; font-weight: 500;"
+            >
+              Start with one finished report.
+            </h2>
+            <p class="lede mt-6">
+              Install Lattice, add an HTML file, and open your library. If you only want the report
+              format, install the skill on its own.
+            </p>
+          </div>
+
+          <div class="flex flex-col items-stretch gap-3 sm:items-start lg:pt-9">
+            <a class="btn btn-primary lg:w-full" href="/download">
+              Choose your download
+              <svg class="h-[13px] w-[13px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="12" x2="20" y2="12" /><polyline points="14 6 20 12 14 18" /></svg>
+            </a>
+            <a class="btn btn-ghost lg:w-full" href="/download#skill">Install only the skill</a>
+            <a href={github} class="mt-2 text-center font-mono text-[13px] text-ink2 underline underline-offset-4 transition-colors hover:text-ink lg:w-full" rel="noopener">
+              Browse the source
+            </a>
+          </div>
+
+          <div class="lg:col-span-2">
+          <div class="cmdblock">
+            <div class="cmdblock-head">
+              <span>quick install · macOS (Apple Silicon)</span>
+              <button class="copy-btn" data-copy-target="#install-code" type="button">
+                <span data-copy-label>Copy</span>
+              </button>
+            </div>
+            <pre class="cmdblock-body"><code id="install-code">curl -fsSL {releaseBase}/lattice-darwin-arm64 \
+  -o /usr/local/bin/lattice &amp;&amp; chmod +x /usr/local/bin/lattice</code></pre>
+          </div>
+          <p class="mt-3 font-mono text-xs text-muted">
+            Other platforms, SHA-256 checksums, and the macOS companion are on the
+            <a href="/download" class="text-ink2 underline underline-offset-4 hover:text-ink">download page</a>.
+          </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  :global(html[lang='pt-BR']) .hero-copy {
+    max-width: 670px;
+  }
+
+  :global(html[lang='pt-BR']) .hero-title {
+    max-width: 13.5ch;
+    font-size: clamp(2.8rem, 5.5vw, 4.4rem) !important;
+  }
+
+  :global(html[lang='pt-BR']) .interaction-title {
+    max-width: 11.8ch;
+    font-size: clamp(2.65rem, 4.2vw, 4.05rem);
+  }
+
+  .interaction-grid {
+    display: grid;
+    grid-template-columns: minmax(300px, 0.78fr) minmax(520px, 1.22fr);
+    align-items: start;
+    gap: clamp(3.5rem, 6vw, 5.5rem);
+  }
+
+  .interaction-title {
+    max-width: 10.5ch;
+    font-family: var(--font-serif);
+    font-size: clamp(2.85rem, 4.6vw, 4.45rem);
+    font-variation-settings: 'opsz' 120;
+    font-weight: 500;
+    letter-spacing: -0.038em;
+    line-height: 1.06;
+    text-wrap: balance;
+  }
+
+  .interaction-lede {
+    max-width: 39ch;
+    margin-top: 1.65rem;
+    color: var(--color-ink2);
+    font-size: 1rem;
+    line-height: 1.72;
+  }
+
+  .interaction-command,
+  .interaction-note,
+  .interaction-source-file,
+  .interaction-reader-bar,
+  .interaction-report-kicker,
+  .interaction-poll,
+  .interaction-layer {
+    font-family: var(--font-mono);
+  }
+
+  .interaction-command {
+    display: inline-block;
+    margin-top: 2rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--color-line);
+    border-radius: 10px;
+    background: var(--color-paper-2);
+    color: var(--color-ink);
+    font-size: 0.7rem;
+  }
+
+  .interaction-command span {
+    margin-right: 0.5rem;
+    color: var(--color-muted);
+  }
+
+  .interaction-note {
+    max-width: 41ch;
+    margin-top: 0.75rem;
+    color: var(--color-muted);
+    font-size: 0.63rem;
+    line-height: 1.55;
+  }
+
+  .interaction-composition {
+    position: relative;
+    min-height: 700px;
+    margin: 0;
+  }
+
+  .interaction-source-file {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    width: min(330px, 62%);
+    overflow: hidden;
+    border: 1px solid #dcdcda;
+    border-radius: 16px;
+    background: #f7f7f6;
+    box-shadow: 0 16px 38px rgb(20 20 20 / 0.05);
+  }
+
+  .interaction-source-file header,
+  .interaction-source-file footer {
+    display: grid;
+    gap: 0.18rem;
+    padding: 0.65rem 0.8rem;
+  }
+
+  .interaction-source-file header {
+    border-bottom: 1px solid #e3e3e1;
+  }
+
+  .interaction-source-file footer {
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid #e3e3e1;
+    color: #8c8c8c;
+    font-size: 0.55rem;
+  }
+
+  .interaction-source-file footer span:last-child {
+    text-align: right;
+  }
+
+  .interaction-source-file header span {
+    color: #8c8c8c;
+    font-size: 0.55rem;
+  }
+
+  .interaction-source-file header strong {
+    color: var(--color-ink);
+    font-size: 0.63rem;
+    font-weight: 500;
+  }
+
+  .interaction-source-file pre {
+    min-height: 124px;
+    margin: 0;
+    padding: 0.9rem 0.8rem;
+    overflow: hidden;
+    color: #656565;
+    font: 0.57rem/1.65 var(--font-mono);
+  }
+
+  .interaction-reader {
+    position: absolute;
+    top: 8rem;
+    left: 9%;
+    z-index: 2;
+    width: min(535px, 88%);
+    overflow: hidden;
+    border: 1px solid #dcdcda;
+    border-radius: 18px;
+    background: var(--color-paper);
+    box-shadow: 0 22px 55px rgb(20 20 20 / 0.09);
+  }
+
+  .interaction-reader-bar {
+    display: flex;
+    min-height: 3.2rem;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid #e5e5e3;
+    font-size: 0.57rem;
+  }
+
+  .interaction-back {
+    color: var(--color-ink);
+    white-space: nowrap;
+  }
+
+  .interaction-reader-id {
+    display: grid;
+    min-width: 0;
+  }
+
+  .interaction-reader-id strong {
+    overflow: hidden;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 0.67rem;
+    font-weight: 540;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .interaction-reader-id span {
+    overflow: hidden;
+    color: #8c8c8c;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .interaction-reader nav {
+    display: flex;
+    gap: 0.65rem;
+    margin-left: auto;
+    color: #565656;
+    white-space: nowrap;
+  }
+
+  .interaction-report-body {
+    width: min(100% - 3rem, 400px);
+    margin: 0 auto;
+    padding: 2.6rem 0 2.3rem;
+  }
+
+  .interaction-report-kicker {
+    margin: 0;
+    color: #8c8c8c;
+    font-size: 0.57rem;
+  }
+
+  .interaction-report-body h3 {
+    max-width: 11ch;
+    margin-top: 0.55rem;
+    font-family: var(--font-serif);
+    font-size: clamp(1.65rem, 2.7vw, 2.35rem);
+    font-variation-settings: 'opsz' 100;
+    font-weight: 450;
+    letter-spacing: -0.035em;
+    line-height: 1.04;
+  }
+
+  .interaction-report-summary {
+    max-width: 44ch;
+    margin-top: 0.8rem;
+    color: #565656;
+    font-size: 0.68rem;
+    line-height: 1.55;
+  }
+
+  .interaction-poll {
+    margin-top: 1.7rem;
+    border-top: 1px solid #dcdcd9;
+    border-bottom: 1px solid #dcdcd9;
+  }
+
+  .interaction-poll fieldset {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .interaction-poll legend {
+    width: 100%;
+    padding: 0.7rem 0;
+    color: #2f2f2f;
+    font-family: var(--font-sans);
+    font-size: 0.68rem;
+    font-weight: 560;
+  }
+
+  .interaction-poll label {
+    display: grid;
+    grid-template-columns: 0.8rem 1.2rem 1fr;
+    gap: 0.45rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-top: 1px solid #ececea;
+    color: #565656;
+    font-size: 0.59rem;
+  }
+
+  .interaction-poll input[type='radio'] {
+    width: 0.72rem;
+    height: 0.72rem;
+    margin: 0;
+    accent-color: var(--color-ink);
+  }
+
+  .interaction-poll label span {
+    color: var(--color-ink);
+  }
+
+  .interaction-poll-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.65rem 0;
+    border-top: 1px solid #ececea;
+  }
+
+  .interaction-poll-footer p {
+    margin: 0;
+    color: #8c8c8c;
+    font-size: 0.55rem;
+  }
+
+  .interaction-poll-footer button {
+    min-height: 1.8rem;
+    padding: 0 0.75rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    font: 0.56rem var(--font-mono);
+  }
+
+  .interaction-layer {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 3;
+    width: min(300px, 58%);
+    padding: 0.9rem;
+    border: 1px solid var(--color-ink);
+    border-radius: 16px;
+    background: var(--color-ink);
+    box-shadow: 0 18px 42px rgb(20 20 20 / 0.16);
+  }
+
+  .interaction-layer > p {
+    margin: 0 0 0.6rem;
+    color: var(--color-paper);
+    font-size: 0.62rem;
+  }
+
+  .interaction-layer dl {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0;
+  }
+
+  .interaction-layer dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid rgb(255 255 255 / 0.16);
+  }
+
+  .interaction-layer dt {
+    color: rgb(255 255 255 / 0.56);
+    font-size: 0.54rem;
+  }
+
+  .interaction-layer dd {
+    margin: 0;
+    color: var(--color-paper);
+    font-size: 0.56rem;
+    text-align: right;
+  }
+
+  @media (max-width: 900px) {
+    .interaction-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .interaction-copy {
+      max-width: 42rem;
+    }
+
+    .interaction-title {
+      max-width: 12ch;
+    }
+
+    .interaction-composition {
+      width: min(100%, 640px);
+      min-height: 710px;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .interaction-title {
+      font-size: clamp(2.65rem, 13vw, 3.6rem);
+    }
+
+    .interaction-composition {
+      min-height: 780px;
+    }
+
+    .interaction-source-file {
+      position: relative;
+      width: 82%;
+    }
+
+    .interaction-reader {
+      top: 14.75rem;
+      left: 0;
+      width: 100%;
+    }
+
+    .interaction-reader nav {
+      display: none;
+    }
+
+    .interaction-report-body {
+      width: calc(100% - 2.5rem);
+      padding-block: 2rem;
+    }
+
+    .interaction-layer {
+      right: 0;
+      bottom: 0;
+      width: calc(100% - 2.2rem);
+    }
+  }
+
+  .final-cta {
+    padding: clamp(1.5rem, 4vw, 3rem);
+    border: 1px solid var(--color-line);
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at 88% 12%, rgb(20 20 20 / 0.055), transparent 32%),
+      var(--color-paper-2);
+    box-shadow: 0 24px 70px rgb(20 20 20 / 0.06);
+  }
+</style>

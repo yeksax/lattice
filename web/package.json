@@ -11,10 +11,13 @@
     "deploy": "astro build && wrangler deploy"
   },
   "dependencies": {
+    "@fontsource-variable/fraunces": "5.2.9",
     "@fontsource-variable/geist": "5.2.9",
     "@fontsource-variable/geist-mono": "5.2.8",
     "@phosphor-icons/web": "^2.1.2",
-    "astro": "^6.3.1"
+    "@tailwindcss/vite": "4.3.3",
+    "astro": "^6.3.1",
+    "tailwindcss": "4.3.3"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",

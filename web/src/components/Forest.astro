@@ -1,0 +1,383 @@
+---
+/**
+ * Forest — the grayscale brushed forest that anchors Lattice's visual world.
+ * Sumi-e inspired composition: layered ink-wash trees receding into mist,
+ * with a few paper slips caught among the branches. Grayscale only.
+ *
+ * variant="hero" — full composition, open space on the left for copy.
+ * variant="band" — wide, sparser grove for mid-page atmospheric breaks.
+ */
+interface Props {
+  variant?: 'hero' | 'band';
+  class?: string;
+}
+
+const { variant = 'hero', class: className = '' } = Astro.props;
+
+// Deterministic PRNG so the composition is stable across builds.
+function mulberry32(seed: number) {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const isHero = variant === 'hero';
+const W = 1440;
+const H = isHero ? 940 : 560;
+const FLOOR = H; // trunks are drawn down to the viewBox floor
+const rnd = mulberry32(isHero ? 1123581321 : 987654321);
+const uid = `${variant}-${Math.floor(rnd() * 1e6)}`;
+
+const rr = (a: number, b: number) => a + rnd() * (b - a);
+const pick = <T,>(arr: T[]): T => arr[Math.floor(rnd() * arr.length)];
+
+interface Trunk {
+  d: string;
+  tone: string;
+  opacity: number;
+}
+
+// A tapering, gently curving ink blade from floor to topY.
+function trunkPath(x: number, w: number, topY: number, lean: number): string {
+  const hw = w / 2;
+  const tw = Math.max(w * 0.22, 1); // tip half-width
+  const tx = x + lean;
+  const sway = rr(-18, 18); // mid-body drift so trunks are not plumb
+  const c1y = FLOOR - (FLOOR - topY) * 0.38;
+  const c2y = FLOOR - (FLOOR - topY) * 0.74;
+  const c1x = x + sway * 0.4;
+  const c2x = x + lean * 0.55 + sway;
+  return [
+    `M ${x - hw} ${FLOOR}`,
+    `C ${c1x - hw * 0.85} ${c1y} ${c2x - tw * 2} ${c2y} ${tx - tw} ${topY}`,
+    `L ${tx + tw} ${topY}`,
+    `C ${c2x + tw * 2} ${c2y} ${c1x + hw * 0.85} ${c1y} ${x + hw} ${FLOOR}`,
+    'Z',
+  ].join(' ');
+}
+
+function branchPath(x: number, y: number, dir: 1 | -1, len: number, lift: number): string {
+  const mx = x + dir * len * 0.4;
+  return `M ${x} ${y} Q ${mx} ${y - lift * 0.35} ${x + dir * len} ${y - lift}`;
+}
+
+/* ---- far layer: a dense, pale stand across the canvas ---- */
+const farTrunks: Trunk[] = [];
+const farCount = isHero ? 24 : 18;
+for (let i = 0; i < farCount; i++) {
+  // denser toward the right in the hero composition
+  const t = rnd();
+  const x = isHero ? 120 + (W - 100) * Math.pow(t, 0.7) : 40 + (W - 80) * t;
+  const w = rr(2.4, 5.5);
+  const topY = H * rr(0.28, 0.5);
+  farTrunks.push({
+    d: trunkPath(x, w, topY, rr(-10, 10)),
+    tone: pick(['#c9c9c7', '#d1d1cf', '#d9d9d7', '#c0c0be']),
+    opacity: rr(0.5, 0.85),
+  });
+}
+
+/* ---- mid layer: brushed trunks, right of center ---- */
+const midTrunks: { d: string; tone: string; opacity: number; x: number; topY: number; lean: number }[] = [];
+const midCount = isHero ? 9 : 7;
+for (let i = 0; i < midCount; i++) {
+  const t = rnd();
+  const x = isHero ? 560 + (W - 580) * Math.pow(t, 0.85) : 120 + (W - 200) * t;
+  const w = rr(5, 10);
+  const topY = H * rr(0.18, 0.44);
+  const lean = rr(-22, 22);
+  midTrunks.push({
+    d: trunkPath(x, w, topY, lean),
+    tone: pick(['#83837f', '#949490', '#73736f', '#a0a09c']),
+    opacity: rr(0.65, 0.95),
+    x,
+    topY,
+    lean,
+  });
+}
+
+/* ---- near layer: a few dark trunks, hand-placed on the right ---- */
+const nearSpecs = isHero
+  ? [
+      { x: 986, w: 11, topY: 300, lean: 8, tone: '#4f4f4b' },
+      { x: 1128, w: 21, topY: 128, lean: -26, tone: '#262624' },
+      { x: 1246, w: 14, topY: 216, lean: 10, tone: '#323230' },
+      { x: 1348, w: 30, topY: 82, lean: -8, tone: '#1d1d1c' },
+    ]
+  : [
+      { x: 1180, w: 20, topY: 70, lean: -14, tone: '#262624' },
+      { x: 1320, w: 28, topY: 40, lean: -6, tone: '#1d1d1c' },
+      { x: 170, w: 12, topY: 170, lean: 10, tone: '#323230' },
+    ];
+const nearTrunks = nearSpecs.map((s) => ({
+  d: trunkPath(s.x, s.w, s.topY, s.lean),
+  opacity: rr(0.88, 1),
+  ...s,
+}));
+
+/* ---- branches on the near trunks ---- */
+const nearBranches: { d: string; w: number; tone: string }[] = [];
+for (const s of nearSpecs) {
+  const n = 1 + Math.floor(rnd() * 2);
+  for (let i = 0; i < n; i++) {
+    const y = s.topY + rr(60, 200);
+    const dir = rnd() > 0.5 ? 1 : -1;
+    nearBranches.push({
+      d: branchPath(s.x + s.lean * 0.7, y, dir, rr(40, 90), rr(30, 66)),
+      w: rr(1.1, 2),
+      tone: '#3a3a38',
+    });
+  }
+}
+
+/* ---- canopy dabs: soft horizontal ink masses held close to trunk tops ---- */
+interface Dab {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  rot: number;
+  tone: string;
+  opacity: number;
+}
+const dabs: Dab[] = [];
+for (const s of nearSpecs) {
+  const n = 3 + Math.floor(rnd() * 2);
+  for (let i = 0; i < n; i++) {
+    dabs.push({
+      cx: s.x + s.lean + rr(-30, 30),
+      cy: s.topY + rr(2, 38),
+      rx: rr(18, 40),
+      ry: rr(3.5, 7),
+      rot: rr(-8, 8),
+      tone: pick(['#75756f', '#8c8c86', '#a2a29c']),
+      opacity: rr(0.4, 0.66),
+    });
+  }
+}
+for (const m of midTrunks.slice(0, isHero ? 7 : 5)) {
+  dabs.push({
+    cx: m.x + m.lean + rr(-22, 22),
+    cy: m.topY + rr(2, 24),
+    rx: rr(16, 34),
+    ry: rr(3, 6),
+    rot: rr(-8, 8),
+    tone: pick(['#b4b4b0', '#c2c2be', '#a8a8a4']),
+    opacity: rr(0.35, 0.55),
+  });
+}
+
+/* ---- paper slips among the branches ---- */
+interface Slip {
+  x: number;
+  y: number;
+  w: number;
+  rot: number;
+  blur: boolean;
+  opacity: number;
+}
+const slips: Slip[] = isHero
+  ? [
+      { x: 1042, y: 318, w: 34, rot: -7, blur: true, opacity: 0.9 },
+      { x: 1180, y: 428, w: 27, rot: 9, blur: true, opacity: 0.8 },
+      { x: 1276, y: 268, w: 40, rot: -4, blur: false, opacity: 1 },
+      { x: 1136, y: 566, w: 30, rot: 12, blur: false, opacity: 0.95 },
+    ]
+  : [
+      { x: 1150, y: 190, w: 30, rot: -6, blur: false, opacity: 0.95 },
+      { x: 1280, y: 310, w: 24, rot: 10, blur: true, opacity: 0.8 },
+      { x: 300, y: 260, w: 22, rot: 8, blur: true, opacity: 0.7 },
+    ];
+
+/* ---- ground ink: dabs and grass flicks at the tree line ---- */
+const groundDabs: Dab[] = [];
+const groundY = H - 6;
+for (const s of nearSpecs) {
+  groundDabs.push({
+    cx: s.x,
+    cy: groundY - rr(0, 8),
+    rx: rr(50, 95),
+    ry: rr(4, 9),
+    rot: rr(-3, 3),
+    tone: '#3c3c3a',
+    opacity: rr(0.4, 0.6),
+  });
+}
+const grasses: string[] = [];
+const grassCount = isHero ? 22 : 14;
+for (let i = 0; i < grassCount; i++) {
+  const x = isHero ? 560 + rnd() * (W - 580) : 60 + rnd() * (W - 120);
+  const h = rr(8, 26);
+  grasses.push(`M ${x} ${groundY} q ${rr(-5, 5)} ${-h * 0.6} ${rr(-7, 7)} ${-h}`);
+}
+---
+
+<svg
+  class={className}
+  viewBox={`0 0 ${W} ${H}`}
+  preserveAspectRatio="xMidYMax slice"
+  role="img"
+  aria-label="A brushed ink forest in grayscale mist, with paper slips drifting between the trees"
+>
+  <defs>
+    <linearGradient id={`${uid}-sky`} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="0.62" stop-color="#fbfbfa" />
+      <stop offset="1" stop-color="#f1f1ef" />
+    </linearGradient>
+
+    <linearGradient id={`${uid}-fogup`} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.92" />
+    </linearGradient>
+
+    <linearGradient id={`${uid}-fogdown`} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.97" />
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.72" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+
+    <linearGradient id={`${uid}-leftwash`} x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.98" />
+      <stop offset="0.42" stop-color="#ffffff" stop-opacity="0.88" />
+      <stop offset="0.72" stop-color="#ffffff" stop-opacity="0.42" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+
+    <filter id={`${uid}-soft1`} x="-8%" y="-8%" width="116%" height="116%">
+      <feGaussianBlur stdDeviation="1.3" />
+    </filter>
+    <filter id={`${uid}-soft3`} x="-12%" y="-12%" width="124%" height="124%">
+      <feGaussianBlur stdDeviation="3.2" />
+    </filter>
+    <filter id={`${uid}-soft8`} x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" />
+    </filter>
+
+    <filter id={`${uid}-brush`} x="-12%" y="-6%" width="124%" height="112%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.005 0.016" numOctaves="3" seed="17" result="n" />
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="4.5" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+    <filter id={`${uid}-brushheavy`} x="-16%" y="-6%" width="132%" height="112%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.004 0.012" numOctaves="4" seed="41" result="n" />
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+    <filter id={`${uid}-wash`} x="-30%" y="-30%" width="160%" height="160%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="3" seed="7" result="n" />
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="26" />
+      <feGaussianBlur stdDeviation="2.4" />
+    </filter>
+
+    <filter id={`${uid}-grain`}>
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n" />
+      <feColorMatrix in="n" type="saturate" values="0" />
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.55" intercept="0" />
+      </feComponentTransfer>
+      <feComposite operator="in" in2="SourceGraphic" />
+    </filter>
+  </defs>
+
+  <!-- sky -->
+  <rect width={W} height={H} fill={`url(#${uid}-sky)`} />
+
+  <!-- distant ridge -->
+  <path
+    d={`M 0 ${H * 0.56} C ${W * 0.18} ${H * 0.5} ${W * 0.3} ${H * 0.55} ${W * 0.44} ${H * 0.52} C ${W * 0.6} ${H * 0.48} ${W * 0.74} ${H * 0.55} ${W * 0.88} ${H * 0.5} C ${W * 0.95} ${H * 0.48} ${W} ${H * 0.5} ${W} ${H * 0.51} L ${W} ${H} L 0 ${H} Z`}
+    fill="#e9e9e7"
+    opacity="0.7"
+    filter={`url(#${uid}-soft8)`}
+  />
+
+  <!-- far stand -->
+  <g filter={`url(#${uid}-soft1)`}>
+    {farTrunks.map((t) => <path d={t.d} fill={t.tone} opacity={t.opacity} />)}
+  </g>
+
+  <!-- high mist -->
+  <rect x="0" y={H * 0.42} width={W} height={H * 0.22} fill={`url(#${uid}-fogup)`} filter={`url(#${uid}-soft8)`} />
+
+  <!-- mid stand, brushed -->
+  <g filter={`url(#${uid}-brush)`}>
+    {midTrunks.map((t) => <path d={t.d} fill={t.tone} opacity={t.opacity} />)}
+  </g>
+
+  <!-- pale canopy washes, tied to the grove -->
+  <g filter={`url(#${uid}-wash)`} opacity="0.45">
+    <ellipse cx={W * 0.9} cy={H * 0.3} rx="230" ry="42" fill="#cdcdc9" />
+    <ellipse cx={W * 0.74} cy={H * 0.38} rx="160" ry="30" fill="#d8d8d4" />
+  </g>
+
+  <!-- canopy dabs, behind the near trunks so branches overlap them -->
+  <g filter={`url(#${uid}-soft3)`}>
+    {dabs.map((d) => (
+      <ellipse
+        cx={d.cx}
+        cy={d.cy}
+        rx={d.rx}
+        ry={d.ry}
+        transform={`rotate(${d.rot} ${d.cx} ${d.cy})`}
+        fill={d.tone}
+        opacity={d.opacity}
+      />
+    ))}
+  </g>
+
+  <!-- drifting mist band -->
+  <g class="fog-drift">
+    <ellipse cx={W * 0.6} cy={H * 0.66} rx={W * 0.52} ry={H * 0.09} fill="#ffffff" opacity="0.65" filter={`url(#${uid}-soft8)`} />
+  </g>
+  <ellipse cx={W * 0.34} cy={H * 0.78} rx={W * 0.3} ry={H * 0.07} fill="#ffffff" opacity="0.5" filter={`url(#${uid}-soft8)`} />
+
+  <!-- paper slips -->
+  {slips.map((s) => (
+    <g transform={`translate(${s.x} ${s.y}) rotate(${s.rot})`} opacity={s.opacity} filter={s.blur ? `url(#${uid}-soft1)` : undefined}>
+      <rect x={-s.w / 2} y={-s.w * 0.66} width={s.w} height={s.w * 1.32} fill="#ffffff" stroke="#a9a9a5" stroke-width="1" />
+      <line x1={-s.w / 2 + 5} y1={-s.w * 0.66 + 9} x2={s.w / 2 - 5} y2={-s.w * 0.66 + 9} stroke="#d4d4d1" stroke-width="2" />
+      <line x1={-s.w / 2 + 5} y1={-s.w * 0.66 + 16} x2={s.w / 2 - 8} y2={-s.w * 0.66 + 16} stroke="#dfdfdc" stroke-width="2" />
+      <line x1={-s.w / 2 + 5} y1={-s.w * 0.66 + 23} x2={s.w / 2 - 6} y2={-s.w * 0.66 + 23} stroke="#dfdfdc" stroke-width="2" />
+    </g>
+  ))}
+
+  <!-- near trunks and branches -->
+  <g filter={`url(#${uid}-brushheavy)`}>
+    {nearTrunks.map((t) => <path d={t.d} fill={t.tone} opacity={t.opacity} />)}
+    {nearBranches.map((b) => <path d={b.d} fill="none" stroke={b.tone} stroke-width={b.w} stroke-linecap="round" />)}
+  </g>
+
+  <!-- ground ink -->
+  <g filter={`url(#${uid}-soft3)`}>
+    {groundDabs.map((d) => (
+      <ellipse cx={d.cx} cy={d.cy} rx={d.rx} ry={d.ry} fill={d.tone} opacity={d.opacity} />
+    ))}
+  </g>
+  <g stroke="#757572" stroke-width="1" fill="none" opacity="0.5" filter={`url(#${uid}-soft1)`}>
+    {grasses.map((g) => <path d={g} />)}
+  </g>
+
+  <!-- fog: floor, left copy space, top -->
+  <rect x="0" y={H * 0.8} width={W} height={H * 0.2} fill={`url(#${uid}-fogup)`} />
+  {isHero && <rect x="0" y="0" width={W * 0.72} height={H} fill={`url(#${uid}-leftwash)`} />}
+  <rect x="0" y="0" width={W} height={H * 0.17} fill={`url(#${uid}-fogdown)`} />
+
+  <!-- grain -->
+  <rect width={W} height={H} fill="#808080" filter={`url(#${uid}-grain)`} opacity="0.16" style="mix-blend-mode:multiply" />
+</svg>
+
+<style>
+  .fog-drift {
+    animation: fog-drift 46s ease-in-out infinite alternate;
+  }
+  @keyframes fog-drift {
+    from {
+      transform: translateX(-26px);
+    }
+    to {
+      transform: translateX(30px);
+    }
+  }
+</style>
