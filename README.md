@@ -43,6 +43,16 @@ run any command. The CLI starts the local daemon on demand and writes its log to
 `~/.summaries/.lattice/lattice.log`. Set `LATTICE_NO_AUTOSPAWN=1` if another
 service manager owns the daemon lifecycle.
 
+The binary carries the lattice-integrated `html-summary` skill. Install it for
+your agents (Claude Code, and anything reading `~/.agents/skills`) with:
+
+```sh
+lattice skills install
+```
+
+`make install` runs this for you. The standalone, lattice-free version of the
+skill lives in `skills/html-summary` for anyone who just wants the design system.
+
 To build locally:
 
 ```sh

@@ -36,6 +36,9 @@ usage:
   lattice config get [key]           print config or one dotted key
   lattice config set <key> <value>   update a dotted config key
   lattice config unset <key>         clear a dotted config key
+  lattice skills install [flags]     install the html-summary skill for agents
+      --dir path   install to one directory instead of the default roots
+      --force      overwrite an existing skill directory
   lattice login <token> [--api url]  log in to hosted sharing (Cloudflare)
   lattice logout                     forget the hosted token (revert to local)
   lattice share <slug> [flags]       share ONE summary publicly
@@ -97,6 +100,8 @@ func main() {
 		err = cliOpen(slug)
 	case "config":
 		err = cliConfig(os.Args[2:])
+	case "skills":
+		err = cliSkills(os.Args[2:])
 	case "login":
 		fs := flag.NewFlagSet("login", flag.ExitOnError)
 		api := fs.String("api", "", "override the hosted API base URL")

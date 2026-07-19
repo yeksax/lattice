@@ -43,6 +43,7 @@ cloud-deploy:
 install: build
 	mkdir -p $(PREFIX) $(HOME)/.summaries/.lattice/meta $(HOME)/Library/LaunchAgents
 	cp $(BIN) $(PREFIX)/$(BIN)
+	$(PREFIX)/$(BIN) skills install
 	sed "s|__HOME__|$(HOME)|g" launchd/$(PLIST_ID).plist > $(PLIST)
 	launchctl bootout gui/$$(id -u)/$(PLIST_ID) 2>/dev/null || true
 	launchctl bootstrap gui/$$(id -u) $(PLIST)

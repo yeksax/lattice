@@ -2,8 +2,8 @@
 name: html-summary
 description: >-
   Design system for building standalone HTML summaries, reports, comparison
-  pages, and shareable single-file docs in a monospace, monochrome, sharp
-  hairline-bordered, dense and functional visual language (the "Lattice" look).
+  pages, and shareable single-file docs in the Lattice visual language — monospace,
+  monochrome, sharp hairline borders, dense and functional (the "Lattice" look).
   Use this skill whenever the user asks to produce an HTML summary/report/recap,
   a self-contained .html to share with coworkers, a comparison or bake-off page,
   a status/results writeup as a web page, or "make this a nice HTML page."
@@ -16,8 +16,8 @@ description: >-
 # HTML Summary — house style
 
 You are building a **standalone, self-contained `.html` file** (all CSS inline in
-one `<style>`, no external requests, no build step) that a colleague opens by
-clicking it. The goal is **information transfer, A → B, in the most direct form
+one `<style>`, no external requests, no build step) that you share with
+coworkers. The goal is **information transfer, A → B, in the most direct form
 possible** — dense, scannable, functional. Not an editorial landing page.
 
 Read `template.html` in this skill directory first — it is a working starter with
@@ -68,12 +68,12 @@ at that step. It is a record, not a working draft.
 summary to reflect later state — that destroys the earlier record, and the user
 loses the context they were relying on. The old file stays exactly as it was.
 
-- New step → new file (`thing-decisions.html`, `thing-phase1.html`, …).
-  Cross-link them in the footer or the inverted block.
+- New step → new file → new lattice slug (`thing-decisions.html`,
+  `thing-phase1.html`, …). Cross-link them in the footer or the inverted block.
 - **Only** edit an existing summary to fix something wrong *about that moment*
   (a typo, a broken number, a bug in the markup) — never to add later events.
-- Iterating on a summary you're still writing, before handing it off, is fine.
-  The rule is about steps, not keystrokes.
+- Iterating on a summary you're still writing, before handing it off, is fine —
+  lattice live-reloads. The rule is about steps, not keystrokes.
 
 ## Copy & voice — write it like a person, not a model
 
@@ -133,7 +133,8 @@ brand. When in doubt, remove color, remove radius, remove shadow, tighten space.
 - ❌ **Cream / warm backgrounds** (`#faf8f5`, `#fffdfb`, beige, off-white paper).
   Backgrounds are pure white or pure near-black. Nothing warm, ever.
 - ❌ **Sans-serif or serif body text.** No `system-ui`, no `ui-sans-serif`, no
-  Georgia. **Everything is monospace**, including headings. Lock to mono.
+  Georgia. **Everything is monospace**, including headings. (Lattice's LP mixes
+  mono + serif — a summary does NOT. Lock to mono.)
 - ❌ **Rounded corners.** `border-radius: 0` everywhere. No pills, no `999px`, no
   soft `12px` cards.
 - ❌ **Box-shadows / elevation.** Flat only. Depth comes from hairlines and
@@ -154,6 +155,36 @@ brand. When in doubt, remove color, remove radius, remove shadow, tighten space.
 - ❌ **Editorial whitespace.** No `padding: 120px 0`, no full-`100vh` hero on a
   summary. Coworkers open these on 1366×768 laptops — respect the fold.
 - ❌ **Emoji as UI**, decorative icons, drop caps, gratuitous entrance animations.
+
+## Theme config — read it before you style
+
+The look can be customized from the lattice desktop app. That writes
+`~/.summaries/.lattice/config.json`. **Before writing any CSS, read that file**
+(it may not exist). If it has a non-empty `theme`, it is a *deliberate*
+override of the house defaults — apply it. If the file is absent or `theme` is
+empty, use the house style exactly as documented below (that IS the default
+`lattice` preset). Fetch it live if the daemon is up:
+`curl -s http://127.0.0.1:4600/api/config` — or just read the file.
+
+`theme` fields, all optional:
+
+- **`preset`** — named starting point. `lattice` (default) is this document.
+  An unknown value falls back to `lattice`.
+- **`accent`** — a hex like `#c2410c`. When set, it is the **one** allowed color:
+  links, the voter's-own-pick marker, the leading bar segment. Everything else
+  stays ink/white/gray. When empty, there is no accent (the house rule holds).
+- **`font`** — `mono` (default) · `sans` · `serif`. Overrides the body+heading
+  stack (`sans` → `ui-sans-serif, system-ui, …`; `serif` → `ui-serif, Georgia, …`).
+- **`density`** — `compact` (default, section pad ~40px) · `comfortable` (~56px)
+  · `spacious` (~72px). Scales section vertical padding and base line-height.
+
+Apply a theme by setting the token values / font stack / spacing at the **top of
+your `<style>`** — never hard-code around them. A themed summary still passes
+every *structural* rule (single file, no radius, no shadow, both schemes, short):
+the theme only moves color, font, and spacing, which is exactly what the Hard
+bans below govern **for the default preset**. When `theme` sets `accent` or
+`font`, honor it — those bans describe the default, not a choice explicitly
+configured.
 
 ## Tokens (baked into template.html)
 
@@ -194,7 +225,7 @@ signal, plus `:root[data-theme]` overrides if you add a theme toggle.
 ## Layout
 
 - Content column `max-width: 1080–1180px`, centered, `padding: 0 20px`.
-- **Don't rule every section.** Whitespace + the eyebrow label *is* the
+- **Don't rule every section.** Whitespace + the uppercase eyebrow label *is* the
   delimiter. A hairline divider between every section is visual noise — cut them.
   Use a divider only where scanning genuinely needs one (≤1–2 per page); the header
   underline and footer top-rule are usually the only rules a summary needs.
@@ -295,14 +326,19 @@ icons (buttons, list markers, status), not typography.
 
 ## Before you hand it off — checklist
 
+- [ ] **Theme checked**: you read `~/.summaries/.lattice/config.json`; if it set
+      a `theme`, you applied `accent`/`font`/`density` via the top-of-`<style>`
+      tokens. No config or empty theme → house defaults untouched.
 - [ ] **Short**: one to two screens of scroll unless length was explicitly asked
       for. If it reads like a document, cut detail to the companion `.md`.
 - [ ] **New step = new file.** You did NOT overwrite an earlier summary to bring
       it up to date. Earlier snapshots are untouched and cross-linked.
 - [ ] Single `.html`, everything inline (CSS/JS/images-as-`data:`/SVG glyphs),
       opens offline with the network OFF. No `src=`/`href=`/CDN to any other file.
-- [ ] Grep your CSS: no `border-radius` > 0, no `box-shadow`, no `#f*f*e*`/cream,
-      no `sans`/`serif`, and no color beyond ink/white/gray.
+- [ ] Grep your CSS: no `border-radius` > 0, no `box-shadow`, no `#f*f*e*`/cream.
+      Under the default (no-theme) look, also no `sans`/`serif` and no color
+      beyond ink/white/gray — unless `config.json`'s `theme` set `font`/`accent`,
+      in which case only that configured font/accent may appear.
 - [ ] No dummy/decorative status dots (`● live`). No hairline rule between every
       section — dividers only where scanning needs one.
 - [ ] Any bar is a stacked, opacity-ramped composite — never thin single-value lines.
@@ -314,11 +350,145 @@ icons (buttons, list markers, status), not typography.
 - [ ] Every animation passes the "carries information" test; reduced-motion honored.
 - [ ] It reads A → B: someone scanning for 15 seconds gets the point.
 
-## Where this goes further
+If the user shares it externally, offer `lattice share <slug>` (a public link that
+stays up) or just hand them the file.
 
-This is the standalone design system. If you run [lattice](https://github.com/yeksax/lattice)
-— the local app that serves `~/.summaries` — the CLI adds theme configuration, a
-searchable dashboard, one-command public sharing, and interactive polls/bake-offs
-that collect votes when the summary is served through it. The lattice-integrated
-version of this skill ships with the CLI (`lattice skills install`) and documents
-those hooks; nothing here depends on them.
+## Register in lattice (your summary knowledge base)
+
+Every summary gets registered in **lattice**, the local app serving `~/.summaries`
+at `http://127.0.0.1:4600`.
+
+1. **Before naming the file**, check slugs already taken: `ls ~/.summaries`.
+   Lattice slugifies the filename (`My Report.html` → `my-report`) and de-dupes
+   with `-2`, `-3`… — pick a filename whose slug doesn't collide so the URL
+   stays clean.
+2. **After writing the file**, register it:
+   `~/.local/bin/lattice add "<abs path>" --tags <comma,separated,topics>`
+   This symlinks it into `~/.summaries` (original file untouched) and opens it
+   at `http://127.0.0.1:4600/s/<slug>` — which live-reloads on every edit to
+   the file, so register early if iterating. Add `--no-open` to skip the browser.
+3. **Non-fatal**: if the `lattice` binary or server is missing, skip silently and
+   mention the file can be added later with `lattice add`.
+
+### Interactive polls & bake-offs
+
+Polls are the **one deliberate exception** to "single file works anywhere": a
+vote needs a network POST, so it only collects when the summary is served
+*through* lattice — opened from the dashboard (`/s/<slug>`) or shared as a link
+(`lattice share <slug>` → a public URL). Lattice injects a poll
+**bridge** at serve time; the file on disk stays pristine. **For a poll the LINK
+is the sharing mechanism, not the file** — never build export-code /
+copy-your-vote flows; there's no way to collect a vote from a bare offline file,
+so degrade gracefully instead of faking one.
+
+**The bridge — `window.lattice`** (methods are all no-arg-safe):
+
+| call | does |
+|---|---|
+| `lattice.poll` | truthy when the bridge is present |
+| `await lattice.submit({ poll, choice, name? })` | record one vote → `true`/`false`. Also `{ votes: {q1:'a',q2:'b'} }` for many at once |
+| `await lattice.results()` | live aggregate: `{ polls: { <poll>: { total, counts: {<choice>: n} } }, voters }` — **counts only, never who voted** |
+| `lattice.recall(poll)` | this browser's remembered choice for `poll`, or `null` |
+| `lattice.recallAll()` | `{ poll: choice, … }` for resuming multi-question flows |
+| `lattice.voter` | this browser's stable id (auto-attached to every submit) |
+
+Identity & dedup are automatic: the bridge mints a per-browser `voter` id in
+`localStorage` and attaches it, so the server dedups **last-write-wins per
+(voter, poll)** — a reload doesn't double-count and re-voting *changes* the vote.
+`submit` also remembers the choice locally, which is what `recall` reads back.
+
+**Ordering gotcha (important).** The bridge is injected *after* your page's
+scripts, so at initial load `window.lattice` is `undefined` — you cannot read it
+synchronously for load-time work like restoring a prior vote. Wait for the
+`lattice:ready` event; at *submit* time (a click, later) it's always present:
+```js
+const start = () => { /* uses window.lattice */ };
+window.lattice?.poll ? start() : document.addEventListener('lattice:ready', start, { once: true });
+```
+
+#### Pattern A — live-reveal poll (results appear the moment you vote)
+
+Vote → reveal the breakdown → let them change their mind → survive reloads.
+```js
+const POLL = 'would-you-run-it';
+async function paint(mine) {                       // fetch + render the bars
+  const q = (await lattice.results()).polls[POLL] ?? { total: 0, counts: {} };
+  for (const btn of buttons) {
+    const n = q.counts[btn.dataset.choice] || 0, pct = q.total ? Math.round(n/q.total*100) : 0;
+    btn.querySelector('.bar').style.width = pct + '%';               // proportional fill
+    btn.querySelector('.pct').textContent = pct + '% · ' + n;
+    btn.classList.toggle('mine', btn.dataset.choice === mine);       // highlight my pick
+  }
+}
+async function vote(choice) {
+  if (!window.lattice?.poll) return degradeToNote();                 // bare file: quiet note, don't fake
+  if (!await lattice.submit({ poll: POLL, choice, name })) return retryHint();
+  paint(choice);                                                     // includes the vote just cast
+}
+// restore on reload (see ordering gotcha):
+const restore = () => { const m = lattice.recall(POLL); if (m) paint(m); };
+window.lattice?.poll ? restore() : document.addEventListener('lattice:ready', restore, { once: true });
+```
+Keep the options **clickable after voting** so a second click re-submits and the
+bars update — that's the "change your vote" affordance.
+
+#### Pattern B — blind bake-off (nothing reveals until EVERY case is voted)
+
+For A/B/C/D image bake-offs. This is the pattern agents get wrong — they reveal
+each case as it's voted. Don't. **Blind means blind until the last vote.** Three
+hard rules:
+
+1. **Blind phase** (not all voted): a vote only marks your pick (a "seu voto"
+   badge on the chosen option) and updates a `n / total` progress bar. Reveal
+   **nothing** per case — no engine identity, no cost/latency, no tally. Keep
+   that data in the DOM but CSS-hidden behind a `.revealed` class you don't add
+   yet.
+2. **Reveal all at once**, only when `allVoted()` — add `.revealed` to every
+   case and paint each one's `%` bars together. One gate decides blind-vs-reveal
+   on every vote; there is no per-case reveal path.
+3. **A final summary at the END of the page** (never a live leaderboard at the
+   top — it spoils the blind test and looks broken while empty). Gate it on
+   `allVoted()` too: a champion block + an engine leaderboard (totals across all
+   cases) + a per-case table of *winner vs. your pick*. This is the payoff — the
+   "sumariozão" — and it's what makes finishing feel worth it.
+
+```js
+const CASES = DATA.scenes.map(s => s.id), N = CASES.length;
+const pick = id => lattice.recall(id);                    // or a local store when offline
+const votedCount = () => CASES.filter(pick).length;
+const allVoted = () => votedCount() === N;
+
+async function vote(id, choice) {
+  await lattice.submit({ poll: id, choice, name });       // recorded, still hidden
+  afterVote(await lattice.results());
+}
+function afterVote(agg) {                                  // the ONE gate
+  updateProgress(votedCount(), N);
+  if (allVoted()) { CASES.forEach(id => reveal(id, agg)); renderSummary(agg); }
+  else            { CASES.forEach(markPickOnly); renderSummary(agg); /* → locked */ }
+}
+function renderSummary(agg) {
+  if (!allVoted()) return lockedSummary(N - votedCount());     // "vote nas N cenas…"
+  const totals = tallyAcrossCases(agg);                        // {engine: n}
+  renderChampion(top(totals)); renderLeaderboard(totals);      // at the END of the doc
+  renderPerCaseTable(agg, pick);                               // winner vs your pick
+}
+// boot / restore: same lattice:ready gate as Pattern A, then afterVote(results())
+```
+While voting, show only progress ("3 / 6 votadas") and the "seu voto" marker.
+Everything else waits for the last vote.
+
+**House style for result bars.** Not thin free-floating lines. Give each option
+row a **proportional ink fill behind the text** (`position:absolute; width:<pct>%;
+background:var(--ink); opacity:.12`) with the `% · count` tabular-aligned on the
+right; mark the voter's own pick with an inverted key badge + "· you". Honor
+reduced-motion on the fill's width transition.
+
+**Collecting.** Votes append to `~/.summaries/.lattice/polls/<slug>.jsonl` (local
+and shared votes together). Share with `lattice share <slug>` (add `--random` for
+an unguessable subdomain, or use the **share button in the dashboard reader's top
+bar**) — only that one summary, its `POST /submit`, and read-only `GET /results`
+are public; dashboard, API and other summaries are unreachable by construction.
+Tally raw with `lattice results <slug>`; `lattice unshare` when done.
+
+**Non-poll summaries are unaffected** — no bridge, pure single-file, fully offline.
