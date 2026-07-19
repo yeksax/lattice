@@ -7,6 +7,8 @@
 # The API keeps its explicit custom domain. A wildcard route serves public
 # snapshots at <sub>.lattice.pub while share.lattice.pub/s/<sub> remains as a
 # backwards-compatible path-based URL.
+#
+# Built and deployed by Cloudflare Workers Builds from the `cloud/` root dir.
 
 name = "lattice-share"
 main = "src/index.ts"
