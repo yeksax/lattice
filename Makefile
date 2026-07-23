@@ -3,13 +3,22 @@ PREFIX   := $(HOME)/.local/bin
 PLIST_ID := dev.yeksax.lattice
 PLIST    := $(HOME)/Library/LaunchAgents/$(PLIST_ID).plist
 
-.PHONY: build dev install uninstall clean web web-build web-deploy cloud-dev cloud-deploy
+.PHONY: build dev dev-dash install uninstall clean web web-build web-deploy cloud-dev cloud-deploy
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o $(BIN) ./cmd/lattice
 
 dev: build
 	./$(BIN) serve
+
+# Live-reload dev loop for the dashboard. LATTICE_DEV serves cmd/lattice/dashboard
+# from disk, so editing HTML/CSS/JS reloads the browser with no rebuild; wgo
+# rebuilds and restarts the daemon on any .go change (the browser reconnects and
+# reloads). Runs on :4601 so it never fights the installed daemon on :4600.
+dev-dash:
+	@echo "dev dashboard: http://127.0.0.1:4601 (live reload; Ctrl-C to stop)"
+	LATTICE_DEV=1 LATTICE_ADDR=127.0.0.1:4601 LATTICE_ALIAS_ADDR=off \
+		go run github.com/bokwoon95/wgo@latest run -file .go ./cmd/lattice serve
 
 # Public Astro site.
 web:

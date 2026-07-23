@@ -14,6 +14,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -26,6 +28,8 @@ type server struct {
 	assets map[string]asset // pre-hashed embedded files
 	reload []byte           // reload.js, wrapped at request time
 	poll   []byte           // poll.js bridge
+	devDir string           // LATTICE_DEV: serve dashboard from disk (live reload)
+	bootID string           // per-process id; moves the dev-reload digest on restart
 }
 
 type asset struct {
@@ -35,7 +39,7 @@ type asset struct {
 }
 
 func newServer(ix *Index) *server {
-	s := &server{ix: ix, assets: map[string]asset{}}
+	s := &server{ix: ix, assets: map[string]asset{}, bootID: fmt.Sprintf("%x", time.Now().UnixNano())}
 	for name, ctype := range map[string]string{
 		"index.html": "text/html; charset=utf-8",
 		"style.css":  "text/css; charset=utf-8",
@@ -58,7 +62,65 @@ func newServer(ix *Index) *server {
 		log.Fatal("embedded poll.js missing")
 	}
 	s.poll = pl
+	if dir := devDashboardDir(); dir != "" {
+		s.devDir = dir
+		log.Printf("dev mode: serving dashboard from %s (live reload on)", dir)
+	}
 	return s
+}
+
+// devDashboardDir returns the on-disk dashboard source dir when LATTICE_DEV is
+// set AND the sources are present, else "" (embed mode). LATTICE_DEV=1 locates
+// dashboard/ next to this source file - which works when running from the repo
+// via `go run`/wgo; LATTICE_DEV=/abs/path points at it explicitly.
+func devDashboardDir() string {
+	v := os.Getenv("LATTICE_DEV")
+	if v == "" || v == "0" {
+		return ""
+	}
+	dir := v
+	if v == "1" || v == "true" {
+		_, file, _, ok := runtime.Caller(0)
+		if !ok {
+			log.Print("LATTICE_DEV set but source path is unknown; serving embedded dashboard")
+			return ""
+		}
+		dir = filepath.Join(filepath.Dir(file), "dashboard")
+	}
+	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+		log.Printf("LATTICE_DEV set but %q is not a dashboard dir; serving embedded dashboard", dir)
+		return ""
+	}
+	return dir
+}
+
+// readDash returns a dashboard file's bytes - fresh from disk in dev mode,
+// otherwise from the embedded FS.
+func (s *server) readDash(name string) ([]byte, error) {
+	if s.devDir != "" {
+		return os.ReadFile(filepath.Join(s.devDir, name))
+	}
+	return dashboardFS.ReadFile("dashboard/" + name)
+}
+
+// reloadJS and pollJS return the scripts injected into summary pages, read
+// fresh from disk in dev mode so editing them hot-reloads too.
+func (s *server) reloadJS() []byte {
+	if s.devDir != "" {
+		if b, err := s.readDash("reload.js"); err == nil {
+			return b
+		}
+	}
+	return s.reload
+}
+
+func (s *server) pollJS() []byte {
+	if s.devDir != "" {
+		if b, err := s.readDash("poll.js"); err == nil {
+			return b
+		}
+	}
+	return s.poll
 }
 
 func (s *server) handler() http.Handler {
@@ -81,6 +143,9 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("GET /api/polls/{slug}", s.listPoll)
 	mux.HandleFunc("GET /api/polls/{slug}/results", s.pollResults)
 	mux.HandleFunc("POST /api/polls/{slug}/submit", s.submitPoll)
+	if s.devDir != "" {
+		mux.HandleFunc("GET /api/dev-reload", s.watchDashboard)
+	}
 	return mux
 }
 
@@ -118,6 +183,10 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request, name string) {
 		http.NotFound(w, r)
 		return
 	}
+	if s.devDir != "" {
+		s.assetDev(w, a, name)
+		return
+	}
 	w.Header().Set("ETag", a.etag)
 	w.Header().Set("Cache-Control", "no-cache") // revalidate; ETag makes it a 304
 	if r.Header.Get("If-None-Match") == a.etag {
@@ -126,6 +195,50 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request, name string) {
 	}
 	w.Header().Set("Content-Type", a.ctype)
 	w.Write(a.body)
+}
+
+// devReloadTag is injected into the dashboard's index.html in dev mode only. It
+// opens the /api/dev-reload SSE stream and reloads when the digest changes -
+// i.e. a dashboard file was edited, or the daemon was rebuilt and restarted
+// (the boot id moves). No build step, no dependency.
+const devReloadTag = `<script>(()=>{let s=null;new EventSource("/api/dev-reload").addEventListener("state",e=>{if(s!==null&&e.data!==s)location.reload();s=e.data});})();</script>`
+
+// assetDev serves a dashboard file straight from disk with no caching and
+// injects the live-reload client into index.html. Dev mode only; falls back to
+// the embedded bytes if the file vanishes mid-save.
+func (s *server) assetDev(w http.ResponseWriter, a asset, name string) {
+	b, err := s.readDash(name)
+	if err != nil {
+		b = a.body
+	}
+	if name == "index.html" {
+		b = injectScript(b, devReloadTag)
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", a.ctype)
+	w.Write(b)
+}
+
+// watchDashboard is the dev-only SSE stream behind dashboard live reload. The
+// state is the boot id plus a digest of every dashboard file's mtime+size, so
+// it moves on any source edit and on daemon restart. It reuses the same ticker
+// poll as summary hot reload (see sse) - fsnotify misses atomic-rename saves.
+func (s *server) watchDashboard(w http.ResponseWriter, r *http.Request) {
+	sse(w, r, func() string {
+		return s.bootID + "-" + s.dashDigest()
+	}, nil)
+}
+
+func (s *server) dashDigest() string {
+	h := sha256.New()
+	for _, name := range []string{"index.html", "style.css", "app.js", "poll.js", "reload.js"} {
+		if fi, err := os.Stat(filepath.Join(s.devDir, name)); err == nil {
+			fmt.Fprintf(h, "%s:%d:%d;", name, fi.ModTime().UnixNano(), fi.Size())
+		} else {
+			fmt.Fprintf(h, "%s:missing;", name)
+		}
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)[:8])
 }
 
 func (s *server) health(w http.ResponseWriter, _ *http.Request) {
@@ -194,8 +307,8 @@ func (s *server) serveSummary(w http.ResponseWriter, r *http.Request) {
 		w.Write(b)
 		return
 	}
-	tags := `<script id="lattice-poll" data-endpoint="/api/polls/` + slug + `/submit" data-results="/api/polls/` + slug + `/results">` + string(s.poll) + `</script>` +
-		`<script id="lattice-reload" data-slug="` + slug + `">` + string(s.reload) + `</script>`
+	tags := `<script id="lattice-poll" data-endpoint="/api/polls/` + slug + `/submit" data-results="/api/polls/` + slug + `/results">` + string(s.pollJS()) + `</script>` +
+		`<script id="lattice-reload" data-slug="` + slug + `">` + string(s.reloadJS()) + `</script>`
 	w.Write(injectScript(b, tags))
 }
 

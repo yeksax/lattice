@@ -52,7 +52,8 @@ closed) and requires "lattice login <token>" first.
 
 env: LATTICE_ADDR (default 127.0.0.1:4600), LATTICE_DIR (default ~/.summaries),
      LATTICE_API_BASE (override hosted API base), LATTICE_NO_AUTOSPAWN (disable
-     automatic daemon startup)`
+     automatic daemon startup), LATTICE_DEV=1 (serve the dashboard from disk with
+     live reload - see "make dev-dash")`
 
 func main() {
 	log.SetFlags(log.LstdFlags)
