@@ -484,11 +484,12 @@ background:var(--ink); opacity:.12`) with the `% · count` tabular-aligned on th
 right; mark the voter's own pick with an inverted key badge + "· you". Honor
 reduced-motion on the fill's width transition.
 
-**Collecting.** Votes append to `~/.summaries/.lattice/polls/<slug>.jsonl` (local
-and shared votes together). Share with `lattice share <slug>` (add `--random` for
-an unguessable subdomain, or use the **share button in the dashboard reader's top
-bar**) — only that one summary, its `POST /submit`, and read-only `GET /results`
-are public; dashboard, API and other summaries are unreachable by construction.
-Tally raw with `lattice results <slug>`; `lattice unshare` when done.
+**Collecting.** Votes cast while viewing through the local daemon append to
+`~/.summaries/.lattice/polls/<slug>.jsonl`; votes on a public share are collected
+by the hosted backend (lattice.pub). Share with `lattice share <slug>` (add
+`--random` for an unguessable subdomain, or use the **share button in the
+dashboard reader's top bar**) — requires `lattice login <token>`, and only that
+one summary, its `POST /submit`, and read-only `GET /results` are public.
+Tally shared votes with `lattice results <slug>`; `lattice unshare` when done.
 
 **Non-poll summaries are unaffected** — no bridge, pure single-file, fully offline.

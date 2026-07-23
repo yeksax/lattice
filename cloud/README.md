@@ -1,9 +1,10 @@
 # lattice-share - hosted share backend
 
 The paid half of lattice: a Cloudflare Worker that keeps a shared summary online
-**24/7, independent of your laptop**. `lattice share <slug>` uploads a snapshot
-here instead of tunnelling to the local daemon; the local `--local` path (expose
-/ cloudflared) still works for the fully self-hosted OSS setup.
+**24/7, independent of your laptop**. All public sharing goes through here -
+`lattice share <slug>` (and the dashboard's share button, proxied by the local
+daemon) uploads a snapshot. Self-hosters can run their own Worker and point the
+CLI at it with `--api` / `LATTICE_API_BASE`.
 
 - **Snapshots** live in R2 (`snap/<sub>`), one HTML object per share.
 - **Metadata + votes** live in D1 (`shares`, `votes`, `tokens`).
@@ -33,7 +34,7 @@ DNS.
 
 The poll bridge and `/results` aggregation are byte/logic-identical to the local
 daemon (`src/poll.bridge.txt` mirrors `cmd/lattice/dashboard/poll.js`; `aggregate()` ports
-`pollagg.go`), so a page behaves the same shared locally or hosted.
+`pollagg.go`), so a page behaves the same viewed locally or shared.
 
 ## Setup
 

@@ -73,7 +73,7 @@ func TestRelativeLegacySymlink(t *testing.T) {
 
 func TestPutConfigRejectsNull(t *testing.T) {
 	t.Setenv("LATTICE_DIR", t.TempDir())
-	srv := newServer(newIndex(), newShareManager(""))
+	srv := newServer(newIndex())
 	req := httptest.NewRequest(http.MethodPut, "/api/config", strings.NewReader("null"))
 	rec := httptest.NewRecorder()
 	srv.handler().ServeHTTP(rec, req)
@@ -98,8 +98,6 @@ func TestValidateConfigValue(t *testing.T) {
 		{"hosted.apiBase", "https://api.lattice.pub/", true},
 		{"hosted.apiBase", "https://api.lattice.pub?tenant=x", false},
 		{"hosted.apiBase", "api.lattice.pub", false},
-		{"hosted.defaultTarget", "local", true},
-		{"hosted.defaultTarget", "sometimes", false},
 		{"unknown", "value", false},
 	}
 	for _, test := range tests {

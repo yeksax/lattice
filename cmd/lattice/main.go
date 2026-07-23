@@ -39,18 +39,16 @@ usage:
   lattice skills install [flags]     install the html-summary skill for agents
       --dir path   install to one directory instead of the default roots
       --force      overwrite an existing skill directory
-  lattice login <token> [--api url]  log in to hosted sharing (Cloudflare)
-  lattice logout                     forget the hosted token (revert to local)
-  lattice share <slug> [flags]       share ONE summary publicly
+  lattice login <token> [--api url]  log in to sharing (lattice.pub)
+  lattice logout                     forget the sharing token
+  lattice share <slug> [--random]    share ONE summary publicly
       --random     8-char subdomain instead of the slug
-      --local      force local expose (<slug>.yeksax.dev) even if logged in
-      --hosted     force hosted snapshot even if a local default is set
-  lattice unshare <slug> [--local|--hosted]   stop sharing (poll data is kept)
+  lattice unshare <slug>             stop sharing (poll data is kept)
   lattice shares                     list active shares + vote counts
-  lattice results <slug> [--local|--hosted]   dump poll submissions
+  lattice results <slug>             dump poll submissions
 
-Once logged in, share/unshare/results default to hosted (stays up with your
-laptop closed). Without a token they use local expose.
+Sharing publishes a hosted snapshot to lattice.pub (stays up with your laptop
+closed) and requires "lattice login <token>" first.
 
 env: LATTICE_ADDR (default 127.0.0.1:4600), LATTICE_DIR (default ~/.summaries),
      LATTICE_API_BASE (override hosted API base), LATTICE_NO_AUTOSPAWN (disable
@@ -116,48 +114,26 @@ func main() {
 	case "share":
 		fs := flag.NewFlagSet("share", flag.ExitOnError)
 		random := fs.Bool("random", false, "use a random 8-char subdomain")
-		local := fs.Bool("local", false, "force local expose")
-		hosted := fs.Bool("hosted", false, "force hosted snapshot")
 		fs.Parse(reorderFlags(os.Args[2:]))
 		if fs.NArg() != 1 {
-			err = fmt.Errorf("usage: lattice share <slug> [--random] [--local|--hosted]")
+			err = fmt.Errorf("usage: lattice share <slug> [--random]")
 			break
 		}
-		if useHosted(*hosted, *local) {
-			err = hostedShare(fs.Arg(0), *random)
-		} else {
-			err = cliShare(fs.Arg(0), *random)
-		}
+		err = hostedShare(fs.Arg(0), *random)
 	case "unshare":
-		fs := flag.NewFlagSet("unshare", flag.ExitOnError)
-		local := fs.Bool("local", false, "target a local expose share")
-		hosted := fs.Bool("hosted", false, "target a hosted share")
-		fs.Parse(reorderFlags(os.Args[2:]))
-		if fs.NArg() != 1 {
-			err = fmt.Errorf("usage: lattice unshare <slug> [--local|--hosted]")
+		if len(os.Args) != 3 {
+			err = fmt.Errorf("usage: lattice unshare <slug>")
 			break
 		}
-		if useHosted(*hosted, *local) {
-			err = hostedUnshare(fs.Arg(0))
-		} else {
-			err = cliUnshare(fs.Arg(0))
-		}
+		err = hostedUnshare(os.Args[2])
 	case "shares":
-		err = cliShares()
+		err = hostedSharesList()
 	case "results":
-		fs := flag.NewFlagSet("results", flag.ExitOnError)
-		local := fs.Bool("local", false, "target a local expose share")
-		hosted := fs.Bool("hosted", false, "target a hosted share")
-		fs.Parse(reorderFlags(os.Args[2:]))
-		if fs.NArg() != 1 {
-			err = fmt.Errorf("usage: lattice results <slug> [--local|--hosted]")
+		if len(os.Args) != 3 {
+			err = fmt.Errorf("usage: lattice results <slug>")
 			break
 		}
-		if useHosted(*hosted, *local) {
-			err = hostedResults(fs.Arg(0))
-		} else {
-			err = cliResults(fs.Arg(0))
-		}
+		err = hostedResults(os.Args[2])
 	case "help", "-h", "--help":
 		fmt.Println(usage)
 	default:
@@ -211,11 +187,7 @@ func runServe() error {
 		ix.watch()
 	}()
 
-	pollJS, _ := dashboardFS.ReadFile("dashboard/poll.js")
-	sm := newShareManager(string(pollJS))
-	sm.load()
-
-	srv := newServer(ix, sm)
+	srv := newServer(ix)
 	h := srv.handler()
 
 	// Pretty-hostname alias: browsers resolve *.localhost to loopback on their

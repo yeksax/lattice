@@ -23,7 +23,6 @@ var dashboardFS embed.FS
 
 type server struct {
 	ix     *Index
-	sm     *shareManager
 	assets map[string]asset // pre-hashed embedded files
 	reload []byte           // reload.js, wrapped at request time
 	poll   []byte           // poll.js bridge
@@ -35,8 +34,8 @@ type asset struct {
 	ctype string
 }
 
-func newServer(ix *Index, sm *shareManager) *server {
-	s := &server{ix: ix, sm: sm, assets: map[string]asset{}}
+func newServer(ix *Index) *server {
+	s := &server{ix: ix, assets: map[string]asset{}}
 	for name, ctype := range map[string]string{
 		"index.html": "text/html; charset=utf-8",
 		"style.css":  "text/css; charset=utf-8",
@@ -245,16 +244,21 @@ func injectScript(b []byte, tag string) []byte {
 	return append(b, tag...)
 }
 
+// Share endpoints proxy to the hosted backend (lattice.pub) so the dashboard's
+// share popover and the CLI publish through the same path. Not being logged in
+// reads as "nothing shared" on GET and a clear error on mutations.
 func (s *server) listShares(w http.ResponseWriter, _ *http.Request) {
-	out := []map[string]any{}
-	for _, sh := range s.sm.list() {
-		out = append(out, map[string]any{
-			"slug": sh.Slug, "sub": sh.Sub, "port": sh.Port,
-			"url": sh.URL(), "created": sh.Created,
-			"votes": len(readSubmissions(sh.Slug)),
-		})
+	c := loadConfig()
+	if c.Hosted.Token == "" {
+		writeJSON(w, []hostedShareRow{})
+		return
 	}
-	writeJSON(w, out)
+	shares, err := hostedList(c)
+	if err != nil {
+		httpErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, shares)
 }
 
 func (s *server) postShare(w http.ResponseWriter, r *http.Request) {
@@ -266,18 +270,33 @@ func (s *server) postShare(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, `body must be JSON: {"slug", "random"?}`)
 		return
 	}
-	sh, err := s.sm.create(req.Slug, req.Random)
+	c := loadConfig()
+	if c.Hosted.Token == "" {
+		httpErr(w, http.StatusUnauthorized, errNotLoggedIn.Error())
+		return
+	}
+	html, err := os.ReadFile(resolveSource(req.Slug))
 	if err != nil {
-		httpErr(w, http.StatusBadRequest, err.Error())
+		httpErr(w, http.StatusNotFound, "summary not found (or source missing): "+req.Slug)
+		return
+	}
+	url, err := hostedCreate(c, req.Slug, html, req.Random)
+	if err != nil {
+		httpErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, map[string]any{"slug": sh.Slug, "url": sh.URL(), "port": sh.Port})
+	writeJSON(w, map[string]any{"slug": req.Slug, "url": url})
 }
 
 func (s *server) deleteShare(w http.ResponseWriter, r *http.Request) {
-	if err := s.sm.remove(r.PathValue("slug")); err != nil {
-		httpErr(w, http.StatusNotFound, err.Error())
+	c := loadConfig()
+	if c.Hosted.Token == "" {
+		httpErr(w, http.StatusUnauthorized, errNotLoggedIn.Error())
+		return
+	}
+	if err := hostedDelete(c, r.PathValue("slug")); err != nil {
+		httpErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -289,7 +308,7 @@ func (s *server) listPoll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) submitPoll(w http.ResponseWriter, r *http.Request) {
-	recordSubmission(w, r, r.PathValue("slug"), "local")
+	recordSubmission(w, r, r.PathValue("slug"))
 }
 
 func (s *server) pollResults(w http.ResponseWriter, r *http.Request) {

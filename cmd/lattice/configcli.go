@@ -71,8 +71,6 @@ func configValue(c Config, key string) (string, bool) {
 		return c.Hosted.APIBase, true
 	case "hosted.token":
 		return c.Hosted.Token, true
-	case "hosted.defaultTarget":
-		return c.Hosted.DefaultTarget, true
 	default:
 		return "", false
 	}
@@ -96,8 +94,6 @@ func setConfigValue(key, value string) error {
 		c.Hosted.APIBase = strings.TrimRight(value, "/")
 	case "hosted.token":
 		c.Hosted.Token = value
-	case "hosted.defaultTarget":
-		c.Hosted.DefaultTarget = value
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}
@@ -144,10 +140,6 @@ func validateConfigValue(key, value string) error {
 		}
 	case "hosted.token":
 		// Opaque credential; no client-side shape assumptions.
-	case "hosted.defaultTarget":
-		if !validChoice("", "hosted", "local") {
-			return fmt.Errorf("hosted.defaultTarget must be hosted, local, or empty")
-		}
 	default:
 		return fmt.Errorf("unknown config key: %s", key)
 	}
@@ -162,7 +154,6 @@ func validateConfig(c Config) error {
 		{"theme.density", c.Theme.Density},
 		{"hosted.apiBase", c.Hosted.APIBase},
 		{"hosted.token", c.Hosted.Token},
-		{"hosted.defaultTarget", c.Hosted.DefaultTarget},
 	}
 	for _, item := range values {
 		if err := validateConfigValue(item.key, item.value); err != nil {

@@ -24,12 +24,11 @@ type Theme struct {
 	Density string `json:"density,omitempty"` // "compact" | "comfortable" | "spacious"
 }
 
-// Hosted holds the credentials for the paid share backend. Empty Token means
-// the user isn't logged in, and `lattice share` falls back to local expose.
+// Hosted holds the credentials for the share backend (lattice.pub). Empty
+// Token means the user isn't logged in and sharing is unavailable.
 type Hosted struct {
-	APIBase       string `json:"apiBase,omitempty"`       // e.g. https://api.lattice.pub
-	Token         string `json:"token,omitempty"`         // Bearer token
-	DefaultTarget string `json:"defaultTarget,omitempty"` // "hosted" | "local"; empty ⇒ hosted when logged in
+	APIBase string `json:"apiBase,omitempty"` // e.g. https://api.lattice.pub
+	Token   string `json:"token,omitempty"`   // Bearer token
 }
 
 // Config is the whole document. Version lets us migrate the shape later.
@@ -108,10 +107,4 @@ func (c Config) resolvedAPIBase() string {
 		return strings.TrimRight(c.Hosted.APIBase, "/")
 	}
 	return defaultAPIBase
-}
-
-// wantsHosted reports whether `lattice share` should default to the hosted
-// backend: logged in, and not explicitly pinned to local.
-func (c Config) wantsHosted() bool {
-	return c.Hosted.Token != "" && c.Hosted.DefaultTarget != "local"
 }

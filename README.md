@@ -27,8 +27,8 @@ the durable object: portable, inspectable, and yours.
 | `skills/` | Agent skills, including the `html-summary` companion skill |
 | `examples/` | Example standalone summaries |
 
-The daemon, CLI, dashboard, desktop app, and website are MIT licensed. The
-hosted service is optional; local sharing remains available through `expose`.
+The daemon, CLI, dashboard, desktop app, and website are MIT licensed. Public
+sharing publishes snapshots through the hosted service at `lattice.pub`.
 
 ## Install
 
@@ -84,8 +84,10 @@ lattice results report
 lattice unshare report
 ```
 
-Without a hosted token, `share` uses the local `expose` integration. Once
-logged in, hosted snapshots are the default; pass `--local` to override.
+`share` publishes a hosted snapshot to `lattice.pub` that stays online with
+your laptop closed. It requires `lattice login <token>` first; re-running
+`share` updates the snapshot. Self-hosters can point the CLI at their own
+Worker with `--api` or `LATTICE_API_BASE`.
 
 ## How local storage works
 

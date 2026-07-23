@@ -1,19 +1,21 @@
 package main
 
-// hosted.go - the CLI side of the paid share backend (cloud/). `lattice share`
-// defaults to hosted once you're logged in (the snapshot lives on Cloudflare
-// and stays up with your laptop closed); `--local` keeps the expose/cloudflared
-// path in share.go. login/unshare/results/shares get hosted variants that the
-// dispatchers in client.go route to based on config.
+// hosted.go - client for the hosted share backend (cloud/). All public sharing
+// goes through the hosted service (lattice.pub): `lattice share` uploads a
+// snapshot that stays up with your laptop closed, and the daemon proxies the
+// dashboard's /api/shares endpoints to the same API. Requires `lattice login`.
 
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 )
+
+var errNotLoggedIn = errors.New("not logged in - run: lattice login <token>")
 
 // --- config access from the CLI ----------------------------------------------
 //
@@ -58,14 +60,10 @@ func cliLogin(token, api string) error {
 	if api != "" {
 		c.Hosted.APIBase = api
 	}
-	if c.Hosted.DefaultTarget == "" {
-		c.Hosted.DefaultTarget = "hosted"
-	}
 	if err := saveConfigClient(c); err != nil {
 		return err
 	}
-	fmt.Printf("logged in - hosted shares via %s\n", c.resolvedAPIBase())
-	fmt.Println("`lattice share <slug>` now defaults to hosted; use --local for expose")
+	fmt.Printf("logged in - shares publish via %s\n", c.resolvedAPIBase())
 	return nil
 }
 
@@ -75,7 +73,7 @@ func cliLogout() error {
 	if err := saveConfigClient(c); err != nil {
 		return err
 	}
-	fmt.Println("logged out - `lattice share` reverts to local expose")
+	fmt.Println("logged out - sharing disabled until you log in again")
 	return nil
 }
 
@@ -99,6 +97,103 @@ func hostedAPI(c Config, method, path string, body any) (*http.Response, error) 
 	return apiClient().Do(req)
 }
 
+type hostedShareRow struct {
+	Slug  string `json:"slug"`
+	URL   string `json:"url"`
+	Votes int    `json:"votes"`
+}
+
+// hostedCreate uploads a snapshot and returns its public URL. Re-creating an
+// existing share replaces the snapshot (that's how updates work).
+func hostedCreate(c Config, slug string, html []byte, random bool) (string, error) {
+	if c.Hosted.Token == "" {
+		return "", errNotLoggedIn
+	}
+	resp, err := hostedAPI(c, http.MethodPost, "/v1/shares", map[string]any{
+		"slug":   slug,
+		"html":   string(html),
+		"random": random,
+	})
+	if err != nil {
+		return "", fmt.Errorf("hosted API unreachable at %s: %w", c.resolvedAPIBase(), err)
+	}
+	defer resp.Body.Close()
+	var out struct {
+		URL   string `json:"url"`
+		Error string `json:"error"`
+	}
+	json.NewDecoder(resp.Body).Decode(&out)
+	if resp.StatusCode >= 300 {
+		return "", fmt.Errorf("%s", out.Error)
+	}
+	return hostedDisplayURL(c, out.URL), nil
+}
+
+func hostedDelete(c Config, slug string) error {
+	if c.Hosted.Token == "" {
+		return errNotLoggedIn
+	}
+	resp, err := hostedAPI(c, http.MethodDelete, "/v1/shares/"+slug, nil)
+	if err != nil {
+		return fmt.Errorf("hosted API unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		var out struct {
+			Error string `json:"error"`
+		}
+		json.NewDecoder(resp.Body).Decode(&out)
+		return fmt.Errorf("%s", out.Error)
+	}
+	return nil
+}
+
+func hostedList(c Config) ([]hostedShareRow, error) {
+	if c.Hosted.Token == "" {
+		return nil, errNotLoggedIn
+	}
+	resp, err := hostedAPI(c, http.MethodGet, "/v1/shares", nil)
+	if err != nil {
+		return nil, fmt.Errorf("hosted API unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	var shares []hostedShareRow
+	if err := json.NewDecoder(resp.Body).Decode(&shares); err != nil {
+		return nil, err
+	}
+	for i := range shares {
+		shares[i].URL = hostedDisplayURL(c, shares[i].URL)
+	}
+	return shares, nil
+}
+
+func hostedSubmissions(c Config, slug string) ([]json.RawMessage, error) {
+	if c.Hosted.Token == "" {
+		return nil, errNotLoggedIn
+	}
+	resp, err := hostedAPI(c, http.MethodGet, "/v1/shares/"+slug+"/results", nil)
+	if err != nil {
+		return nil, fmt.Errorf("hosted API unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		var out struct {
+			Error string `json:"error"`
+		}
+		json.NewDecoder(resp.Body).Decode(&out)
+		return nil, fmt.Errorf("%s", out.Error)
+	}
+	var out struct {
+		Submissions []json.RawMessage `json:"submissions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return out.Submissions, nil
+}
+
+// --- CLI wrappers -------------------------------------------------------------
+
 // rawSummaryHTML returns the pristine snapshot bytes for a slug. Prefers the
 // daemon's ?raw=1 (resolves the registered source), falling back to resolving
 // and reading the source directly when the server is down.
@@ -120,120 +215,58 @@ func rawSummaryHTML(slug string) ([]byte, error) {
 func hostedShare(slug string, random bool) error {
 	c := loadConfigClient()
 	if c.Hosted.Token == "" {
-		return fmt.Errorf("not logged in - run: lattice login <token>")
+		return errNotLoggedIn
 	}
 	html, err := rawSummaryHTML(slug)
 	if err != nil {
 		return err
 	}
-	resp, err := hostedAPI(c, http.MethodPost, "/v1/shares", map[string]any{
-		"slug":   slug,
-		"html":   string(html),
-		"random": random,
-	})
+	url, err := hostedCreate(c, slug, html, random)
 	if err != nil {
-		return fmt.Errorf("hosted API unreachable at %s: %w", c.resolvedAPIBase(), err)
+		return err
 	}
-	defer resp.Body.Close()
-	var out struct {
-		URL   string `json:"url"`
-		Sub   string `json:"sub"`
-		Error string `json:"error"`
-	}
-	json.NewDecoder(resp.Body).Decode(&out)
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("%s", out.Error)
-	}
-	fmt.Printf("shared %s (hosted) → %s\n", slug, hostedDisplayURL(c, out.URL))
+	fmt.Printf("shared %s → %s\n", slug, url)
 	fmt.Println("stays online with your laptop closed; re-run to update, unshare to stop")
 	return nil
 }
 
 func hostedUnshare(slug string) error {
-	c := loadConfigClient()
-	resp, err := hostedAPI(c, http.MethodDelete, "/v1/shares/"+slug, nil)
-	if err != nil {
-		return fmt.Errorf("hosted API unreachable: %w", err)
+	if err := hostedDelete(loadConfigClient(), slug); err != nil {
+		return err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		var out struct {
-			Error string `json:"error"`
-		}
-		json.NewDecoder(resp.Body).Decode(&out)
-		return fmt.Errorf("%s", out.Error)
-	}
-	fmt.Printf("unshared %s (hosted; poll data kept)\n", slug)
+	fmt.Printf("unshared %s (poll data kept)\n", slug)
 	return nil
 }
 
 func hostedSharesList() error {
-	c := loadConfigClient()
-	resp, err := hostedAPI(c, http.MethodGet, "/v1/shares", nil)
+	shares, err := hostedList(loadConfigClient())
 	if err != nil {
-		return fmt.Errorf("hosted API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	var shares []struct {
-		Slug  string `json:"slug"`
-		URL   string `json:"url"`
-		Votes int    `json:"votes"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&shares); err != nil {
 		return err
 	}
 	if len(shares) == 0 {
-		fmt.Println("no active hosted shares - lattice share <slug>")
+		fmt.Println("no active shares - lattice share <slug>")
 		return nil
 	}
 	for _, sh := range shares {
-		fmt.Printf("%-32s  %-40s  %d vote(s)\n", sh.Slug, hostedDisplayURL(c, sh.URL), sh.Votes)
+		fmt.Printf("%-32s  %-40s  %d vote(s)\n", sh.Slug, sh.URL, sh.Votes)
 	}
 	return nil
 }
 
 func hostedResults(slug string) error {
-	c := loadConfigClient()
-	resp, err := hostedAPI(c, http.MethodGet, "/v1/shares/"+slug+"/results", nil)
+	subs, err := hostedSubmissions(loadConfigClient(), slug)
 	if err != nil {
-		return fmt.Errorf("hosted API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		var out struct {
-			Error string `json:"error"`
-		}
-		json.NewDecoder(resp.Body).Decode(&out)
-		return fmt.Errorf("%s", out.Error)
-	}
-	var out struct {
-		Submissions []json.RawMessage `json:"submissions"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return err
 	}
-	if len(out.Submissions) == 0 {
+	if len(subs) == 0 {
 		fmt.Println("no submissions yet")
 		return nil
 	}
-	for _, s := range out.Submissions {
+	for _, s := range subs {
 		fmt.Println(string(s))
 	}
-	fmt.Printf("- %d submission(s)\n", len(out.Submissions))
+	fmt.Printf("- %d submission(s)\n", len(subs))
 	return nil
-}
-
-// useHosted decides whether a share-family command targets the hosted backend.
-// Explicit flags win; otherwise it follows config (logged in and not pinned
-// local). --local and --hosted together is treated as --hosted.
-func useHosted(hosted, local bool) bool {
-	if hosted {
-		return true
-	}
-	if local {
-		return false
-	}
-	return loadConfigClient().wantsHosted()
 }
 
 // hostedDisplayURL makes a dev URL (path-only, e.g. /s/abc) absolute against

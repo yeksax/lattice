@@ -3,7 +3,7 @@ package main
 // pollagg.go - fold a slug's vote JSONL into per-question option counts.
 //
 // Privacy: this returns ONLY counts (never IP/UA/voter ids), so it is safe to
-// expose on the public share endpoint. Dedup is last-write-wins per
+// serve to any viewer of the summary. Dedup is last-write-wins per
 // (voter, question), so an honest reload or a changed vote doesn't inflate the
 // tally - the voter id is minted and persisted client-side by the poll bridge.
 //

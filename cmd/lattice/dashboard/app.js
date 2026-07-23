@@ -114,7 +114,7 @@
   q.addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(search, 120); });
 
   // ---- settings ------------------------------------------------------------
-  const settingIds = ['setting-preset', 'setting-font', 'setting-density', 'setting-accent', 'setting-api', 'setting-token', 'setting-target'];
+  const settingIds = ['setting-preset', 'setting-font', 'setting-density', 'setting-accent', 'setting-api', 'setting-token'];
 
   function settingsMessage(text, error = false) {
     const message = $('settings-message');
@@ -283,7 +283,6 @@
       const hosted = settingsConfig.hosted || {};
       $('setting-api').value = hosted.apiBase || '';
       $('setting-token').value = hosted.token || '';
-      $('setting-target').value = hosted.defaultTarget || '';
       settingsDirty = false;
       settingsSave.disabled = true;
       settingsMessage('');
@@ -313,7 +312,6 @@
     settingsConfig.hosted = {
       apiBase: $('setting-api').value.trim().replace(/\/$/, '') || undefined,
       token: $('setting-token').value.trim() || undefined,
-      defaultTarget: $('setting-target').value || undefined,
     };
 
     settingsSave.disabled = true;
@@ -442,7 +440,7 @@
       }
     });
     sharePop.replaceChildren(
-      el('div', { class: 'lead' }, 'Expose only this summary at a public URL. The dashboard, API, and every other summary stay private.'),
+      el('div', { class: 'lead' }, 'Publish a snapshot of this summary at a public URL. The dashboard, API, and every other summary stay private.'),
       el('label', { class: 'opt' }, random, 'Random subdomain'),
       btn,
     );

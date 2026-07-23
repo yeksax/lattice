@@ -136,8 +136,8 @@
 
           <section id="settings-sharing" class="settings-section" data-settings-name="Sharing">
             <div class="settings-section-heading">
-              <h2>Hosted sharing</h2>
-              <p>Optional credentials for durable public snapshots. Local libraries keep working without them.</p>
+              <h2>Sharing</h2>
+              <p>Public snapshots publish to lattice.pub. Add your access token to enable sharing; the local library works without it.</p>
             </div>
 
             <label class="setting-row">
@@ -149,15 +149,6 @@
               <span class="setting-copy"><strong>Access token</strong><small>Stored locally with private file permissions.</small></span>
               <input id="setting-token" type="password" placeholder="Not configured" autocomplete="off" spellcheck="false">
             </label>
-
-            <div class="setting-row">
-              <span class="setting-copy"><strong>Default share target</strong><small>Choose where share commands publish by default.</small></span>
-              <select id="setting-target" data-uisel>
-                <option value="">Hosted when signed in</option>
-                <option value="hosted">Always hosted</option>
-                <option value="local">Always local</option>
-              </select>
-            </div>
           </section>
         </form>
       </div>

@@ -301,7 +301,6 @@ async function loadConfig() {
     const hosted = config.hosted || {};
     els.apiBase.value = hosted.apiBase || '';
     els.token.value = hosted.token || '';
-    setControlValue('defaultTarget', hosted.defaultTarget || '');
     renderPreview();
     setDirty(false);
   } catch {
@@ -321,7 +320,6 @@ async function saveConfig() {
     hosted: {
       apiBase: els.apiBase.value.trim() || undefined,
       token: els.token.value.trim() || undefined,
-      defaultTarget: controlValue('defaultTarget') || undefined,
     },
   };
 
