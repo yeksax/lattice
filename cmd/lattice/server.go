@@ -81,40 +81,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("GET /api/polls/{slug}", s.listPoll)
 	mux.HandleFunc("GET /api/polls/{slug}/results", s.pollResults)
 	mux.HandleFunc("POST /api/polls/{slug}/submit", s.submitPoll)
-	return localCORS(mux)
-}
-
-// localCORS lets the Tauri menubar app (origin tauri://localhost) call the
-// loopback API from its webview. Only /api routes are opened up, and the
-// server already binds loopback-only, so this is not a public-exposure risk.
-// A non-/api request, or any request from another origin, passes through
-// unchanged (no ACAO header ⇒ the browser blocks the cross-origin read).
-func localCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); origin != "" && strings.HasPrefix(r.URL.Path, "/api/") && isAppOrigin(origin) {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			w.Header().Set("Vary", "Origin")
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// isAppOrigin matches the desktop app's webview origins across platforms
-// (macOS/Linux: https://tauri.localhost in Tauri 2; also tauri:// and http://
-// variants, plus localhost ports used by some webview/dev setups).
-func isAppOrigin(origin string) bool {
-	switch origin {
-	case "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost",
-		"asset://localhost", "http://asset.localhost", "https://asset.localhost":
-		return true
-	}
-	return strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "https://localhost:")
+	return mux
 }
 
 func (s *server) getConfig(w http.ResponseWriter, _ *http.Request) {

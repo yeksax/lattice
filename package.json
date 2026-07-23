@@ -4,8 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.29.3",
   "scripts": {
-    "build": "pnpm --filter lattice-app build && pnpm --filter lattice-web build && pnpm --filter lattice-share typecheck",
-    "app": "pnpm --filter lattice-app dev",
+    "build": "pnpm --filter lattice-web build && pnpm --filter lattice-share typecheck",
     "web": "pnpm --filter lattice-web dev",
     "web:build": "pnpm --filter lattice-web build",
     "cloud:dev": "pnpm --filter lattice-share dev",

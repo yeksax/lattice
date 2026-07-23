@@ -11,8 +11,8 @@ mitigation. You can expect an acknowledgement within seven days.
 ## Trust model
 
 Lattice is a single-user, local-first application. The daemon binds to loopback
-by default and the desktop app talks to it over `127.0.0.1`. Hosted sharing only
-uploads summaries selected explicitly by the user.
+by default. Hosted sharing only uploads summaries selected explicitly by the
+user.
 
 Access tokens are stored locally in
 `~/.summaries/.lattice/config.json` with `0600` permissions. Never include that

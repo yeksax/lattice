@@ -1,8 +1,6 @@
 # Binaries and build output
 /lattice
 /dist/
-/app/src-tauri/target/
-/app/src-tauri/gen/
 /web/dist/
 /web/.astro/
 

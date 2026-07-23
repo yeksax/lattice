@@ -3,22 +3,13 @@ PREFIX   := $(HOME)/.local/bin
 PLIST_ID := dev.yeksax.lattice
 PLIST    := $(HOME)/Library/LaunchAgents/$(PLIST_ID).plist
 
-.PHONY: build dev install uninstall clean app app-build web web-build web-deploy cloud-dev cloud-deploy
+.PHONY: build dev install uninstall clean web web-build web-deploy cloud-dev cloud-deploy
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o $(BIN) ./cmd/lattice
 
 dev: build
 	./$(BIN) serve
-
-# Desktop menubar app (Tauri v2, macOS). `make app` runs it against the daemon.
-app:
-	pnpm install
-	pnpm --filter lattice-app dev
-
-app-build:
-	pnpm install
-	pnpm --filter lattice-app build
 
 # Public Astro site.
 web:

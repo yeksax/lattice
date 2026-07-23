@@ -131,8 +131,8 @@ const ptBR: Record<string, string> = {
   '+ the next useful artifact': '+ e tudo que vier depois',
   ownership: 'controle de verdade',
   'Local-first. Open source. Yours to run.': 'Seus arquivos. Suas regras.',
-  'The CLI, daemon, dashboard, desktop companion, and report skill are MIT licensed. Run them, inspect them, fork them, or ship your own build.':
-    'Tudo que roda na sua máquina tem licença MIT: CLI, serviço local, dashboard, aplicativo e skill. Você pode ler, adaptar e distribuir o código.',
+  'The CLI, daemon, dashboard, and report skill are MIT licensed. Run them, inspect them, fork them, or ship your own build.':
+    'Tudo que roda na sua máquina tem licença MIT: CLI, serviço local, dashboard e skill. Você pode ler, adaptar e distribuir o código.',
   'Local flows bind to your machine, source files stay on disk, and sharing publishes only the report you select.':
     'O serviço fica na sua máquina. Na hora de compartilhar, só o relatório escolhido sai dela.',
   'Browse the repository': 'Ver o código no GitHub',
@@ -145,11 +145,11 @@ const ptBR: Record<string, string> = {
   'Install only the skill': 'Quero só a skill',
   'Browse the source': 'Abrir o repositório',
   'quick install · macOS (Apple Silicon)': 'instalação rápida · Apple Silicon',
-  'Other platforms, SHA-256 checksums, and the macOS companion are on the':
+  'Other platforms and SHA-256 checksums are on the':
     'Procurando Windows, Linux, Mac Intel ou checksums? Está tudo na',
   'download page': 'área de downloads',
-  'Download the Lattice CLI for macOS, Linux, or Windows, verify its SHA-256 checksum, install the standalone report skill, or add the macOS desktop companion.':
-    'Escolha o binário do seu sistema, confira a integridade do arquivo ou instale somente a skill. O aplicativo de menu para macOS também está aqui.',
+  'Download the Lattice CLI for macOS, Linux, or Windows, verify its SHA-256 checksum, or install the standalone report skill.':
+    'Escolha o binário do seu sistema, confira a integridade do arquivo ou instale somente a skill.',
   download: 'instalação',
   'Run Lattice on your machine.': 'Escolha como rodar o Lattice.',
   'Checking your system…': 'Identificando este computador…',
@@ -195,17 +195,6 @@ const ptBR: Record<string, string> = {
   'Install two files that teach compatible agents to create concise, self-contained HTML reports. The skill works on its own, with no daemon or CLI.':
     'Dois arquivos bastam para o agente produzir relatórios HTML claros e autocontidos. Nenhum serviço precisa ficar rodando.',
   'html-summary · standalone': 'html-summary · use sem instalar o Lattice',
-  'macOS companion': 'atalho para macOS',
-  'Add Lattice to the menu bar.': 'Controle o Lattice pela barra de menus.',
-  'The desktop app is an optional control surface for the local service. The CLI remains the complete product; the app adds quick access on Apple Silicon and Intel Macs.':
-    'O aplicativo é um atalho para o serviço local: abre o acervo e mostra o status sem passar pelo terminal. A CLI continua sendo o produto completo.',
-  'Download for macOS': 'Baixar o aplicativo',
-  'The desktop companion is macOS only': 'O aplicativo de menu só existe para macOS',
-  'Use the CLI above for the complete Lattice workflow.':
-    'Nos outros sistemas, use a CLI: ela já inclui todo o fluxo do Lattice.',
-  'is available if you also use a Mac.': 'fica disponível caso você também trabalhe em um Mac.',
-  'Unsigned development build · use right-click → Open on first launch.':
-    'Build não assinada · na primeira vez, use botão direito → Abrir.',
   'build from source': 'compilar localmente',
   'Prefer to compile it yourself?': 'Quer construir o binário na sua máquina?',
   'Lattice is a single Go module. Clone the repository and build the CLI directly.':

@@ -1,6 +1,0 @@
-// Prevents an extra console window on Windows in release. Harmless on macOS.
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-fn main() {
-    lattice_app_lib::run()
-}

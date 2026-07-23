@@ -1,15 +1,13 @@
 # Contributing
 
 Lattice is intentionally small: standard-library Go for the daemon and CLI,
-Tauri for the macOS app, Astro for the public site, and a Cloudflare Worker for
-optional hosted sharing.
+Astro for the public site, and a Cloudflare Worker for hosted sharing.
 
 ## Local setup
 
 ```sh
 make build
 make install
-make app
 make web
 ```
 

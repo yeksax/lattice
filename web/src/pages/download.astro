@@ -16,7 +16,7 @@ const cliBuilds = [
 
 <Layout
   title="Download Lattice"
-  description="Download the Lattice CLI for macOS, Linux, or Windows, verify its SHA-256 checksum, install the standalone report skill, or add the macOS desktop companion."
+  description="Download the Lattice CLI for macOS, Linux, or Windows, verify its SHA-256 checksum, or install the standalone report skill."
   solidHeader
   localize
 >
@@ -197,45 +197,11 @@ curl -fsSL {skillBase}/template.html \
     </div>
   </section>
 
-  <!-- ============ desktop ============ -->
-  <section id="desktop" class="section border-t border-line">
-    <div class="wrap grid grid-cols-1 items-start gap-14 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-      <div>
-        <p class="eyebrow reveal"><span class="idx">04</span>macOS companion</p>
-        <h2 class="h-display reveal mt-5" style="--d: 0.06s">Add Lattice to the menu bar.</h2>
-        <p class="prose-plain reveal mt-8" style="--d: 0.12s">
-          The desktop app is an optional control surface for the local service. The CLI remains the
-          complete product; the app adds quick access on Apple Silicon and Intel Macs.
-        </p>
-      </div>
-      <div class="surface-card reveal p-8" style="--d: 0.14s">
-        <div data-os-app="available">
-          <p class="font-mono text-[13px] text-ink">Lattice.dmg · universal</p>
-          <a class="btn btn-ghost mt-6" href={`${releaseBase}/Lattice.dmg`}>
-            Download for macOS
-            <svg class="h-[13px] w-[13px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="12" x2="20" y2="12" /><polyline points="14 6 20 12 14 18" /></svg>
-          </a>
-        </div>
-        <div data-os-app="soon" hidden>
-          <p class="font-mono text-[13px] text-ink">The desktop companion is macOS only</p>
-          <p class="mt-3 text-sm text-ink2">
-            Use the CLI above for the complete Lattice workflow.
-            <a href={`${releaseBase}/Lattice.dmg`} class="text-ink underline underline-offset-4">Lattice.dmg</a>
-            is available if you also use a Mac.
-          </p>
-        </div>
-        <p class="mt-6 font-mono text-xs text-muted">
-          Unsigned development build · use right-click → Open on first launch.
-        </p>
-      </div>
-    </div>
-  </section>
-
   <!-- ============ source ============ -->
   <section id="source" class="section border-t border-line">
     <div class="wrap grid grid-cols-1 items-start gap-14 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <div>
-        <p class="eyebrow reveal"><span class="idx">05</span>build from source</p>
+        <p class="eyebrow reveal"><span class="idx">04</span>build from source</p>
         <h2 class="h-display reveal mt-5" style="--d: 0.06s">Prefer to compile it yourself?</h2>
         <p class="prose-plain reveal mt-8" style="--d: 0.12s">
           Lattice is a single Go module. Clone the repository and build the CLI directly.

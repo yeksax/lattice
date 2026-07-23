@@ -158,8 +158,8 @@ brand. When in doubt, remove color, remove radius, remove shadow, tighten space.
 
 ## Theme config — read it before you style
 
-The look can be customized from the lattice desktop app. That writes
-`~/.summaries/.lattice/config.json`. **Before writing any CSS, read that file**
+The look can be customized from the lattice dashboard's Settings view (or
+`lattice config`). That writes `~/.summaries/.lattice/config.json`. **Before writing any CSS, read that file**
 (it may not exist). If it has a non-empty `theme`, it is a *deliberate*
 override of the house defaults — apply it. If the file is absent or `theme` is
 empty, use the house style exactly as documented below (that IS the default

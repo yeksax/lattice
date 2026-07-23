@@ -5,9 +5,9 @@
 Lattice is a tiny cross-platform Go daemon and CLI that turns standalone HTML
 files into a searchable personal library. The filesystem stays the source of
 truth. Its embedded dashboard manages the library and appearance on macOS,
-Linux, and Windows; the native macOS app is an optional companion.
+Linux, and Windows.
 
-[Download CLI builds](https://github.com/yeksax/lattice/releases/tag/continuous) | [macOS app](https://github.com/yeksax/lattice/releases/download/continuous/Lattice.dmg) | [Website](https://lattice.pub)
+[Download CLI builds](https://github.com/yeksax/lattice/releases/tag/continuous) | [Website](https://lattice.pub)
 
 ## Why
 
@@ -20,15 +20,14 @@ the durable object: portable, inspectable, and yours.
 | Directory | Purpose |
 |---|---|
 | `cmd/lattice/` | CLI, daemon, and embedded local dashboard |
-| `app/` | Optional Tauri v2 macOS menu bar app |
 | `web/` | Astro landing page for `lattice.pub` |
 | `cloud/` | Optional Cloudflare Worker for hosted snapshots |
 | `launchd/` | macOS LaunchAgent template |
 | `skills/` | Agent skills, including the `html-summary` companion skill |
 | `examples/` | Example standalone summaries |
 
-The daemon, CLI, dashboard, desktop app, and website are MIT licensed. Public
-sharing publishes snapshots through the hosted service at `lattice.pub`.
+The daemon, CLI, dashboard, and website are MIT licensed. Public sharing
+publishes snapshots through the hosted service at `lattice.pub`.
 
 ## Install
 
@@ -61,8 +60,7 @@ cd lattice
 go build -o lattice ./cmd/lattice
 ```
 
-On macOS, `make install` remains available for a persistent LaunchAgent. The
-desktop app can be built separately with `make app-build`.
+On macOS, `make install` remains available for a persistent LaunchAgent.
 
 ## CLI
 
@@ -107,7 +105,6 @@ access token. Edit it through `lattice config` or the dashboard's Settings view.
 
 ```sh
 make dev          # Go daemon in the foreground
-make app          # Tauri app in development mode
 make web          # Astro site at localhost:4321
 make web-build    # static website build
 make web-deploy   # build + wrangler deploy to lattice.pub

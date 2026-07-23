@@ -69,20 +69,9 @@ function initDownloadPage(): void {
     unknown: "We couldn't detect your system automatically.",
   };
 
-  const appAvail: Record<OS, 'available' | 'soon'> = {
-    macos: 'available',
-    windows: 'soon',
-    linux: 'soon',
-    unknown: 'soon',
-  };
-
   const os = detectOS();
   const detectEl = document.querySelector('#download-detect');
   if (detectEl) detectEl.textContent = labels[os];
-
-  document.querySelectorAll<HTMLElement>('[data-os-app]').forEach((el) => {
-    el.hidden = el.dataset.osApp !== appAvail[os];
-  });
 
   document.querySelectorAll<HTMLElement>('[data-os-row]').forEach((row) => {
     row.classList.toggle('is-detected', row.dataset.osRow === os);

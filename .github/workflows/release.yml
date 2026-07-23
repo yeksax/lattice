@@ -14,8 +14,8 @@ concurrency:
 
 jobs:
   build-and-release:
-    name: Build desktop and CLI artifacts
-    runs-on: macos-14
+    name: Build CLI artifacts
+    runs-on: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -40,11 +40,6 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Set up Rust targets
-        run: |
-          rustup target add aarch64-apple-darwin
-          rustup target add x86_64-apple-darwin
-
       - name: Verify Go and Worker
         run: |
           go vet ./...
@@ -55,14 +50,9 @@ jobs:
         run: |
           pnpm --filter lattice-web build
 
-      - name: Build universal macOS app
-        run: |
-          pnpm --filter lattice-app exec tauri build --target universal-apple-darwin
-
       - name: Prepare stable release assets
         run: |
           mkdir -p release
-          cp app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg release/Lattice.dmg
           CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o release/lattice-darwin-arm64 ./cmd/lattice
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o release/lattice-darwin-amd64 ./cmd/lattice
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o release/lattice-linux-arm64 ./cmd/lattice
@@ -74,7 +64,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          printf 'Automated build from [`%s`](https://github.com/%s/commit/%s).\n\nCLI builds for macOS, Linux, and Windows. The macOS desktop app remains an unsigned development build.\n' "${GITHUB_SHA::7}" "$GITHUB_REPOSITORY" "$GITHUB_SHA" > release-notes.md
+          printf 'Automated build from [`%s`](https://github.com/%s/commit/%s).\n\nCLI builds for macOS, Linux, and Windows.\n' "${GITHUB_SHA::7}" "$GITHUB_REPOSITORY" "$GITHUB_SHA" > release-notes.md
           gh release view continuous >/dev/null 2>&1 || gh release create continuous --title "Continuous build" --prerelease --notes-file release-notes.md
           gh release upload continuous release/* --clobber
           gh release edit continuous --title "Continuous build" --prerelease --notes-file release-notes.md

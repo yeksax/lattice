@@ -3,9 +3,9 @@ package main
 // config.go - user-editable settings living at
 // ~/.summaries/.lattice/config.json. Unlike meta sidecars (one per summary),
 // this is a single global document read by three consumers: the daemon (to
-// serve it over the API), the CLI (hosted token + share default), and the
-// html-summary skill (theme when generating new summaries). The daemon owns
-// writes so the Tauri app never races the file - it PUTs to /api/config.
+// serve it over the API), the CLI (hosted token), and the html-summary skill
+// (theme when generating new summaries). The daemon owns writes so UI clients
+// never race the file - the dashboard PUTs to /api/config.
 
 import (
 	"encoding/json"
