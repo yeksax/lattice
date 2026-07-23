@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 
 const github = 'https://github.com/yeksax/lattice';
 const releaseBase = `${github}/releases/download/continuous`;
-const skillBase = 'https://raw.githubusercontent.com/yeksax/lattice/main/skills/html-summary';
+const skillRepo = 'https://github.com/yeksax/html-summary';
 
 const cliBuilds = [
   { os: 'macos', label: 'macOS · Apple Silicon', file: 'lattice-darwin-arm64' },
@@ -167,12 +167,12 @@ shasum -a 256 --check --ignore-missing SHA256SUMS.txt</code></pre>
         <h2 class="h-display reveal mt-5" style="--d: 0.06s">Want the format without the library?</h2>
         <div class="prose-plain reveal mt-8" style="--d: 0.12s">
           <p>
-            Install two files that teach compatible agents to create concise, self-contained HTML
-            reports. The skill works on its own, with no daemon or CLI.
+            One command installs the skill that teaches compatible agents to create concise,
+            self-contained HTML reports. It works on its own, with no daemon or CLI.
           </p>
           <p>
             <a
-              href={`${github}/blob/main/skills/html-summary/SKILL.md`}
+              href={`${skillRepo}/blob/main/skills/html-summary/SKILL.md`}
               class="font-mono text-[13px] text-ink2 underline underline-offset-4 transition-colors hover:text-ink"
               rel="noopener"
             >
@@ -187,11 +187,7 @@ shasum -a 256 --check --ignore-missing SHA256SUMS.txt</code></pre>
             <span>html-summary · standalone</span>
             <button class="copy-btn" data-copy-target="#skill-only-code" type="button"><span data-copy-label>Copy</span></button>
           </div>
-          <pre class="cmdblock-body"><code id="skill-only-code">mkdir -p ~/.claude/skills/html-summary
-curl -fsSL {skillBase}/SKILL.md \
-  -o ~/.claude/skills/html-summary/SKILL.md
-curl -fsSL {skillBase}/template.html \
-  -o ~/.claude/skills/html-summary/template.html</code></pre>
+          <pre class="cmdblock-body"><code id="skill-only-code">npx skills add yeksax/html-summary</code></pre>
         </div>
       </div>
     </div>

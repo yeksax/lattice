@@ -2,9 +2,10 @@ package main
 
 // skills.go - ships the lattice-integrated html-summary skill *inside* the
 // binary and installs it into the agent skill directories. The standalone copy
-// in the repo's skills/ folder has no lattice hooks; this embedded one documents
-// theme config, `lattice add`, and the poll bridge, so it only makes sense once
-// the CLI is present. `lattice skills install` writes it wherever agents look.
+// lives at github.com/yeksax/html-summary and has no lattice hooks; this
+// embedded one documents theme config, `lattice add`, and the poll bridge, so it
+// only makes sense once the CLI is present. `lattice skills install` writes it
+// wherever agents look.
 
 import (
 	"embed"

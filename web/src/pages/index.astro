@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 
 const github = 'https://github.com/yeksax/lattice';
 const releaseBase = `${github}/releases/download/continuous`;
-const skillBase = 'https://raw.githubusercontent.com/yeksax/lattice/main/skills/html-summary';
+const skillRepo = 'https://github.com/yeksax/html-summary';
 
 const consequences = [
   {
@@ -278,7 +278,7 @@ const shelfIndex = [
         </div>
         <p class="reveal mt-6 font-mono text-[13px]" style="--d: 0.16s">
           <a
-            href={`${github}/blob/main/skills/html-summary/SKILL.md`}
+            href={`${skillRepo}/blob/main/skills/html-summary/SKILL.md`}
             class="text-ink2 underline underline-offset-4 transition-colors hover:text-ink"
             rel="noopener"
           >
@@ -295,11 +295,7 @@ const shelfIndex = [
               <span data-copy-label>Copy</span>
             </button>
           </div>
-          <pre class="cmdblock-body"><code id="skill-code">mkdir -p ~/.claude/skills/html-summary
-curl -fsSL {skillBase}/SKILL.md \
-  -o ~/.claude/skills/html-summary/SKILL.md
-curl -fsSL {skillBase}/template.html \
-  -o ~/.claude/skills/html-summary/template.html</code></pre>
+          <pre class="cmdblock-body"><code id="skill-code">npx skills add yeksax/html-summary</code></pre>
         </div>
       </div>
     </div>

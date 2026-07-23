@@ -23,7 +23,6 @@ the durable object: portable, inspectable, and yours.
 | `web/` | Astro landing page for `lattice.pub` |
 | `cloud/` | Optional Cloudflare Worker for hosted snapshots |
 | `launchd/` | macOS LaunchAgent template |
-| `skills/` | Agent skills, including the `html-summary` companion skill |
 | `examples/` | Example standalone summaries |
 
 The daemon, CLI, dashboard, and website are MIT licensed. Public sharing
@@ -49,8 +48,13 @@ your agents (Claude Code, and anything reading `~/.agents/skills`) with:
 lattice skills install
 ```
 
-`make install` runs this for you. The standalone, lattice-free version of the
-skill lives in `skills/html-summary` for anyone who just wants the design system.
+`make install` runs this for you. If you only want the design system, the
+standalone version of the skill — no daemon, no CLI, no theme config — lives in
+its own repository at [yeksax/html-summary](https://github.com/yeksax/html-summary):
+
+```sh
+npx skills add yeksax/html-summary
+```
 
 To build locally:
 

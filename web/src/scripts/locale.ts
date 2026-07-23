@@ -192,8 +192,8 @@ const ptBR: Record<string, string> = {
   'On Linux,': 'Se estiver no Linux,',
   'works too.': 'é outra opção.',
   'Want the format without the library?': 'Prefere ficar só com o formato?',
-  'Install two files that teach compatible agents to create concise, self-contained HTML reports. The skill works on its own, with no daemon or CLI.':
-    'Dois arquivos bastam para o agente produzir relatórios HTML claros e autocontidos. Nenhum serviço precisa ficar rodando.',
+  'One command installs the skill that teaches compatible agents to create concise, self-contained HTML reports. It works on its own, with no daemon or CLI.':
+    'Um comando instala a skill que ensina o agente a produzir relatórios HTML claros e autocontidos. Nenhum serviço precisa ficar rodando.',
   'html-summary · standalone': 'html-summary · use sem instalar o Lattice',
   'build from source': 'compilar localmente',
   'Prefer to compile it yourself?': 'Quer construir o binário na sua máquina?',
