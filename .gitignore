@@ -8,6 +8,7 @@
 node_modules/
 
 # Local configuration and credentials
+CLAUDE.local.md
 .env
 .env.*
 !.env.example
