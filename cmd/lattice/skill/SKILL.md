@@ -173,18 +173,55 @@ empty, use the house style exactly as documented below (that IS the default
 - **`accent`** — a hex like `#c2410c`. When set, it is the **one** allowed color:
   links, the voter's-own-pick marker, the leading bar segment. Everything else
   stays ink/white/gray. When empty, there is no accent (the house rule holds).
-- **`font`** — `mono` (default) · `sans` · `serif`. Overrides the body+heading
-  stack (`sans` → `ui-sans-serif, system-ui, …`; `serif` → `ui-serif, Georgia, …`).
+- **`font`** — body / running prose. `mono` (default) · `sans` · `serif`.
+  (`sans` → `ui-sans-serif, system-ui, …`; `serif` → `ui-serif, Georgia, …`).
+- **`heading`** — headings **and** big numbers / metric values. Same choices as
+  `font`. Empty inherits `font` (or mono). Pair freely — e.g. `heading: serif` +
+  `font: sans` for display contrast without forcing serif on long body copy.
 - **`density`** — `compact` (default, section pad ~40px) · `comfortable` (~56px)
   · `spacious` (~72px). Scales section vertical padding and base line-height.
+- **`tone`** — page base temperature. Empty keeps the house pure white / near-black.
+  Cooler, shadcn-like bases when set:
+  - `neutral` → light `#ffffff` / `#f5f5f5`, dark `#0a0a0a` / `#171717`
+  - `zinc` → light `#fafafa` / `#f4f4f5`, dark `#09090b` / `#18181b`
+  - `mist` → light `#f8fafc` / `#f1f5f9`, dark `#020617` / `#0f172a`
+  Never invent a warm/cream/olive paper base. If `tone` is set, those cool tokens
+  win over any yellowed default.
+- **`dividers`** — when to draw borders / separators:
+  - `hairline` (default) — 1px `--line` is the workhorse (bento gaps, stack cells,
+    table rules). Still ≤1–2 section rules per page.
+  - `soft` — prefer fill + gap over strokes. Hairlines only for numeric stacks and
+    data tables; qualitative blocks stay borderless.
+  - `none` — no module borders. Separate with `--bg-sub` fills and whitespace only
+    (tables may keep zebra; skip outer strokes).
+- **`modules`** — whether peer cells sit **together** or **apart** (not what
+  content goes in them):
+  - `mixed` (default) — use both: joined stacks for dense peer data, separated
+    cards when each peer needs air.
+  - `cards` — peers are **separated** (gap between panels, each on its own).
+  - `stacks` — peers are **joined** into one compound block (shared edges /
+    hairlines, no gutter between cells).
 
-Apply a theme by setting the token values / font stack / spacing at the **top of
-your `<style>`** — never hard-code around them. A themed summary still passes
-every *structural* rule (single file, no radius, no shadow, both schemes, short):
-the theme only moves color, font, and spacing, which is exactly what the Hard
-bans below govern **for the default preset**. When `theme` sets `accent` or
-`font`, honor it — those bans describe the default, not a choice explicitly
-configured.
+### Cards vs stacks (apply `modules`)
+
+This is about **spacing**, not content type. A cost strip and a habits grid can
+both be either form:
+
+**Stack (juntos)** = one compound unit. Cells share edges (1px gap over `--line`,
+or collapsed borders). No gutter between peers.
+
+**Card (separados)** = peers with gap between them. Each panel stands alone
+(usually on `--bg-sub`).
+
+Apply a theme by setting the token values / font stack / spacing / divider+module
+rules at the **top of your `<style>`** — never hard-code around them. A themed
+summary still passes every *structural* rule (single file, both schemes, short):
+the theme moves color, font, spacing, divider language, and module language.
+When `theme` sets `accent`, `font`, `heading`, `tone`, `dividers`, or `modules`,
+honor it — Hard bans describe the default, not a choice explicitly configured.
+Apply `font` on `body` / paragraphs; apply `heading` on `h1–h3` and large metric
+values (`.metric .val`, stack/card strong numbers). Do **not** put `heading` on
+body copy.
 
 ## Tokens (baked into template.html)
 
@@ -327,8 +364,10 @@ icons (buttons, list markers, status), not typography.
 ## Before you hand it off — checklist
 
 - [ ] **Theme checked**: you read `~/.summaries/.lattice/config.json`; if it set
-      a `theme`, you applied `accent`/`font`/`density` via the top-of-`<style>`
-      tokens. No config or empty theme → house defaults untouched.
+      a `theme`, you applied `accent`/`font`/`heading`/`density`/`tone`/`dividers`/
+      `modules` via tokens + layout rules. Body uses `font`; headings + big numbers
+      use `heading` (or `font` if heading empty). No config → house defaults.
+      Cool `tone` means no warm/cream paper. `modules`/`dividers` match the guidelines.
 - [ ] **Short**: one to two screens of scroll unless length was explicitly asked
       for. If it reads like a document, cut detail to the companion `.md`.
 - [ ] **New step = new file.** You did NOT overwrite an earlier summary to bring

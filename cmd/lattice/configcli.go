@@ -65,8 +65,16 @@ func configValue(c Config, key string) (string, bool) {
 		return c.Theme.Accent, true
 	case "theme.font":
 		return c.Theme.Font, true
+	case "theme.heading":
+		return c.Theme.Heading, true
 	case "theme.density":
 		return c.Theme.Density, true
+	case "theme.tone":
+		return c.Theme.Tone, true
+	case "theme.dividers":
+		return c.Theme.Dividers, true
+	case "theme.modules":
+		return c.Theme.Modules, true
 	case "hosted.apiBase":
 		return c.Hosted.APIBase, true
 	case "hosted.token":
@@ -88,8 +96,16 @@ func setConfigValue(key, value string) error {
 		c.Theme.Accent = strings.ToLower(value)
 	case "theme.font":
 		c.Theme.Font = value
+	case "theme.heading":
+		c.Theme.Heading = value
 	case "theme.density":
 		c.Theme.Density = value
+	case "theme.tone":
+		c.Theme.Tone = value
+	case "theme.dividers":
+		c.Theme.Dividers = value
+	case "theme.modules":
+		c.Theme.Modules = value
 	case "hosted.apiBase":
 		c.Hosted.APIBase = strings.TrimRight(value, "/")
 	case "hosted.token":
@@ -127,9 +143,25 @@ func validateConfigValue(key, value string) error {
 		if !validChoice("", "mono", "sans", "serif") {
 			return fmt.Errorf("theme.font must be mono, sans, serif, or empty")
 		}
+	case "theme.heading":
+		if !validChoice("", "mono", "sans", "serif") {
+			return fmt.Errorf("theme.heading must be mono, sans, serif, or empty")
+		}
 	case "theme.density":
 		if !validChoice("", "compact", "comfortable", "spacious") {
 			return fmt.Errorf("theme.density must be compact, comfortable, spacious, or empty")
+		}
+	case "theme.tone":
+		if !validChoice("", "neutral", "zinc", "mist") {
+			return fmt.Errorf("theme.tone must be neutral, zinc, mist, or empty")
+		}
+	case "theme.dividers":
+		if !validChoice("", "hairline", "soft", "none") {
+			return fmt.Errorf("theme.dividers must be hairline, soft, none, or empty")
+		}
+	case "theme.modules":
+		if !validChoice("", "mixed", "cards", "stacks") {
+			return fmt.Errorf("theme.modules must be mixed, cards, stacks, or empty")
 		}
 	case "hosted.apiBase":
 		if value != "" {
@@ -151,7 +183,11 @@ func validateConfig(c Config) error {
 		{"theme.preset", c.Theme.Preset},
 		{"theme.accent", c.Theme.Accent},
 		{"theme.font", c.Theme.Font},
+		{"theme.heading", c.Theme.Heading},
 		{"theme.density", c.Theme.Density},
+		{"theme.tone", c.Theme.Tone},
+		{"theme.dividers", c.Theme.Dividers},
+		{"theme.modules", c.Theme.Modules},
 		{"hosted.apiBase", c.Hosted.APIBase},
 		{"hosted.token", c.Hosted.Token},
 	}

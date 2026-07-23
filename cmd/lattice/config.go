@@ -18,10 +18,14 @@ import (
 // Theme drives how the html-summary skill styles generated summaries. All
 // fields are optional; an empty value means "skill default".
 type Theme struct {
-	Preset  string `json:"preset,omitempty"`  // named starting point, e.g. "lattice", "warm", "mono"
-	Accent  string `json:"accent,omitempty"`  // hex accent colour
-	Font    string `json:"font,omitempty"`    // "mono" | "sans" | "serif"
-	Density string `json:"density,omitempty"` // "compact" | "comfortable" | "spacious"
+	Preset   string `json:"preset,omitempty"`   // named starting point, e.g. "lattice", "warm", "mono"
+	Accent   string `json:"accent,omitempty"`   // hex accent colour
+	Font     string `json:"font,omitempty"`     // body: "mono" | "sans" | "serif"
+	Heading  string `json:"heading,omitempty"`  // headings + big numbers: "mono" | "sans" | "serif"
+	Density  string `json:"density,omitempty"`  // "compact" | "comfortable" | "spacious"
+	Tone     string `json:"tone,omitempty"`     // "" | "neutral" | "zinc" | "mist" — page base temperature
+	Dividers string `json:"dividers,omitempty"` // "" | "hairline" | "soft" | "none" — border/separator rules
+	Modules  string `json:"modules,omitempty"`  // "" | "mixed" | "cards" | "stacks" — peers apart vs joined
 }
 
 // Hosted holds the credentials for the share backend (lattice.pub). Empty
