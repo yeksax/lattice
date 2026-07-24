@@ -232,15 +232,41 @@ Light                          Dark
 --ink       #111111            #f2f2f2   (primary text)
 --ink-2     #555555            #b5b5b5   (secondary text)
 --muted     #8a8a8a            #7d7d7d   (labels, meta, captions)
---line      #e4e4e4            #242424   (hairline borders — the workhorse)
---line-2    #111111            #f2f2f2   (emphasis border / underline)
+--line      #e4e4e4            #1f1f1f   (hairline borders — the workhorse)
+--line-2    #111111            #3a3a3a   (emphasis border / underline)
 ```
 
 No status/accent token exists on purpose. Everything is ink, white, and grays.
 Tonal *ranking* (bar segments, heatmaps) uses opacity steps of the ink, not hue.
 
+### Dark mode is not an inversion — the lines get muted
+
+Look at `--line-2`: light `#111111`, dark `#3a3a3a`. That is **not** the inverse.
+A light hairline on a dark background reads far heavier than a dark hairline on
+white at the same contrast ratio — invert `#111` naively and you get `#f2f2f2`, a
+glowing white rule that turns every card into a lightbox. Text and fills invert;
+**borders and line art get pulled back.**
+
+- Go by contrast against the background, not by hex symmetry. Light `--line`
+  sits at **1.27:1** and light `--line-2` at **18.9:1**; on dark you want roughly
+  **1.2:1** and **1.7:1**. The emphasis rule only has to be distinguishable from
+  the hairline — it does not have to shout, and on dark it must not.
+- `--line-2` in dark lands around `#383838`–`#404040`. Never `--ink`: that is the
+  white ruler that turns every card into a lightbox.
+- `--line` in dark sits slightly *below* its light counterpart (`#1f1f1f`).
+- **Line art follows the same rule.** An inline SVG with `stroke="currentColor"`
+  inherits `--ink` and comes out near-white on black. Give diagrams and
+  wireframes `color: var(--muted)` — it is the one token that reads calm in both
+  schemes without per-mode overrides.
+- The exception is **data ink**: a filled bar, a metric, the inverted block. Those
+  are content, not chrome, and they invert normally.
+
 Support both schemes: `@media (prefers-color-scheme: dark)` as the default
-signal, plus `:root[data-theme]` overrides if you add a theme toggle.
+signal, plus `:root[data-theme]` overrides if you add a theme toggle. **Never
+write a static `data-theme` on `<html>`** — it outranks the media query by
+specificity and silently kills dark mode for everyone who never clicks the
+toggle. Let the attribute exist only once the toggle sets it, and gate the dark
+media query on `:root:not([data-theme="light"])`.
 
 ## Type
 
@@ -385,7 +411,9 @@ icons (buttons, list markers, status), not typography.
 - [ ] Every hover disclosure has its own popover (no trigger shares another's).
 - [ ] Renders on **1366×768** without a scroll-trap hero; the first screen shows
       real content, not a title card.
-- [ ] Light AND dark both legible.
+- [ ] Light AND dark both legible. **Check dark on a real screen**: no glowing
+      white rules, no near-white SVG strokes. Borders muted, `data-theme` absent
+      from the static markup.
 - [ ] Every animation passes the "carries information" test; reduced-motion honored.
 - [ ] It reads A → B: someone scanning for 15 seconds gets the point.
 

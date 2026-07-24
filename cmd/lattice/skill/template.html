@@ -1,9 +1,13 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Summary — starter</title>
+<!-- Restores the theme before first paint (no white flash). NEVER write a
+     static data-theme on <html>: it outranks prefers-color-scheme and kills
+     dark mode for everyone who never touches the toggle. -->
+<script>(function(){try{var t=localStorage.getItem('lattice-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}})()</script>
 <style>
   /* ============================================================
      HTML SUMMARY — house style starter.
@@ -16,13 +20,18 @@
     --line:#e4e4e4; --line-2:#111111;
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
   }
-  @media (prefers-color-scheme:dark){:root{
+  /* :not([data-theme="light"]) is what keeps the OS preference working when
+     the toggle has never been used. */
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
     --bg:#0b0b0b; --bg-sub:#141414;
     --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
-    --line:#242424; --line-2:#f2f2f2;
+    --line:#1f1f1f; --line-2:#3a3a3a;
   }}
-  :root[data-theme="light"]{--bg:#fff;--bg-sub:#fafafa;--ink:#111;--ink-2:#555;--muted:#8a8a8a;--line:#e4e4e4;--line-2:#111}
-  :root[data-theme="dark"]{--bg:#0b0b0b;--bg-sub:#141414;--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#7d7d7d;--line:#242424;--line-2:#f2f2f2}
+  :root[data-theme="dark"]{
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }
 
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
@@ -140,7 +149,7 @@
     <div class="brand">Report title</div>
     <div style="display:flex;align-items:center;gap:12px">
       <span class="meta">2026-07-14</span>
-      <button class="toggle" onclick="var r=document.documentElement;r.dataset.theme=r.dataset.theme==='dark'?'light':'dark'">theme</button>
+      <button class="toggle" id="themeBtn">theme</button>
     </div>
   </header>
 
@@ -237,5 +246,16 @@
   </footer>
 
 </div>
+<script>
+/* Theme toggle. Reads the OS preference when no choice was made yet, and
+   remembers the choice — the inline-onclick version forgot it on every reload. */
+document.getElementById('themeBtn').addEventListener('click',function(){
+  var r=document.documentElement;
+  var cur=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  var next=cur==='dark'?'light':'dark';
+  r.dataset.theme=next;
+  try{localStorage.setItem('lattice-theme',next)}catch(e){}
+});
+</script>
 </body>
 </html>
