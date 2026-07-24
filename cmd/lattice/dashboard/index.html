@@ -8,32 +8,39 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/style.css">
+<script>
+  // Pin the theme before first paint so a dark preference never flashes light.
+  try {
+    var t = localStorage.getItem('lattice.theme');
+    if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
 </head>
 <body>
 <div id="shell" class="shell">
-  <aside class="sidebar" aria-label="Workspace">
-    <a class="brand" href="#/" title="página inicial">lattice</a>
+  <aside class="sidebar" data-i18n-aria-label="nav.workspace">
+    <a class="brand" href="#/" data-i18n-title="page.home">lattice</a>
 
-    <span class="nav-group-label">Workspace</span>
-    <nav class="nav-workspace" aria-label="Workspace">
+    <span class="nav-group-label" data-i18n="nav.workspace">Workspace</span>
+    <nav class="nav-workspace" data-i18n-aria-label="nav.workspace">
       <a href="#/" data-nav="home">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10.5 9-7 9 7"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
-        página inicial
+        <span data-i18n="nav.home">home</span>
       </a>
       <a href="#/shared" data-nav="shared">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4"/><path d="m8.6 13.5 6.8 4"/></svg>
-        compartilhados
+        <span data-i18n="nav.shared">shared</span>
       </a>
     </nav>
 
-    <nav class="nav-footer" aria-label="Configuration">
+    <nav class="nav-footer" data-i18n-aria-label="nav.configuration">
       <a href="#/sharing" data-nav="sharing">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-        sharing
+        <span data-i18n="nav.sharing">sharing</span>
       </a>
       <a href="#/settings" data-nav="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.18.4.4.75.6 1 .28.35.66.55 1.1.6h.09v4h-.09a1.7 1.7 0 0 0-1.7.4Z"/></svg>
-        settings
+        <span data-i18n="nav.settings">settings</span>
       </a>
     </nav>
   </aside>
@@ -45,7 +52,7 @@
       <div class="search-slot" id="search-slot">
         <label class="search" for="q">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
-          <input id="q" type="search" placeholder="Search" autocomplete="off" spellcheck="false">
+          <input id="q" type="search" data-i18n-placeholder="search.placeholder" data-i18n-aria-label="search.aria" placeholder="Search" autocomplete="off" spellcheck="false">
           <kbd>/</kbd>
         </label>
         <div id="search-menu" class="search-menu" role="listbox" hidden></div>
@@ -54,22 +61,28 @@
       <div class="main-top-end">
         <div id="reader-actions" class="reader-actions" hidden>
           <div class="share-wrap">
-            <button id="r-share" type="button" title="Share this summary at a public URL" aria-expanded="false">
-              Share
+            <button id="r-share" type="button" data-i18n-title="reader.share.title" aria-expanded="false">
+              <span data-i18n="reader.share">Share</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/></svg>
             </button>
             <div id="share-pop" class="share-pop" hidden></div>
           </div>
-          <a id="r-raw" target="_blank" rel="noopener" title="Original file, no injected code">
-            Raw
+          <a id="r-raw" target="_blank" rel="noopener" data-i18n-title="reader.raw.title">
+            <span data-i18n="reader.raw">Raw</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><polyline points="9 7 17 7 17 15"/></svg>
           </a>
-          <a id="r-dl" title="Download original">
-            Download
+          <a id="r-dl" data-i18n-title="reader.download.title">
+            <span data-i18n="reader.download">Download</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
           </a>
         </div>
-        <a class="github-link" href="https://github.com/yeksax/lattice" target="_blank" rel="noopener" title="lattice on GitHub">
+        <button class="theme-toggle" id="theme-toggle" type="button" data-pref="system">
+          <svg data-icon="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+          <svg data-icon="light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5"/><path d="M12 19.5V22"/><path d="M2 12h2.5"/><path d="M19.5 12H22"/><path d="m4.9 4.9 1.8 1.8"/><path d="m17.3 17.3 1.8 1.8"/><path d="m19.1 4.9-1.8 1.8"/><path d="m6.7 17.3-1.8 1.8"/></svg>
+          <svg data-icon="dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5a8.5 8.5 0 1 0 10.8 10.8Z"/></svg>
+          <span id="theme-label">System</span>
+        </button>
+        <a class="github-link" href="https://github.com/yeksax/lattice" target="_blank" rel="noopener" data-i18n-title="github.title">
           <!-- GitHub icon from svgl (id 575) -->
           <svg viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M512 0C229.12 0 0 229.12 0 512c0 226.56 146.56 417.92 350.08 485.76 25.6 4.48 35.2-10.88 35.2-24.32 0-12.16-.64-52.48-.64-95.36-128.64 23.68-161.92-31.36-172.16-60.16-5.76-14.72-30.72-60.16-52.48-72.32-17.92-9.6-43.52-33.28-.64-33.92 40.32-.64 69.12 37.12 78.72 52.48 46.08 77.44 119.68 55.68 149.12 42.24 4.48-33.28 17.92-55.68 32.64-68.48-113.92-12.8-232.96-56.96-232.96-252.8 0-55.68 19.84-101.76 52.48-137.6-5.12-12.8-23.04-65.28 5.12-135.68 0 0 42.88-13.44 140.8 52.48 40.96-11.52 84.48-17.28 128-17.28s87.04 5.76 128 17.28c97.92-66.56 140.8-52.48 140.8-52.48 28.16 70.4 10.24 122.88 5.12 135.68 32.64 35.84 52.48 81.28 52.48 137.6 0 196.48-119.68 240-233.6 252.8 18.56 16 34.56 46.72 34.56 94.72 0 68.48-.64 123.52-.64 140.8 0 13.44 9.6 29.44 35.2 24.32C877.44 929.92 1024 737.92 1024 512 1024 229.12 794.88 0 512 0"/></svg>
           <span>GitHub</span>
@@ -80,20 +93,37 @@
     <div class="main-body">
       <section id="view-home" class="page-view" data-view="home" hidden>
         <div class="page-head">
-          <h1>página inicial</h1>
+          <h1 data-i18n="page.home">Home</h1>
           <span class="count" id="count"></span>
+        </div>
+        <div class="library-bar" id="library-bar" hidden>
+          <div class="library-controls">
+            <div class="library-seg" role="group" data-i18n-aria-label="library.group.aria">
+              <span class="library-seg-label" data-i18n="library.group">Group</span>
+              <button type="button" class="library-chip" data-lib-group="project" data-i18n="library.group.project">Project</button>
+              <button type="button" class="library-chip" data-lib-group="date" data-i18n="library.group.date">Date</button>
+              <button type="button" class="library-chip" data-lib-group="none" data-i18n="library.group.none">None</button>
+            </div>
+            <div class="library-seg" role="group" data-i18n-aria-label="library.sort.aria">
+              <span class="library-seg-label" data-i18n="library.sort">Sort</span>
+              <button type="button" class="library-chip" data-lib-sort="newest" data-i18n="library.sort.newest">Newest</button>
+              <button type="button" class="library-chip" data-lib-sort="oldest" data-i18n="library.sort.oldest">Oldest</button>
+              <button type="button" class="library-chip" data-lib-sort="title" data-i18n="library.sort.title">Title</button>
+            </div>
+          </div>
+          <div class="library-tags" id="library-tags" role="group" data-i18n-aria-label="library.tags.aria"></div>
         </div>
         <div class="status" id="eyebrow" hidden></div>
         <div id="list" role="list"></div>
-        <div id="empty" class="empty" hidden>
-          No summaries yet.
-          <code>lattice add &lt;file.html&gt;</code>
+        <div id="empty" class="empty" data-i18n-html="home.empty" hidden></div>
+        <div id="row-peek" class="row-peek" hidden aria-hidden="true">
+          <iframe id="row-peek-frame" title="" tabindex="-1" loading="lazy"></iframe>
         </div>
       </section>
 
       <section id="view-shared" class="page-view" data-view="shared" hidden>
         <div class="page-head">
-          <h1>compartilhados</h1>
+          <h1 data-i18n="page.shared">Shared</h1>
           <span class="count" id="shared-count"></span>
         </div>
         <div id="shared-status" class="status" hidden></div>
@@ -104,137 +134,145 @@
       <section id="view-sharing" class="page-view page-form" data-view="sharing" hidden>
         <div class="page-toolbar">
           <div class="page-head">
-            <h1>Sharing</h1>
+            <h1 data-i18n="page.sharing">Sharing</h1>
           </div>
           <div class="page-actions">
             <span id="sharing-message" class="settings-message" role="status"></span>
-            <button id="sharing-save" class="settings-save" type="button" disabled>Save changes</button>
+            <button id="sharing-save" class="settings-save" type="button" data-i18n="form.save" disabled>Save changes</button>
           </div>
         </div>
 
         <form id="sharing-form" class="config-form">
-          <p class="config-lede">
-            Public snapshots go to lattice.pub. The local library works without a token —
-            add one only when you want to publish.
-          </p>
+          <p class="config-lede" data-i18n="sharing.lede"></p>
 
           <div class="config-fields">
             <label class="field">
-              <span class="field-label">API base</span>
-              <span class="field-hint">Hosted service or self-hosted endpoint</span>
+              <span class="field-label" data-i18n="sharing.api.label">API base</span>
+              <span class="field-hint" data-i18n="sharing.api.hint"></span>
               <input id="setting-api" type="url" placeholder="https://api.lattice.pub" spellcheck="false">
             </label>
 
             <label class="field">
-              <span class="field-label">Access token</span>
-              <span class="field-hint">Stored locally · or <code>lattice login</code></span>
-              <input id="setting-token" type="password" placeholder="Not configured" autocomplete="off" spellcheck="false">
+              <span class="field-label" data-i18n="sharing.token.label">Access token</span>
+              <span class="field-hint" data-i18n-html="sharing.token.hint"></span>
+              <input id="setting-token" type="password" data-i18n-placeholder="sharing.token.placeholder" autocomplete="off" spellcheck="false">
             </label>
           </div>
 
-          <p class="config-foot">Config file <code>~/.summaries/.lattice</code></p>
+          <p class="config-foot" data-i18n-html="sharing.foot"></p>
         </form>
       </section>
 
       <section id="view-settings" class="page-view page-form" data-view="settings" hidden>
         <div class="page-toolbar">
           <div class="page-head">
-            <h1>Settings</h1>
+            <h1 data-i18n="page.settings">Settings</h1>
           </div>
           <div class="page-actions">
             <span id="settings-message" class="settings-message" role="status"></span>
-            <button id="settings-save" class="settings-save" type="button" disabled>Save changes</button>
+            <button id="settings-save" class="settings-save" type="button" data-i18n="form.save" disabled>Save changes</button>
           </div>
         </div>
 
+        <form id="interface-form" class="config-form config-form-lead">
+          <p class="config-lede" data-i18n="settings.interface.lede"></p>
+          <div class="config-fields">
+            <label class="field field-narrow">
+              <span class="field-label" data-i18n="settings.language.label">Language</span>
+              <select id="setting-locale" data-uisel>
+                <option value="system" data-i18n="lang.system">System (automatic)</option>
+                <option value="pt-BR" data-i18n="lang.pt">Português (Brasil)</option>
+                <option value="en" data-i18n="lang.en">English</option>
+              </select>
+            </label>
+          </div>
+        </form>
+
         <div class="config-layout">
           <form id="settings-form" class="config-form">
-            <p class="config-lede">
-              Appearance for new HTML summaries from the Lattice skill.
-              Existing files are never rewritten.
-            </p>
+            <p class="config-lede" data-i18n="settings.lede"></p>
 
             <div class="config-fields">
               <label class="field">
-                <span class="field-label">Preset</span>
+                <span class="field-label" data-i18n="settings.preset.label">Preset</span>
                 <select id="setting-preset" data-uisel>
-                  <option value="">Lattice default</option>
-                  <option value="warm">Warm paper</option>
-                  <option value="mono">Strict mono</option>
+                  <option value="" data-i18n="settings.preset.default">Lattice default</option>
+                  <option value="warm" data-i18n="settings.preset.warm">Warm paper</option>
+                  <option value="mono" data-i18n="settings.preset.mono">Strict mono</option>
                 </select>
               </label>
 
               <label class="field">
-                <span class="field-label">Page tone</span>
-                <span class="field-hint">Cooler bases avoid the yellowish paper look</span>
+                <span class="field-label" data-i18n="settings.tone.label">Page tone</span>
+                <span class="field-hint" data-i18n="settings.tone.hint"></span>
                 <select id="setting-tone" data-uisel>
-                  <option value="">Lattice white</option>
-                  <option value="neutral">Neutral</option>
-                  <option value="zinc">Zinc</option>
-                  <option value="mist">Mist</option>
+                  <option value="" data-i18n="settings.tone.default">Lattice white</option>
+                  <option value="neutral" data-i18n="settings.tone.neutral">Neutral</option>
+                  <option value="zinc" data-i18n="settings.tone.zinc">Zinc</option>
+                  <option value="mist" data-i18n="settings.tone.mist">Mist</option>
                 </select>
               </label>
 
               <div class="field-row">
                 <label class="field">
-                  <span class="field-label">Body</span>
-                  <span class="field-hint">Running prose</span>
+                  <span class="field-label" data-i18n="settings.font.label">Body</span>
+                  <span class="field-hint" data-i18n="settings.font.hint"></span>
                   <select id="setting-font" data-uisel>
-                    <option value="">Mono</option>
-                    <option value="sans">Sans</option>
-                    <option value="serif">Serif</option>
+                    <option value="" data-i18n="settings.font.mono">Mono</option>
+                    <option value="sans" data-i18n="settings.font.sans">Sans</option>
+                    <option value="serif" data-i18n="settings.font.serif">Serif</option>
                   </select>
                 </label>
                 <label class="field">
-                  <span class="field-label">Heading</span>
-                  <span class="field-hint">Titles &amp; big numbers</span>
+                  <span class="field-label" data-i18n="settings.heading.label">Heading</span>
+                  <span class="field-hint" data-i18n="settings.heading.hint"></span>
                   <select id="setting-heading" data-uisel>
-                    <option value="">Same as body</option>
-                    <option value="mono">Mono</option>
-                    <option value="sans">Sans</option>
-                    <option value="serif">Serif</option>
+                    <option value="" data-i18n="settings.heading.inherit">Same as body</option>
+                    <option value="mono" data-i18n="settings.font.mono">Mono</option>
+                    <option value="sans" data-i18n="settings.font.sans">Sans</option>
+                    <option value="serif" data-i18n="settings.font.serif">Serif</option>
                   </select>
                 </label>
               </div>
 
               <label class="field">
-                <span class="field-label">Density</span>
+                <span class="field-label" data-i18n="settings.density.label">Density</span>
                 <select id="setting-density" data-uisel>
-                  <option value="">Compact</option>
-                  <option value="comfortable">Comfortable</option>
-                  <option value="spacious">Spacious</option>
+                  <option value="" data-i18n="settings.density.compact">Compact</option>
+                  <option value="comfortable" data-i18n="settings.density.comfortable">Comfortable</option>
+                  <option value="spacious" data-i18n="settings.density.spacious">Spacious</option>
                 </select>
               </label>
 
               <div class="field-row">
                 <label class="field">
-                  <span class="field-label">Dividers</span>
-                  <span class="field-hint">Borders &amp; separators</span>
+                  <span class="field-label" data-i18n="settings.dividers.label">Dividers</span>
+                  <span class="field-hint" data-i18n="settings.dividers.hint"></span>
                   <select id="setting-dividers" data-uisel>
-                    <option value="">Hairline</option>
-                    <option value="soft">Soft</option>
-                    <option value="none">None</option>
+                    <option value="" data-i18n="settings.dividers.hairline">Hairline</option>
+                    <option value="soft" data-i18n="settings.dividers.soft">Soft</option>
+                    <option value="none" data-i18n="settings.dividers.none">None</option>
                   </select>
                 </label>
                 <label class="field">
-                  <span class="field-label">Modules</span>
-                  <span class="field-hint">Peers juntos ou separados</span>
+                  <span class="field-label" data-i18n="settings.modules.label">Modules</span>
+                  <span class="field-hint" data-i18n="settings.modules.hint"></span>
                   <select id="setting-modules" data-uisel>
-                    <option value="">Mixed</option>
-                    <option value="cards">Separados (cards)</option>
-                    <option value="stacks">Juntos (stacks)</option>
+                    <option value="" data-i18n="settings.modules.mixed">Mixed</option>
+                    <option value="cards" data-i18n="settings.modules.cards">Apart (cards)</option>
+                    <option value="stacks" data-i18n="settings.modules.stacks">Together (stacks)</option>
                   </select>
                 </label>
               </div>
 
               <div class="field">
-                <span class="field-label">Accent</span>
-                <span class="field-hint">Optional color for links and emphasis</span>
+                <span class="field-label" data-i18n="settings.accent.label">Accent</span>
+                <span class="field-hint" data-i18n="settings.accent.hint"></span>
                 <span class="accent-field">
-                  <button id="accent-swatch" class="accent-swatch is-empty" type="button" aria-label="Choose accent color"></button>
+                  <button id="accent-swatch" class="accent-swatch is-empty" type="button" data-i18n-aria-label="settings.accent.aria"></button>
                   <input id="setting-accent-color" type="color" class="accent-native" value="#6f8cff" tabindex="-1" aria-hidden="true">
-                  <input id="setting-accent" type="text" placeholder="#ed1a4d" spellcheck="false" maxlength="7" list="accent-options" aria-label="Accent hex color">
-                  <button id="accent-clear" type="button">Clear</button>
+                  <input id="setting-accent" type="text" placeholder="#ed1a4d" spellcheck="false" maxlength="7" list="accent-options" data-i18n-aria-label="settings.accent.hexAria">
+                  <button id="accent-clear" type="button" data-i18n="settings.accent.clear">Clear</button>
                 </span>
                 <datalist id="accent-options">
                   <option value="#e9e9e7"></option><option value="#6f8cff"></option><option value="#5fc987"></option><option value="#e57d5d"></option>
@@ -243,36 +281,37 @@
             </div>
           </form>
 
-          <aside class="config-preview" aria-label="Theme preview">
-            <span class="config-preview-label">Live preview</span>
+          <aside class="config-preview" data-i18n-aria-label="preview.aria">
+            <span class="config-preview-label" data-i18n="preview.label">Live preview</span>
             <div id="theme-preview" class="theme-preview" data-dividers="hairline" data-modules="mixed">
               <div class="preview-rule"></div>
-              <span class="preview-kicker">System review / 07</span>
-              <h3>Signals worth keeping.</h3>
-              <p>A concise record of decisions, evidence, and the path forward.</p>
+              <span class="preview-kicker" data-i18n="preview.kicker"></span>
+              <h3 data-i18n="preview.title"></h3>
+              <p data-i18n="preview.body"></p>
               <div class="preview-modules" aria-hidden="true">
-                <div><strong>R$ 9.9k</strong><span>custo atual</span></div>
-                <div><strong>−40%</strong><span>já reduzido</span></div>
-                <div><strong>R$ 6.0k</strong><span>alvo</span></div>
+                <div><strong>R$ 9.9k</strong><span data-i18n="preview.stat1"></span></div>
+                <div><strong>−40%</strong><span data-i18n="preview.stat2"></span></div>
+                <div><strong>R$ 6.0k</strong><span data-i18n="preview.stat3"></span></div>
               </div>
               <div class="preview-modules preview-modules-b" aria-hidden="true">
-                <div><b>01</b><span>Mande tudo de uma vez</span></div>
-                <div><b>02</b><span>Feche o diagnóstico</span></div>
-                <div><b>03</b><span>Uma fonte de verdade</span></div>
+                <div><b>01</b><span data-i18n="preview.step1"></span></div>
+                <div><b>02</b><span data-i18n="preview.step2"></span></div>
+                <div><b>03</b><span data-i18n="preview.step3"></span></div>
               </div>
-              <div class="preview-line"><span></span><b>Ready for review</b></div>
+              <div class="preview-line"><span></span><b data-i18n="preview.status"></b></div>
             </div>
           </aside>
         </div>
       </section>
 
       <section id="view-read" class="page-view page-read" data-view="read" hidden>
-        <iframe id="frame" title="summary"></iframe>
+        <iframe id="frame" data-i18n-title="reader.frame" title="summary"></iframe>
       </section>
     </div>
   </div>
 </div>
 
+<script src="/assets/i18n.js"></script>
 <script src="/assets/app.js"></script>
 </body>
 </html>

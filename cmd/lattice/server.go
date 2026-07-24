@@ -43,6 +43,7 @@ func newServer(ix *Index) *server {
 	for name, ctype := range map[string]string{
 		"index.html": "text/html; charset=utf-8",
 		"style.css":  "text/css; charset=utf-8",
+		"i18n.js":    "text/javascript; charset=utf-8",
 		"app.js":     "text/javascript; charset=utf-8",
 	} {
 		b, err := dashboardFS.ReadFile("dashboard/" + name)
@@ -231,7 +232,7 @@ func (s *server) watchDashboard(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) dashDigest() string {
 	h := sha256.New()
-	for _, name := range []string{"index.html", "style.css", "app.js", "poll.js", "reload.js"} {
+	for _, name := range []string{"index.html", "style.css", "i18n.js", "app.js", "poll.js", "reload.js"} {
 		if fi, err := os.Stat(filepath.Join(s.devDir, name)); err == nil {
 			fmt.Fprintf(h, "%s:%d:%d;", name, fi.ModTime().UnixNano(), fi.Size())
 		} else {
