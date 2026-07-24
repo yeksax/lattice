@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Example — poll with immediate reveal</title>
+<!-- Restores the theme before first paint (no white flash). Never write a
+     static data-theme on <html>: it kills prefers-color-scheme. -->
+<script>(function(){try{var t=localStorage.getItem('lattice-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}})()</script>
+<style>
+  /* ═══ SHARED BASE ══════════════════════════════════════════════════
+     Identical in template.html and every examples/ file. Copy this whole
+     block and change only what sits BELOW the "specific" marker.
+     ================================================================== */
+  :root{
+    --bg:#ffffff; --bg-sub:#fafafa;
+    --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
+    --line:#e4e4e4; --line-2:#111111;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --pad-section:40px;
+  }
+  /* :not([data-theme="light"]) is what makes dark mode work: without it a
+     static data-theme in the markup outranks the media query by specificity. */
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:13.5px/1.5 var(--mono);
+       font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+         padding:18px 0;border-bottom:1px solid var(--line-2)}
+  .brand{font-weight:500}
+  .meta{color:var(--muted);font-size:11px}
+  .toggle{font:inherit;font-size:11px;background:none;border:1px solid var(--line);
+          color:var(--ink);padding:4px 10px;cursor:pointer}
+  .toggle:hover{border-color:var(--line-2)}
+
+  section{padding:var(--pad-section) 0 8px}
+  .eyebrow{font-size:11px;color:var(--muted);margin:0 0 10px}
+  h1{font-size:24px;font-weight:500;margin:0 0 8px}
+  h2{font-size:17px;font-weight:500;margin:0 0 6px}
+  h3{font-size:13.5px;font-weight:500;margin:0 0 6px}
+  p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
+  .lead{color:var(--ink);font-size:14.5px;max-width:80ch}
+  .sub{color:var(--muted);font-size:11px}
+  a{color:var(--ink);text-underline-offset:3px}
+
+  .tag{display:inline-block;font-size:11px;border:1px solid var(--line);
+       color:var(--ink-2);padding:2px 8px}
+  .tblwrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+  th{text-align:left;font-weight:500;color:var(--muted);font-size:11px;
+     padding:8px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+  td{padding:8px 12px;border-bottom:1px solid var(--line)}
+  tbody tr:nth-child(even){background:var(--bg-sub)}
+  td.num,th.num{text-align:right}
+
+  .invert{background:var(--ink);color:var(--bg);padding:24px;margin-top:32px}
+  .invert .lbl{font-size:11px;opacity:.6}
+  footer{margin-top:32px;padding:24px 0;border-top:1px solid var(--line-2);
+         color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .ico{display:inline-flex;width:1em;height:1em;vertical-align:-.14em}
+  .ico svg{width:100%;height:100%;display:block}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* ═══ SPECIFIC TO THIS EXAMPLE — the poll ══════════════════════════ */
+  .poll{border:1px solid var(--line);margin-top:20px;max-width:640px}
+  .poll .q{padding:13px 16px;border-bottom:1px solid var(--line-2);font-weight:500}
+  /* Each option is a <button>: keyboard and screen reader work for free. */
+  .opt{position:relative;display:block;width:100%;text-align:left;font:inherit;
+       background:none;border:0;border-bottom:1px solid var(--line);
+       padding:12px 16px;cursor:pointer;color:var(--ink);overflow:hidden}
+  .opt:last-of-type{border-bottom:0}
+  .opt:hover{background:var(--bg-sub)}
+  /* The result bar is an ink fill BEHIND the text — never a thin line
+     floating loose beside it. */
+  .opt .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ink);
+             opacity:.12;transition:width .18s ease-out}
+  .opt .row{position:relative;display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  .opt .key{display:inline-block;border:1px solid var(--line);padding:0 6px;margin-right:8px;font-size:11px}
+  .opt .pct{color:var(--muted);font-size:11px;opacity:0;transition:opacity .18s ease-out;white-space:nowrap}
+  /* No percentages before voting: whoever has not voted is not influenced. */
+  .poll.revealed .opt .pct{opacity:1}
+  .opt.mine .key{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .opt.mine .you{color:var(--muted);font-size:11px}
+  .poll .foot{padding:10px 16px;border-top:1px solid var(--line);color:var(--muted);
+              font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .offline{border:1px solid var(--line);background:var(--bg-sub);padding:12px 16px;
+           margin-top:14px;color:var(--ink-2);font-size:12px;max-width:640px;display:none}
+  .offline.on{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">Example — poll with immediate reveal</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="meta">pattern A</span>
+      <button class="toggle" id="themeBtn">theme</button>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">01 — what this file teaches</p>
+    <h1>Voted, revealed.</h1>
+    <p class="lead">Pattern A is the ordinary poll: someone votes, the result shows
+      up immediately, they can change their mind, and a reload neither loses nor
+      duplicates the vote. Use it when revealing the tally early spoils nothing.</p>
+    <p>If revealing early <em>does</em> spoil it — a blind test, a bake-off where
+      seeing the leader contaminates the next vote — the pattern is B, in
+      <span class="tag">poll-bakeoff.html</span>. The full bridge reference is in
+      <span class="tag">references/polls.md</span>.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">02 — live</p>
+    <h2>Is the nightly job worth keeping?</h2>
+    <p>Click. Then click a different option — the vote <em>changes</em>, it does not add up.</p>
+
+    <div class="poll" id="poll">
+      <div class="q">How would you vote today?</div>
+
+      <button class="opt" data-choice="manter">
+        <span class="fill"></span>
+        <span class="row">
+          <span><span class="key">A</span>Keep it as is</span>
+          <span class="pct">—</span>
+        </span>
+      </button>
+
+      <button class="opt" data-choice="cortar">
+        <span class="fill"></span>
+        <span class="row">
+          <span><span class="key">B</span>Cut it and watch for two weeks</span>
+          <span class="pct">—</span>
+        </span>
+      </button>
+
+      <button class="opt" data-choice="reescrever">
+        <span class="fill"></span>
+        <span class="row">
+          <span><span class="key">C</span>Rewrite it before deciding</span>
+          <span class="pct">—</span>
+        </span>
+      </button>
+
+      <div class="foot">
+        <span id="tally">no votes yet</span>
+        <span id="hint">click to vote</span>
+      </div>
+    </div>
+
+    <div class="offline" id="offline">
+      This file was opened straight from disk, so the vote has nowhere to go.
+      Register it with <span class="tag">lattice add</span> and open it at
+      <span class="tag">127.0.0.1:4600/s/&lt;slug&gt;</span> — or share it with
+      <span class="tag">lattice share</span>. The page stays readable exactly as it
+      is; it just does not collect.
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">03 — the three things that go wrong</p>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Mistake</th><th>Symptom</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Reading <code>window.lattice</code> at load</td>
+            <td>The previous vote is never restored</td>
+            <td>Wait for the <code>lattice:ready</code> event</td>
+          </tr>
+          <tr>
+            <td>Locking the option after the vote</td>
+            <td>Nobody can change their mind</td>
+            <td>Keep it clickable; the server does last-write-wins</td>
+          </tr>
+          <tr>
+            <td>Faking a result with no bridge</td>
+            <td>Invented numbers in the loose file</td>
+            <td>Degrade with an honest notice</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="invert">
+    <div class="lbl">Rule</div>
+    <div style="font-size:15px;font-weight:500;margin-top:4px">
+      The link is the sharing mechanism, not the file.
+    </div>
+  </div>
+
+  <footer>
+    <span>examples/poll-live-reveal.html</span>
+    <span>html-summary · lattice</span>
+  </footer>
+
+</div>
+
+<script>
+/* ── theme ─────────────────────────────────────────────────────────── */
+document.getElementById('themeBtn').addEventListener('click',function(){
+  var r=document.documentElement;
+  var cur=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  var next=cur==='dark'?'light':'dark';
+  r.dataset.theme=next;
+  try{localStorage.setItem('lattice-theme',next)}catch(e){}
+});
+
+/* ── poll ──────────────────────────────────────────────────────────── */
+var POLL='is-the-nightly-job-worth-it';        // stable id: changing it loses the votes
+var pollEl=document.getElementById('poll');
+var opts=[].slice.call(pollEl.querySelectorAll('.opt'));
+var tally=document.getElementById('tally');
+var hint=document.getElementById('hint');
+
+/* Fetch the aggregate and repaint. `mine` is this person's choice (or null). */
+async function paint(mine){
+  var agg=await lattice.results();
+  var q=(agg.polls&&agg.polls[POLL])||{total:0,counts:{}};
+  opts.forEach(function(btn){
+    var n=q.counts[btn.dataset.choice]||0;
+    var pct=q.total?Math.round(n/q.total*100):0;
+    btn.querySelector('.fill').style.width=pct+'%';
+    btn.querySelector('.pct').textContent=pct+'% · '+n;
+    btn.classList.toggle('mine',btn.dataset.choice===mine);
+  });
+  pollEl.classList.toggle('revealed',!!mine);
+  tally.textContent=q.total===1?'1 vote':q.total+' votes';
+  hint.textContent=mine?'click another option to change your vote':'click to vote';
+}
+
+async function vote(choice){
+  if(!window.lattice||!window.lattice.poll)return;         // no bridge: already warned
+  var ok=await lattice.submit({poll:POLL,choice:choice});
+  if(!ok){hint.textContent='could not record it — try again';return}
+  paint(choice);                                            // includes the vote just cast
+}
+
+opts.forEach(function(btn){
+  btn.addEventListener('click',function(){vote(btn.dataset.choice)});
+});
+
+/* The bridge is injected AFTER the page's scripts. At load window.lattice is
+   still undefined — hence the gate below instead of reading it directly. */
+function boot(){
+  if(!window.lattice||!window.lattice.poll){
+    document.getElementById('offline').classList.add('on');
+    opts.forEach(function(b){b.disabled=true;b.style.cursor='default'});
+    hint.textContent='no collection in this mode';
+    return;
+  }
+  // The bridge can arrive after the fallback below degraded the page: undo that.
+  document.getElementById('offline').classList.remove('on');
+  opts.forEach(function(b){b.disabled=false;b.style.cursor=''});
+  paint(lattice.recall(POLL));                              // null if not voted yet
+}
+window.lattice&&window.lattice.poll
+  ? boot()
+  : document.addEventListener('lattice:ready',boot,{once:true});
+
+/* A loose file never fires lattice:ready. Give it a moment, then degrade. */
+setTimeout(function(){if(!window.lattice||!window.lattice.poll)boot()},600);
+</script>
+</body>
+</html>

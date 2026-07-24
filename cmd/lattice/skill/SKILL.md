@@ -20,9 +20,38 @@ one `<style>`, no external requests, no build step) that you share with
 coworkers. The goal is **information transfer, A → B, in the most direct form
 possible** — dense, scannable, functional. Not an editorial landing page.
 
-Read `template.html` in this skill directory first — it is a working starter with
-every token and component below already wired for light/dark. Copy it and adapt;
-do not start from a blank file.
+## What's in this skill
+
+| file | when to open it |
+|---|---|
+| `template.html` | always — the shared base (tokens, header, theme toggle, footer) sits at the top of it |
+| `references/layout.md` | before choosing your sections: the template is a **guide**, not a mould |
+| `references/polls.md` | when the summary collects votes — the bridge, both patterns, graceful degradation |
+| `examples/poll-live-reveal.html` | ordinary poll: vote, reveal immediately |
+| `examples/poll-bakeoff.html` | blind bake-off: nothing reveals until the last vote |
+| `examples/interactive-walkthrough.html` | manual / onboarding: re-enacted interaction + step-by-step narration |
+
+The `examples/` are there to **read the technique from**, not to paste wholesale.
+What you actually copy is the shared base block at the top of `template.html` —
+it is byte-for-byte identical in every one of them.
+
+## The template is a guide, not a mould
+
+`template.html` shows **one** arrangement: metric strip → three-cell bento →
+table → inverted close. That shape fits a bake-off and not much else in
+particular. Following it step by step is exactly how you end up with a stack of
+documents that all look like the same document — metrics nobody asked for, and a
+bento cell with one sentence stretched to fill it.
+
+The split is simple: **identity is fixed, layout is yours.** Mono, monochrome,
+hairline, no radius, no shadow, dense — that does not bend (except through
+`theme`). Which sections exist, in what order, built from which components: you
+decide, from what the content actually is. If you are filling a component instead
+of choosing one, delete the component.
+
+`references/layout.md` has the shape that serves each genre (decision, audit,
+diagnosis, plan, manual), the component vocabulary the template doesn't ship,
+the rule for simulated surfaces, and what to do when the document really is long.
 
 ## One file, zero external assets — non-negotiable
 
@@ -439,124 +468,38 @@ at `http://127.0.0.1:4600`.
 
 ### Interactive polls & bake-offs
 
+**Full reference: `references/polls.md`.** Working examples:
+`examples/poll-live-reveal.html` (pattern A) and `examples/poll-bakeoff.html`
+(pattern B). Read it before writing any voting JS — what follows is only the part
+you must not forget.
+
 Polls are the **one deliberate exception** to "single file works anywhere": a
 vote needs a network POST, so it only collects when the summary is served
 *through* lattice — opened from the dashboard (`/s/<slug>`) or shared as a link
-(`lattice share <slug>` → a public URL). Lattice injects a poll
-**bridge** at serve time; the file on disk stays pristine. **For a poll the LINK
-is the sharing mechanism, not the file** — never build export-code /
-copy-your-vote flows; there's no way to collect a vote from a bare offline file,
-so degrade gracefully instead of faking one.
+(`lattice share <slug>`). Lattice injects a poll **bridge** at serve time; the
+file on disk stays pristine. **For a poll the LINK is the sharing mechanism, not
+the file** — never build export-code / copy-your-vote flows.
 
-**The bridge — `window.lattice`** (methods are all no-arg-safe):
+The four things that break in practice:
 
-| call | does |
-|---|---|
-| `lattice.poll` | truthy when the bridge is present |
-| `await lattice.submit({ poll, choice, name? })` | record one vote → `true`/`false`. Also `{ votes: {q1:'a',q2:'b'} }` for many at once |
-| `await lattice.results()` | live aggregate: `{ polls: { <poll>: { total, counts: {<choice>: n} } }, voters }` — **counts only, never who voted** |
-| `lattice.recall(poll)` | this browser's remembered choice for `poll`, or `null` |
-| `lattice.recallAll()` | `{ poll: choice, … }` for resuming multi-question flows |
-| `lattice.voter` | this browser's stable id (auto-attached to every submit) |
+1. **Ordering.** The bridge is injected after your scripts: at load
+   `window.lattice` is `undefined`. Wait for `lattice:ready` to restore a vote.
+2. **Pattern A** — the option stays clickable after voting (that is how someone
+   changes their mind), and no percentage appears before the person has voted.
+3. **Pattern B** — blind means blind **until the last vote**. One gate decides
+   revealed vs. blind; there is no per-case reveal path; the closing block
+   (champion, leaderboard, winner vs. your pick) lives at the **end** of the page.
+4. **No bridge** — disable voting and explain. Never invent a number, a sample
+   tally or "illustrative data".
 
-Identity & dedup are automatic: the bridge mints a per-browser `voter` id in
-`localStorage` and attaches it, so the server dedups **last-write-wins per
-(voter, poll)** — a reload doesn't double-count and re-voting *changes* the vote.
-`submit` also remembers the choice locally, which is what `recall` reads back.
+Result bars follow the house style: a proportional ink fill **behind** the text
+(`opacity:.12`), `% · count` right-aligned in `tabular-nums`, and the voter's own
+pick marked with an inverted key badge.
 
-**Ordering gotcha (important).** The bridge is injected *after* your page's
-scripts, so at initial load `window.lattice` is `undefined` — you cannot read it
-synchronously for load-time work like restoring a prior vote. Wait for the
-`lattice:ready` event; at *submit* time (a click, later) it's always present:
-```js
-const start = () => { /* uses window.lattice */ };
-window.lattice?.poll ? start() : document.addEventListener('lattice:ready', start, { once: true });
-```
+Local votes land in `~/.summaries/.lattice/polls/<slug>.jsonl`; votes on a public
+link go to the hosted backend. `lattice results <slug>` dumps them.
 
-#### Pattern A — live-reveal poll (results appear the moment you vote)
-
-Vote → reveal the breakdown → let them change their mind → survive reloads.
-```js
-const POLL = 'would-you-run-it';
-async function paint(mine) {                       // fetch + render the bars
-  const q = (await lattice.results()).polls[POLL] ?? { total: 0, counts: {} };
-  for (const btn of buttons) {
-    const n = q.counts[btn.dataset.choice] || 0, pct = q.total ? Math.round(n/q.total*100) : 0;
-    btn.querySelector('.bar').style.width = pct + '%';               // proportional fill
-    btn.querySelector('.pct').textContent = pct + '% · ' + n;
-    btn.classList.toggle('mine', btn.dataset.choice === mine);       // highlight my pick
-  }
-}
-async function vote(choice) {
-  if (!window.lattice?.poll) return degradeToNote();                 // bare file: quiet note, don't fake
-  if (!await lattice.submit({ poll: POLL, choice, name })) return retryHint();
-  paint(choice);                                                     // includes the vote just cast
-}
-// restore on reload (see ordering gotcha):
-const restore = () => { const m = lattice.recall(POLL); if (m) paint(m); };
-window.lattice?.poll ? restore() : document.addEventListener('lattice:ready', restore, { once: true });
-```
-Keep the options **clickable after voting** so a second click re-submits and the
-bars update — that's the "change your vote" affordance.
-
-#### Pattern B — blind bake-off (nothing reveals until EVERY case is voted)
-
-For A/B/C/D image bake-offs. This is the pattern agents get wrong — they reveal
-each case as it's voted. Don't. **Blind means blind until the last vote.** Three
-hard rules:
-
-1. **Blind phase** (not all voted): a vote only marks your pick (a "seu voto"
-   badge on the chosen option) and updates a `n / total` progress bar. Reveal
-   **nothing** per case — no engine identity, no cost/latency, no tally. Keep
-   that data in the DOM but CSS-hidden behind a `.revealed` class you don't add
-   yet.
-2. **Reveal all at once**, only when `allVoted()` — add `.revealed` to every
-   case and paint each one's `%` bars together. One gate decides blind-vs-reveal
-   on every vote; there is no per-case reveal path.
-3. **A final summary at the END of the page** (never a live leaderboard at the
-   top — it spoils the blind test and looks broken while empty). Gate it on
-   `allVoted()` too: a champion block + an engine leaderboard (totals across all
-   cases) + a per-case table of *winner vs. your pick*. This is the payoff — the
-   "sumariozão" — and it's what makes finishing feel worth it.
-
-```js
-const CASES = DATA.scenes.map(s => s.id), N = CASES.length;
-const pick = id => lattice.recall(id);                    // or a local store when offline
-const votedCount = () => CASES.filter(pick).length;
-const allVoted = () => votedCount() === N;
-
-async function vote(id, choice) {
-  await lattice.submit({ poll: id, choice, name });       // recorded, still hidden
-  afterVote(await lattice.results());
-}
-function afterVote(agg) {                                  // the ONE gate
-  updateProgress(votedCount(), N);
-  if (allVoted()) { CASES.forEach(id => reveal(id, agg)); renderSummary(agg); }
-  else            { CASES.forEach(markPickOnly); renderSummary(agg); /* → locked */ }
-}
-function renderSummary(agg) {
-  if (!allVoted()) return lockedSummary(N - votedCount());     // "vote nas N cenas…"
-  const totals = tallyAcrossCases(agg);                        // {engine: n}
-  renderChampion(top(totals)); renderLeaderboard(totals);      // at the END of the doc
-  renderPerCaseTable(agg, pick);                               // winner vs your pick
-}
-// boot / restore: same lattice:ready gate as Pattern A, then afterVote(results())
-```
-While voting, show only progress ("3 / 6 votadas") and the "seu voto" marker.
-Everything else waits for the last vote.
-
-**House style for result bars.** Not thin free-floating lines. Give each option
-row a **proportional ink fill behind the text** (`position:absolute; width:<pct>%;
-background:var(--ink); opacity:.12`) with the `% · count` tabular-aligned on the
-right; mark the voter's own pick with an inverted key badge + "· you". Honor
-reduced-motion on the fill's width transition.
-
-**Collecting.** Votes cast while viewing through the local daemon append to
-`~/.summaries/.lattice/polls/<slug>.jsonl`; votes on a public share are collected
-by the hosted backend (lattice.pub). Share with `lattice share <slug>` (add
-`--random` for an unguessable subdomain, or use the **share button in the
-dashboard reader's top bar**) — requires `lattice login <token>`, and only that
-one summary, its `POST /submit`, and read-only `GET /results` are public.
-Tally shared votes with `lattice results <slug>`; `lattice unshare` when done.
+> `share` publishes to the internet and is effectively irreversible (caching).
+> Only run it if the user explicitly asks.
 
 **Non-poll summaries are unaffected** — no bridge, pure single-file, fully offline.

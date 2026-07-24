@@ -12,13 +12,18 @@
   /* ============================================================
      HTML SUMMARY — house style starter.
      Mono · monochrome · sharp · hairline · flat · dense.
-     Delete this comment block and the demo content; keep the tokens.
+
+     This is ONE possible arrangement, not the mandatory skeleton.
+     Pick components by what the content is — see references/layout.md.
+     Everything down to the "demo content" marker is the shared base,
+     identical in every examples/*.html. Keep it; replace the rest.
      ============================================================ */
   :root{
     --bg:#ffffff; --bg-sub:#fafafa;
     --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
     --line:#e4e4e4; --line-2:#111111;
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --pad-section:40px;      /* theme.density: compact 40 · comfortable 56 · spacious 72 */
   }
   /* :not([data-theme="light"]) is what keeps the OS preference working when
      the toggle has never been used. */
@@ -58,7 +63,7 @@
   .toggle:hover{border-color:var(--line-2)}
 
   /* ---- section: separated by SPACE + eyebrow, not a rule ---- */
-  section{padding:40px 0 8px}
+  section{padding:var(--pad-section) 0 8px}
   .eyebrow{
     font-size:11px;color:var(--muted);
     margin:0 0 10px;
@@ -67,6 +72,8 @@
   h2{font-size:17px;font-weight:500;margin:0 0 6px}
   h3{font-size:13.5px;font-weight:500;margin:0 0 6px}
   p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
+  .lead{color:var(--ink);font-size:14.5px;max-width:80ch}   /* opening paragraph */
+  .sub{color:var(--muted);font-size:11px}                   /* caption / unit / caveat */
   a{color:var(--ink);text-underline-offset:3px}
 
   /* ---- bento grid: cells joined by hairlines, no gaps/shadows ---- */
@@ -78,15 +85,19 @@
   @media(max-width:760px){.grid{grid-template-columns:1fr}}
   .idx{color:var(--muted);font-size:11px}
 
-  /* ---- data table: dense, tabular, zebra ---- */
+  /* ---- data table: dense, tabular, zebra ----
+     ALWAYS wrap a table in .tblwrap. A wide table with no scroll container
+     blows the page out horizontally on a phone. */
+  .tblwrap{overflow-x:auto}
   table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
   th{
     text-align:left;font-weight:500;color:var(--muted);font-size:11px;
-    padding:8px 12px;border-bottom:1px solid var(--line-2);
+    padding:8px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap;
   }
   td{padding:8px 12px;border-bottom:1px solid var(--line)}
   tbody tr:nth-child(even){background:var(--bg-sub)}
   td.num,th.num{text-align:right}
+  tr.hot td{background:var(--bg-sub);border-bottom-color:var(--line-2)}  /* the row that matters */
 
   /* ---- square hairline tag (ink only, no color, no dot) ---- */
   .tag{
@@ -100,10 +111,14 @@
   .metric .val{font-size:26px;font-weight:500}
   .metric .lbl{color:var(--muted);font-size:11px;margin-top:4px}
 
-  /* ---- stacked segmented bar: one ink, opacity ramp darkest→lightest ---- */
+  /* ---- stacked segmented bar: one ink, opacity ramp darkest→lightest ----
+     Six steps, because real data rarely has exactly four categories. Past six,
+     fold the tail into "other" — nobody tells the last shades apart. */
   .bar{display:flex;width:100%;height:8px;gap:2px;overflow:hidden;background:var(--bg-sub);border:1px solid var(--line)}
   .seg{min-width:2px;height:100%;background:var(--ink)}
   .seg.s2{opacity:.72} .seg.s3{opacity:.52} .seg.s4{opacity:.34}
+  .seg.s5{opacity:.22} .seg.s6{opacity:.14}
+  .barkey{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px}
 
   /* ---- hover disclosure: headline number, detail on hover ----
      Each trigger owns its OWN popover. Never share one across triggers. */
@@ -127,6 +142,7 @@
   .pop .row+.row{border-top:1px solid var(--line)}
   .pop .dot{display:inline-block;width:8px;height:8px;margin-right:8px;vertical-align:1px;background:var(--ink)}
   .pop .dot.s2{opacity:.72} .pop .dot.s3{opacity:.52} .pop .dot.s4{opacity:.34}
+  .pop .dot.s5{opacity:.22} .pop .dot.s6{opacity:.14}
 
   /* ---- inverted block: the one loud move ---- */
   .invert{background:var(--ink);color:var(--bg);padding:24px;margin-top:32px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
@@ -148,10 +164,17 @@
   <header>
     <div class="brand">Report title</div>
     <div style="display:flex;align-items:center;gap:12px">
-      <span class="meta">2026-07-14</span>
+      <span class="meta">YYYY-MM-DD</span>
       <button class="toggle" id="themeBtn">theme</button>
     </div>
   </header>
+
+  <!-- ═══ demo content — replace all of it ═══════════════════════════
+       What follows is a bake-off page: metric strip, three-cell bento,
+       table, inverted close. That shape fits a bake-off. It does NOT fit
+       a decision doc, a plan, a diagnosis or a manual — see
+       references/layout.md before reaching for it by reflex.
+       ═════════════════════════════════════════════════════════════ -->
 
   <section>
     <p class="eyebrow">01 — Summary</p>
@@ -225,14 +248,16 @@
 
     </div>
 
-    <table>
-      <thead><tr><th>Engine</th><th>Model</th><th class="num">Latency</th><th class="num">Cost</th><th>Status</th></tr></thead>
-      <tbody>
-        <tr><td>grade-suica</td><td>claude-haiku-4.5</td><td class="num">7,164 ms</td><td class="num">$0.00454</td><td><span class="tag">pass</span></td></tr>
-        <tr><td>colofao-editorial</td><td>claude-haiku-4.5</td><td class="num">5,471 ms</td><td class="num">$0.00354</td><td><span class="tag">pass</span></td></tr>
-        <tr><td>producao-atual</td><td>gpt-4.1-mini</td><td class="num">4,416 ms</td><td class="num">$0.00132</td><td><span class="tag">pass</span></td></tr>
-      </tbody>
-    </table>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Engine</th><th>Model</th><th class="num">Latency</th><th class="num">Cost</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr class="hot"><td>grade-suica</td><td>claude-haiku-4.5</td><td class="num">7,164 ms</td><td class="num">$0.00454</td><td><span class="tag">pass</span></td></tr>
+          <tr><td>colofao-editorial</td><td>claude-haiku-4.5</td><td class="num">5,471 ms</td><td class="num">$0.00354</td><td><span class="tag">pass</span></td></tr>
+          <tr><td>producao-atual</td><td>gpt-4.1-mini</td><td class="num">4,416 ms</td><td class="num">$0.00132</td><td><span class="tag">pass</span></td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <div class="invert">
@@ -241,7 +266,7 @@
   </div>
 
   <footer>
-    <span>São Paulo, BR · © 2026</span>
+    <span>Who wrote it · when</span>
     <span>Generated summary</span>
   </footer>
 

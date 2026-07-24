@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Example — interactive walkthrough</title>
+<script>(function(){try{var t=localStorage.getItem('lattice-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}})()</script>
+<style>
+  /* ═══ SHARED BASE (identical to template.html) ═════════════════════ */
+  :root{
+    --bg:#ffffff; --bg-sub:#fafafa;
+    --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
+    --line:#e4e4e4; --line-2:#111111;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --pad-section:40px;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:13.5px/1.5 var(--mono);
+       font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+         padding:18px 0;border-bottom:1px solid var(--line-2)}
+  .brand{font-weight:500}
+  .meta{color:var(--muted);font-size:11px}
+  .toggle{font:inherit;font-size:11px;background:none;border:1px solid var(--line);
+          color:var(--ink);padding:4px 10px;cursor:pointer}
+  .toggle:hover{border-color:var(--line-2)}
+
+  section{padding:var(--pad-section) 0 8px}
+  .eyebrow{font-size:11px;color:var(--muted);margin:0 0 10px}
+  h1{font-size:24px;font-weight:500;margin:0 0 8px}
+  h2{font-size:17px;font-weight:500;margin:0 0 6px}
+  h3{font-size:13.5px;font-weight:500;margin:0 0 6px}
+  p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
+  .lead{color:var(--ink);font-size:14.5px;max-width:80ch}
+  .sub{color:var(--muted);font-size:11px}
+  a{color:var(--ink);text-underline-offset:3px}
+
+  .tag{display:inline-block;font-size:11px;border:1px solid var(--line);
+       color:var(--ink-2);padding:2px 8px}
+  .tblwrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+  th{text-align:left;font-weight:500;color:var(--muted);font-size:11px;
+     padding:8px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+  td{padding:8px 12px;border-bottom:1px solid var(--line)}
+  tbody tr:nth-child(even){background:var(--bg-sub)}
+
+  .invert{background:var(--ink);color:var(--bg);padding:24px;margin-top:32px}
+  .invert .lbl{font-size:11px;opacity:.6}
+  footer{margin-top:32px;padding:24px 0;border-top:1px solid var(--line-2);
+         color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .ico{display:inline-flex;width:1em;height:1em;vertical-align:-.14em}
+  .ico svg{width:100%;height:100%;display:block}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* ═══ SPECIFIC — the simulator ═════════════════════════════════════
+     READ THIS. The house rules (mono, no radius, no bold, no colour)
+     govern THE PAGE. Inside the simulator, the simulated product rules:
+     Slack has rounded corners, a bold display name, a green confirm
+     button. Reproducing that is not a violation — it is QUOTING an
+     artefact. The violation would be letting that language LEAK out
+     of .sim.
+
+     The boundary is technical, not just moral: every token of the
+     simulated product lives in the --sim-* namespace and is declared on
+     .sim. Outside it the token does not exist, so it cannot leak by
+     accident.
+     ================================================================== */
+  .sim{
+    --sim-radius:8px;
+    --sim-surface:#f3f3f4;
+    --sim-accent:#4a154b;
+    --sim-green:#007a5a;
+    --sim-ink:#1d1c1d;
+    --sim-muted:#616061;
+    --sim-line:#dddddd;
+    --sim-bg:#ffffff;
+    display:flex;flex-direction:column;max-width:920px;margin:20px auto 0;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .sim{
+    --sim-surface:#222529; --sim-ink:#d1d2d3; --sim-muted:#9a9b9e;
+    --sim-line:#35373b; --sim-bg:#1a1d21;
+  }}
+  :root[data-theme="dark"] .sim{
+    --sim-surface:#222529; --sim-ink:#d1d2d3; --sim-muted:#9a9b9e;
+    --sim-line:#35373b; --sim-bg:#1a1d21;
+  }
+
+  .tabs{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);
+        max-width:920px;margin:0 auto}
+  .tab{font:inherit;font-size:11.5px;background:none;border:0;border-right:1px solid var(--line);
+       color:var(--muted);padding:9px 12px;cursor:pointer;text-align:center}
+  .tab:last-child{border-right:0}
+  .tab:hover{color:var(--ink)}
+  /* Selected tab is chrome, not data: a fill + ink text, never a full
+     ink slab — on dark that slab becomes a glaring white block. */
+  .tab.active{background:var(--bg-sub);color:var(--ink)}
+
+  .chatWrap{position:relative;border:1px solid var(--line);border-top:0;
+            background:var(--sim-bg);height:420px;display:flex;flex-direction:column;cursor:pointer}
+  .dmhead{display:flex;align-items:center;gap:8px;padding:10px 14px;
+          border-bottom:1px solid var(--sim-line);color:var(--sim-ink)}
+  .chat{flex:1;overflow-y:auto;padding:12px 10px 76px;display:flex;flex-direction:column;gap:2px}
+
+  .msg{opacity:0;transform:translateY(8px);transition:opacity .18s ease-out,transform .18s ease-out}
+  .msg.in{opacity:1;transform:none}
+  .smsg{display:flex;gap:10px;padding:7px 10px;border-radius:var(--sim-radius);width:100%}
+  .smsg:hover{background:var(--sim-surface)}
+  .avatar{flex:0 0 auto;width:30px;height:30px;border-radius:var(--sim-radius);
+          display:flex;align-items:center;justify-content:center;color:#fff}
+  .avatar svg{width:18px;height:18px}
+  .av-app{background:var(--sim-accent)}
+  .av-you{background:#7a7a85;font-size:12px;font-weight:700}
+  .smain{min-width:0;flex:1}
+  .shead{display:flex;align-items:baseline;gap:6px}
+  .sname{font-weight:700;font-size:13px;color:var(--sim-ink)}
+  .sapp{font-size:9.5px;font-weight:600;background:var(--sim-surface);color:var(--sim-muted);
+        padding:1px 4px;border-radius:3px}
+  .stime{font-size:11px;color:var(--sim-muted)}
+  .sbody{font-size:13px;color:var(--sim-ink);line-height:1.5;margin-top:1px}
+  .sbody .squote{border-left:3px solid var(--sim-line);padding-left:10px;
+                 color:var(--sim-muted);font-size:12.5px;margin-top:6px}
+  .sbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .sbtn{font-size:12px;border:1px solid var(--sim-line);border-radius:4px;
+         padding:5px 12px;color:var(--sim-ink);background:var(--sim-bg)}
+  .sbtn.green{background:var(--sim-green);border-color:var(--sim-green);color:#fff}
+  .actnote{align-self:center;text-align:center;font-size:11.5px;color:var(--sim-muted);
+           font-style:italic;padding:6px 0}
+  .fileTag{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--sim-line);
+           border-radius:4px;padding:3px 8px;font-size:12px;color:var(--sim-ink);margin-bottom:4px}
+
+  /* the simulated product's modal */
+  .modalOv{position:absolute;inset:0;background:rgba(0,0,0,.34);display:flex;
+           align-items:center;justify-content:center;padding:20px;
+           opacity:0;pointer-events:none;transition:opacity .16s ease-out}
+  .modalOv.open{opacity:1;pointer-events:auto}
+  .mbox{width:min(380px,100%);max-height:100%;overflow:auto;background:var(--sim-bg);
+        border-radius:var(--sim-radius);opacity:0;transform:translateY(8px);
+        transition:opacity .16s ease-out,transform .16s ease-out}
+  .modalOv.open .mbox{opacity:1;transform:none}
+  .mhead{display:flex;align-items:center;gap:10px;padding:13px 16px 8px;color:var(--sim-ink)}
+  .mhead .mt{flex:1;font-weight:700;font-size:15px}
+  .mbody{padding:2px 16px 12px}
+  .mlabel{font-weight:600;font-size:12px;margin:10px 0 5px;color:var(--sim-ink)}
+  .mfield{border:1px solid var(--sim-line);border-radius:4px;padding:8px 10px;
+          font-size:12px;color:var(--sim-muted);min-height:34px}
+  .mfield.area{min-height:52px}
+  .mfoot{display:flex;justify-content:flex-end;padding:11px 16px;border-top:1px solid var(--sim-line)}
+
+  /* floating control bar — THIS is the house, not Slack:
+     no radius, hairline, monochrome. */
+  .floater{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
+           border:1px solid var(--line-2);background:var(--bg);cursor:default;z-index:5}
+  .ctrlbar{display:flex;align-items:center;gap:2px;padding:4px 6px}
+  .cbtn{font:inherit;background:none;border:0;color:var(--muted);cursor:pointer;
+        padding:4px 6px;display:flex;align-items:center}
+  .cbtn:hover{color:var(--ink)}
+  .cbtn svg{width:14px;height:14px}
+  .ring{position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center}
+  .ring>svg{width:22px;height:22px;transform:rotate(-90deg);display:block}
+  .ring .pausei{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--ink-2)}
+  .ring .pausei svg{width:10px;height:10px}
+  .ring.paused .pausei{display:flex}
+  .ring.paused>svg{opacity:.25}
+
+  /* narration — the step's explanation, OUTSIDE the simulated surface */
+  .narration{border:1px solid var(--line);border-top:0;padding:14px 16px;
+             min-height:74px;background:var(--bg-sub)}
+  .cap{font-size:12.5px;color:var(--ink-2);max-width:80ch}
+  .cap b{color:var(--ink);font-weight:500}
+  .cap.cap-enter{animation:capEnter .3s ease-out}
+  @keyframes capEnter{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">Example — interactive walkthrough</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="meta">simulator</span>
+      <button class="toggle" id="themeBtn">theme</button>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">01 — what this file teaches</p>
+    <h1>When the thing to explain is a conversation, not a table.</h1>
+    <p class="lead">Manual, onboarding, "how this product works": in those documents
+      the content is a sequence in time, and the KPI strip plus three-cell bento is
+      useless. The right form is to re-enact the interaction and narrate each step
+      beside it.</p>
+    <p>The simulator below replicates Slack. Notice what it does with the house
+      style — and what it does <em>not</em> do. The rule is commented in the CSS and
+      explained in <span class="tag">references/layout.md</span>.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">02 — the simulator</p>
+    <h2>Three scenarios, one player</h2>
+    <p>Click the conversation to advance. Use <span class="tag">←</span>
+      <span class="tag">→</span> on the keyboard. Hovering pauses the autoplay.</p>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" data-flow="setup">01 · first contact</button>
+      <button class="tab" data-flow="request">02 · a request</button>
+      <button class="tab" data-flow="lookup">03 · a lookup</button>
+    </div>
+
+    <div class="sim" id="sim">
+      <div class="chatWrap" id="chatWrap" title="Click to advance">
+        <div class="dmhead">
+          <span class="avatar av-app"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg></span>
+          <span class="sname">Acme Bot</span><span class="sapp">APP</span>
+        </div>
+        <div class="chat" id="chat"></div>
+        <div class="modalOv" id="modalOv"></div>
+        <div class="floater" id="floater">
+          <div class="ctrlbar">
+            <button class="cbtn" id="cPrevFlow" title="Previous scenario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="12 6 6 12 12 18"/><polyline points="18 6 12 12 18 18"/></svg></button>
+            <button class="cbtn" id="cPrev" title="Previous step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14 6 8 12 14 18"/></svg></button>
+            <span class="ring" id="ring">
+              <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--line)" stroke-width="2.4"/><circle id="ringFill" cx="12" cy="12" r="10" stroke="var(--ink-2)" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="62.83" stroke-dashoffset="62.83"/></svg>
+              <span class="pausei"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="8" y="7" width="3" height="10"/><rect x="13" y="7" width="3" height="10"/></svg></span>
+            </span>
+            <button class="cbtn" id="cNext" title="Next step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="10 6 16 12 10 18"/></svg></button>
+            <button class="cbtn" id="cNextFlow" title="Next scenario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 6 12 12 6 18"/><polyline points="12 6 18 12 12 18"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="narration"><div class="cap" id="cap"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">03 — the anatomy</p>
+    <h2>The five pieces</h2>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Piece</th><th>Role</th><th>Common mistake</th></tr></thead>
+        <tbody>
+          <tr><td>Steps as data</td><td>An array describes the script; the renderer is dumb</td><td>Writing the messages into the HTML and losing replay</td></tr>
+          <tr><td>Narration alongside</td><td>Explains the current step without polluting the conversation</td><td>Stuffing the explanation into the bot's bubble</td></tr>
+          <tr><td>Pausable autoplay</td><td>Moves on its own for someone just watching</td><td>Autoplay that ignores hover and runs away from the reader</td></tr>
+          <tr><td>Manual control</td><td>Click, keyboard, and step/scenario buttons</td><td>Autoplay only: re-reading a step is impossible</td></tr>
+          <tr><td>Style boundary</td><td><code>--sim-*</code> tokens confined to the simulator</td><td>Letting radius and bold leak into the page</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="invert">
+    <div class="lbl">Rule</div>
+    <div style="font-size:15px;font-weight:500;margin-top:4px">
+      Re-enacting a product is quotation. Quoting is not adopting.
+    </div>
+  </div>
+
+  <footer>
+    <span>examples/interactive-walkthrough.html</span>
+    <span>html-summary · lattice</span>
+  </footer>
+
+</div>
+
+<script>
+/* ── theme ─────────────────────────────────────────────────────────── */
+document.getElementById('themeBtn').addEventListener('click',function(){
+  var r=document.documentElement;
+  var cur=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  var next=cur==='dark'?'light':'dark';
+  r.dataset.theme=next;
+  try{localStorage.setItem('lattice-theme',next)}catch(e){}
+});
+
+/* ── inline icons (no library, no CDN) ─────────────────────────────── */
+var BOLT='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>';
+var IC_X='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+var IC_CLIP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12l-8.5 8.5a4.5 4.5 0 1 1-6.4-6.4L14 5.7a3 3 0 1 1 4.2 4.2l-8.5 8.5a1.5 1.5 0 0 1-2.1-2.1l7.8-7.8"/></svg>';
+
+/* ── markup helpers for the simulated product ──────────────────────── */
+function fld(label,ph,area){
+  return '<div class="mlabel">'+label+'</div><div class="mfield'+(area?' area':'')+'">'+ph+'</div>';
+}
+function modal(title,body,submit){
+  return '<div class="mbox">'+
+    '<div class="mhead"><span class="avatar av-app" style="width:24px;height:24px">'+BOLT+'</span>'+
+      '<span class="mt">'+title+'</span><span style="color:var(--sim-muted);display:flex;width:15px">'+IC_X+'</span></div>'+
+    '<div class="mbody">'+body+'</div>'+
+    '<div class="mfoot"><span class="sbtn green">'+submit+'</span></div></div>';
+}
+function file(name){return '<span class="fileTag"><span class="ico">'+IC_CLIP+'</span>'+name+'</span><br>'}
+
+/* ── the script is DATA, not markup ───────────────────────────────────
+   r: 'u' you · 'a' the app · 'act' action note · 'modal' overlay
+   t: the message body
+   c: that step's narration (shown below, outside the conversation)
+   ------------------------------------------------------------------ */
+var FLOWS={
+  setup:[
+    {r:'u',t:'hi',
+     c:'<b>Any message will do.</b> There is no entry command — the first sentence already triggers setup.'},
+    {r:'a',t:'Hi! I\'m Acme Bot. You don\'t have a profile yet. It takes two minutes.'+
+             '<div class="sbtns"><span class="sbtn green">Set up</span><span class="sbtn">Not now</span></div>',
+     c:'The button opens the form. <b>Always offer the way out</b> — "not now" is a valid answer, and the walkthrough should show that.'},
+    {r:'act',t:'You clicked "Set up"',
+     c:'The action note marks what <b>the person</b> did. Without it, the next step looks like it happened on its own.'},
+    {r:'modal',t:modal('Set up profile',
+        fld('Which team are you on?','Select…')+
+        fld('What do you do day to day?','Describe it in one line…',true),'Save'),
+     c:'<b>Re-enact the real screen.</b> A form described in prose teaches nothing; the drawing of it does. Empty fields, no invented data.'},
+    {r:'a',t:'Profile saved. You can talk to me in plain English from here on.',
+     c:'Close the loop by saying what changed. <b>Every scenario ends in a state</b>, never mid-air.'}
+  ],
+  request:[
+    {r:'u',t:'i need a new monitor, around $300',
+     c:'<b>Natural language, no form.</b> That is the point this scenario exists to prove.'},
+    {r:'a',t:'Noted: monitor, $300. Missing the vendor and the date. Can you give me those?',
+     c:'A required field is missing: it asks <b>once</b> and creates nothing yet.'},
+    {r:'u',t:'Dell, for next week',
+     c:'The reply completes the draft. Nobody repeats what they already said.'},
+    {r:'a',t:'Draft: monitor · $300 · Dell · by Jul 30. Send for approval?'+
+             '<div class="sbtns"><span class="sbtn green">Send</span><span class="sbtn">Edit</span></div>',
+     c:'<b>It structures, you confirm.</b> Nothing exists in the system up to here — and the walkthrough has to make that explicit.'},
+    {r:'u',t:'go ahead',
+     c:'Button or text, same thing. The yes is the trigger.'},
+    {r:'a',t:'Request #482 created and sent to your manager.',
+     c:'<b>Only now is there a record.</b> The final step is always what changed in the real world.'}
+  ],
+  lookup:[
+    {r:'u',t:file('july-report.xlsx')+'can you summarise this?',
+     c:'<b>An attachment is a step.</b> Show the file chip — that is how the person recognises their own screen.'},
+    {r:'a',t:'Read all 3 sheets. Revenue up 8%, infra cost down 14%, and 2 rows have no cost centre.'+
+             '<div class="squote">rows 47 and 112 — want me to list them?</div>',
+     c:'The indented quote separates the <b>finding</b> from the <b>question</b>. Two different things do not share a paragraph.'},
+    {r:'u',t:'no need, thanks',
+     c:'<b>Close the paths that do not continue, too.</b> A walkthrough with only the happy path lies by omission.'},
+    {r:'a',t:'Done. Nothing was recorded — that was a pure read.',
+     c:'Closes by restating the boundary: looking something up is not filing something.'}
+  ]
+};
+
+/* ── player ────────────────────────────────────────────────────────── */
+var chat=document.getElementById('chat'),cap=document.getElementById('cap');
+var modalOv=document.getElementById('modalOv');
+var chatWrap=document.getElementById('chatWrap');
+var simEl=document.getElementById('sim'),ringEl=document.getElementById('ring'),ringFill=document.getElementById('ringFill');
+var FLOWKEYS=['setup','request','lookup'];
+var cur='setup',idx=0;
+var T0=9*60+41;                 /* 09:41 — timestamps grow with the messages */
+var SLIDE_MS=6500,RING_C=62.83;
+var elapsed=0,paused=false,lastTs=null;
+var reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+function stamp(){
+  var m=T0+chat.querySelectorAll('.smsg').length;
+  return Math.floor(m/60)+':'+('0'+(m%60)).slice(-2);
+}
+function slackMsg(who,html){
+  var av,nm,app='';
+  if(who==='app'){av='<span class="avatar av-app">'+BOLT+'</span>';nm='Acme Bot';app='<span class="sapp">APP</span>'}
+  else{av='<span class="avatar av-you">Y</span>';nm='You'}
+  return av+'<div class="smain"><div class="shead"><span class="sname">'+nm+'</span>'+app+
+         '<span class="stime">'+stamp()+'</span></div><div class="sbody">'+html+'</div></div>';
+}
+function closeModal(){modalOv.classList.remove('open')}
+function renderStep(m,instant){
+  if(m.r==='modal'){
+    modalOv.innerHTML=m.t;
+    if(instant)modalOv.classList.add('open');
+    else requestAnimationFrame(function(){requestAnimationFrame(function(){modalOv.classList.add('open')})});
+    return;
+  }
+  closeModal();
+  var d=document.createElement('div');
+  if(m.r==='act'){d.className='msg actnote';d.innerHTML=m.t}
+  else{d.className='msg smsg';d.innerHTML=slackMsg(m.r==='u'?'you':'app',m.t)}
+  chat.appendChild(d);
+  if(instant)d.classList.add('in');
+  else requestAnimationFrame(function(){requestAnimationFrame(function(){d.classList.add('in')})});
+  chat.scrollTop=chat.scrollHeight;
+}
+function sync(){
+  var flow=FLOWS[cur];
+  var next=idx>0?flow[idx-1].c:'Follow the conversation — each step is explained here.';
+  if(cap.innerHTML!==next){
+    cap.innerHTML=next;
+    cap.classList.remove('cap-enter');void cap.offsetWidth;cap.classList.add('cap-enter');
+  }
+}
+function paintRing(){
+  ringFill.setAttribute('stroke-dashoffset',String(RING_C*(1-Math.min(1,elapsed/SLIDE_MS))));
+}
+function resetTimer(){elapsed=0;paintRing()}
+function setTabs(){
+  document.querySelectorAll('.tab').forEach(function(x){x.classList.toggle('active',x.dataset.flow===cur)});
+}
+/* rebuildTo redraws from scratch up to n: that is what makes "back"
+   possible without keeping DOM state. Cheap replay > complicated state. */
+function rebuildTo(n){
+  closeModal();chat.innerHTML='';
+  var flow=FLOWS[cur];
+  for(var i=0;i<n;i++){
+    if(flow[i].r==='modal'&&i!==n-1)continue;
+    renderStep(flow[i],true);
+  }
+  idx=n;sync();resetTimer();chat.scrollTop=chat.scrollHeight;
+}
+function advance(){
+  var flow=FLOWS[cur];
+  if(idx>=flow.length)return;
+  renderStep(flow[idx],false);idx++;sync();resetTimer();
+}
+function gotoFlow(key,atEnd){
+  cur=key;setTabs();
+  if(atEnd)rebuildTo(FLOWS[cur].length);
+  else{closeModal();chat.innerHTML='';idx=0;sync();resetTimer();advance()}
+}
+function nextSlide(){
+  if(idx<FLOWS[cur].length)advance();
+  else gotoFlow(FLOWKEYS[(FLOWKEYS.indexOf(cur)+1)%FLOWKEYS.length],false);
+}
+function prevSlide(){
+  if(idx>1)rebuildTo(idx-1);
+  else gotoFlow(FLOWKEYS[(FLOWKEYS.indexOf(cur)+FLOWKEYS.length-1)%FLOWKEYS.length],true);
+}
+function nextFlow(){gotoFlow(FLOWKEYS[(FLOWKEYS.indexOf(cur)+1)%FLOWKEYS.length],false)}
+function prevFlow(){gotoFlow(FLOWKEYS[(FLOWKEYS.indexOf(cur)+FLOWKEYS.length-1)%FLOWKEYS.length],false)}
+
+/* autoplay: pauses on hover, and does not run for reduced-motion users */
+function tick(ts){
+  if(lastTs!==null&&!paused){
+    elapsed+=ts-lastTs;
+    if(elapsed>=SLIDE_MS){elapsed=0;nextSlide()}
+    paintRing();
+  }
+  lastTs=ts;
+  requestAnimationFrame(tick);
+}
+simEl.addEventListener('mouseenter',function(){paused=true;ringEl.classList.add('paused')});
+simEl.addEventListener('mouseleave',function(){paused=false;ringEl.classList.remove('paused')});
+
+chatWrap.addEventListener('click',nextSlide);
+document.getElementById('floater').addEventListener('click',function(e){e.stopPropagation()});
+document.getElementById('cPrev').addEventListener('click',prevSlide);
+document.getElementById('cNext').addEventListener('click',nextSlide);
+document.getElementById('cPrevFlow').addEventListener('click',prevFlow);
+document.getElementById('cNextFlow').addEventListener('click',nextFlow);
+document.querySelectorAll('.tab').forEach(function(t){
+  t.addEventListener('click',function(){gotoFlow(t.dataset.flow,false)});
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='ArrowRight'){nextSlide();e.preventDefault()}
+  if(e.key==='ArrowLeft'){prevSlide();e.preventDefault()}
+});
+
+gotoFlow('setup',false);
+if(!reduced){
+  requestAnimationFrame(tick);        /* runs on its own; hover holds it */
+}else{
+  ringEl.style.display='none';        /* no autoplay: manual control only */
+}
+</script>
+</body>
+</html>

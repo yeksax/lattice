@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Example — blind bake-off</title>
+<script>(function(){try{var t=localStorage.getItem('lattice-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}})()</script>
+<style>
+  /* ═══ SHARED BASE (identical to template.html) ═════════════════════ */
+  :root{
+    --bg:#ffffff; --bg-sub:#fafafa;
+    --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
+    --line:#e4e4e4; --line-2:#111111;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --pad-section:40px;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:13.5px/1.5 var(--mono);
+       font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+         padding:18px 0;border-bottom:1px solid var(--line-2)}
+  .brand{font-weight:500}
+  .meta{color:var(--muted);font-size:11px}
+  .toggle{font:inherit;font-size:11px;background:none;border:1px solid var(--line);
+          color:var(--ink);padding:4px 10px;cursor:pointer}
+  .toggle:hover{border-color:var(--line-2)}
+
+  section{padding:var(--pad-section) 0 8px}
+  .eyebrow{font-size:11px;color:var(--muted);margin:0 0 10px}
+  h1{font-size:24px;font-weight:500;margin:0 0 8px}
+  h2{font-size:17px;font-weight:500;margin:0 0 6px}
+  h3{font-size:13.5px;font-weight:500;margin:0 0 6px}
+  p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
+  .lead{color:var(--ink);font-size:14.5px;max-width:80ch}
+  .sub{color:var(--muted);font-size:11px}
+  a{color:var(--ink);text-underline-offset:3px}
+
+  .tag{display:inline-block;font-size:11px;border:1px solid var(--line);
+       color:var(--ink-2);padding:2px 8px}
+  .tblwrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+  th{text-align:left;font-weight:500;color:var(--muted);font-size:11px;
+     padding:8px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+  td{padding:8px 12px;border-bottom:1px solid var(--line)}
+  tbody tr:nth-child(even){background:var(--bg-sub)}
+  td.num,th.num{text-align:right}
+  tr.hot td{background:var(--bg-sub);border-bottom-color:var(--line-2)}
+
+  .invert{background:var(--ink);color:var(--bg);padding:24px;margin-top:32px}
+  .invert .lbl{font-size:11px;opacity:.6}
+  footer{margin-top:32px;padding:24px 0;border-top:1px solid var(--line-2);
+         color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .ico{display:inline-flex;width:1em;height:1em;vertical-align:-.14em}
+  .ico svg{width:100%;height:100%;display:block}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* ═══ SPECIFIC — the blind bake-off ════════════════════════════════ */
+  .progress{display:flex;align-items:center;gap:12px;margin-top:18px;
+            border:1px solid var(--line);padding:12px 16px}
+  .progress .track{flex:1;height:6px;background:var(--bg-sub);border:1px solid var(--line)}
+  .progress .track span{display:block;height:100%;width:0;background:var(--ink);transition:width .2s ease-out}
+  .progress .n{font-size:11px;color:var(--muted);white-space:nowrap}
+
+  .case{border:1px solid var(--line);margin-top:20px}
+  .case .chead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+               padding:12px 16px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+  .case .cases-opts{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line)}
+  @media(max-width:760px){.case .cases-opts{grid-template-columns:1fr}}
+
+  .cand{position:relative;background:var(--bg);border:0;font:inherit;color:var(--ink);
+        text-align:left;padding:14px;cursor:pointer;display:block;width:100%;overflow:hidden}
+  .cand:hover{background:var(--bg-sub)}
+  .cand .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ink);
+              opacity:.12;transition:width .18s ease-out}
+  .cand .in{position:relative}
+  .cand .wire{display:block;width:100%;height:74px;border:1px solid var(--line);margin-bottom:10px;
+              background:var(--bg);color:var(--muted)}   /* line art inherits --muted, never --ink:
+                 a light stroke on a dark background "glows" far more than the reverse */
+  .cand .wire svg{display:block;width:100%;height:100%}
+  .cand .k{display:inline-block;border:1px solid var(--line);padding:0 6px;font-size:11px;margin-right:8px}
+  .cand .name{font-size:12.5px}
+  .cand .stat{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:8px;
+              font-size:11px;color:var(--muted)}
+
+  /* BLIND PHASE: identity and numbers exist in the DOM but stay hidden.
+     Only the "your vote" mark shows. No partial tally, ever. */
+  .cand .who,.cand .pct{display:none}
+  .case.revealed .cand .who,.case.revealed .cand .pct{display:inline}
+  .cand.mine .k{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .cand .mytag{display:none;font-size:11px;color:var(--muted)}
+  .cand.mine .mytag{display:inline}
+  .case.revealed .cand.win{outline:1px solid var(--line-2);outline-offset:-1px}
+
+  .locked{border:1px solid var(--line);background:var(--bg-sub);padding:18px 20px;
+          margin-top:32px;color:var(--ink-2)}
+  .final{display:none}
+  .final.on{display:block}
+  .offline{border:1px solid var(--line);background:var(--bg-sub);padding:12px 16px;
+           margin-top:18px;color:var(--ink-2);font-size:12px;display:none}
+  .offline.on{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">Example — blind bake-off</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="meta">pattern B</span>
+      <button class="toggle" id="themeBtn">theme</button>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">01 — what this file teaches</p>
+    <h1>Blind means blind until the last vote.</h1>
+    <p class="lead">This is the pattern agents get wrong: they reveal each case as soon
+      as it is voted. Don't. While a single vote is missing, the page shows only
+      progress and your own pick — no identity, no numbers, no partial tally.</p>
+    <p>When the last vote lands, everything opens at once and the closing block
+      appears at the end of the page: champion, summed leaderboard and a
+      winner-vs-your-pick comparison. That closing block is the payoff for
+      finishing. Full reference in <span class="tag">references/polls.md</span>.</p>
+
+    <div class="progress">
+      <span class="n" id="progN">0 / 3 voted</span>
+      <span class="track"><span id="progFill"></span></span>
+      <span class="n" id="progHint">vote on all of them to open the result</span>
+    </div>
+
+    <div class="offline" id="offline">
+      Opened as a loose file: no bridge, no collection. Register it with
+      <span class="tag">lattice add</span> and open it at
+      <span class="tag">127.0.0.1:4600/s/&lt;slug&gt;</span>. Voting is disabled rather
+      than faking a result.
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">02 — the scenes</p>
+    <h2>Which layout solves each case best?</h2>
+    <p>Judge by the drawing, not the name — that is why the name is hidden.</p>
+    <div id="cases"></div>
+  </section>
+
+  <section id="finalWrap">
+    <p class="eyebrow">03 — closing</p>
+    <div class="locked" id="locked">
+      <h3 style="margin-bottom:6px">Closing block locked</h3>
+      <p style="margin:0" id="lockedMsg">3 scenes to go. The result opens in full once the last one is voted.</p>
+    </div>
+    <div class="final" id="final">
+      <div class="invert">
+        <div class="lbl">Champion</div>
+        <div style="font-size:19px;font-weight:500;margin-top:4px" id="champName">—</div>
+        <div class="lbl" style="margin-top:8px" id="champLine">—</div>
+      </div>
+
+      <h3 style="margin-top:28px">Leaderboard — votes summed across the three scenes</h3>
+      <div class="tblwrap">
+        <table>
+          <thead><tr><th>Engine</th><th class="num">Votes</th><th class="num">Share</th></tr></thead>
+          <tbody id="leaderboard"></tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:28px">Winner × your pick</h3>
+      <div class="tblwrap">
+        <table>
+          <thead><tr><th>Scene</th><th>Winner</th><th>Your pick</th><th>Match?</th></tr></thead>
+          <tbody id="perCase"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>examples/poll-bakeoff.html</span>
+    <span>html-summary · lattice</span>
+  </footer>
+
+</div>
+
+<script>
+/* ── theme ─────────────────────────────────────────────────────────── */
+document.getElementById('themeBtn').addEventListener('click',function(){
+  var r=document.documentElement;
+  var cur=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  var next=cur==='dark'?'light':'dark';
+  r.dataset.theme=next;
+  try{localStorage.setItem('lattice-theme',next)}catch(e){}
+});
+
+/* ── icons ─────────────────────────────────────────────────────────── */
+var IC_CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 12 10 18 20 6"/></svg>';
+
+/* ── wireframes: the "artefact" being judged, hand-drawn in SVG ────── */
+var WIRE={
+  grade:'<svg viewBox="0 0 200 74" fill="none" stroke="currentColor" stroke-width="1">'+
+        '<rect x="8" y="8" width="55" height="26"/><rect x="72" y="8" width="55" height="26"/><rect x="136" y="8" width="55" height="26"/>'+
+        '<rect x="8" y="42" width="55" height="24"/><rect x="72" y="42" width="55" height="24"/><rect x="136" y="42" width="55" height="24"/></svg>',
+  pilha:'<svg viewBox="0 0 200 74" fill="none" stroke="currentColor" stroke-width="1">'+
+        '<rect x="8" y="8" width="183" height="16"/><rect x="8" y="29" width="183" height="16"/><rect x="8" y="50" width="183" height="16"/></svg>',
+  split:'<svg viewBox="0 0 200 74" fill="none" stroke="currentColor" stroke-width="1">'+
+        '<rect x="8" y="8" width="66" height="58"/><rect x="82" y="8" width="109" height="26"/>'+
+        '<line x1="82" y1="46" x2="191" y2="46"/><line x1="82" y1="56" x2="160" y2="56"/></svg>'
+};
+
+/* ── data ──────────────────────────────────────────────────────────── */
+/* `engine` is the identity hidden during the blind phase. */
+var CASES=[
+  {id:'scene-01-density', title:'Scene 01 — thirty rows of data on one screen',
+   opts:[{k:'A',engine:'grade-suica',wire:'grade'},
+         {k:'B',engine:'colofao-editorial',wire:'pilha'},
+         {k:'C',engine:'producao-atual',wire:'split'}]},
+  {id:'scene-02-comparison', title:'Scene 02 — three proposals side by side',
+   opts:[{k:'A',engine:'grade-suica',wire:'split'},
+         {k:'B',engine:'colofao-editorial',wire:'grade'},
+         {k:'C',engine:'producao-atual',wire:'pilha'}]},
+  {id:'scene-03-narrative', title:'Scene 03 — a step-by-step with commentary',
+   opts:[{k:'A',engine:'grade-suica',wire:'pilha'},
+         {k:'B',engine:'colofao-editorial',wire:'split'},
+         {k:'C',engine:'producao-atual',wire:'grade'}]}
+];
+var N=CASES.length;
+var online=false;
+
+/* ── assembly ──────────────────────────────────────────────────────── */
+var casesEl=document.getElementById('cases');
+CASES.forEach(function(c){
+  var box=document.createElement('div');
+  box.className='case';box.id='case-'+c.id;
+  var opts=c.opts.map(function(o){
+    return '<button class="cand" data-case="'+c.id+'" data-choice="'+o.k+'">'+
+             '<span class="fill"></span>'+
+             '<span class="in">'+
+               '<span class="wire">'+WIRE[o.wire]+'</span>'+
+               '<span class="name"><span class="k">'+o.k+'</span>'+
+                 '<span class="who">'+o.engine+'</span></span>'+
+               '<span class="stat"><span class="mytag">your vote</span><span class="pct">—</span></span>'+
+             '</span>'+
+           '</button>';
+  }).join('');
+  box.innerHTML='<div class="chead"><span>'+c.title+'</span><span class="sub" data-role="state">not voted</span></div>'+
+                '<div class="cases-opts">'+opts+'</div>';
+  casesEl.appendChild(box);
+});
+
+var cands=[].slice.call(document.querySelectorAll('.cand'));
+cands.forEach(function(b){
+  b.addEventListener('click',function(){vote(b.dataset.case,b.dataset.choice)});
+});
+
+/* ── state ─────────────────────────────────────────────────────────── */
+function pick(id){return online?lattice.recall(id):null}
+function votedCount(){return CASES.filter(function(c){return pick(c.id)}).length}
+function allVoted(){return votedCount()===N}
+
+async function vote(id,choice){
+  if(!online)return;
+  var ok=await lattice.submit({poll:id,choice:choice});
+  if(!ok)return;
+  afterVote(await lattice.results());
+}
+
+/* THE one gate deciding blind vs. revealed. There is no per-case path. */
+function afterVote(agg){
+  var done=votedCount();
+  document.getElementById('progN').textContent=done+' / '+N+' voted';
+  document.getElementById('progFill').style.width=Math.round(done/N*100)+'%';
+  document.getElementById('progHint').textContent=
+    allVoted()?'result opened at the end of the page':'vote on all of them to open the result';
+
+  CASES.forEach(function(c){
+    var box=document.getElementById('case-'+c.id);
+    var mine=pick(c.id);
+    box.querySelector('[data-role="state"]').textContent=mine?'voted':'not voted';
+    box.querySelectorAll('.cand').forEach(function(b){
+      b.classList.toggle('mine',b.dataset.choice===mine);
+    });
+    if(allVoted())reveal(c,agg); else box.classList.remove('revealed');
+  });
+
+  renderSummary(agg);
+}
+
+function counts(agg,id){
+  var q=(agg.polls&&agg.polls[id])||{total:0,counts:{}};
+  return q;
+}
+
+function reveal(c,agg){
+  var box=document.getElementById('case-'+c.id);
+  var q=counts(agg,c.id);
+  var best=null,bestN=-1;
+  c.opts.forEach(function(o){
+    var n=q.counts[o.k]||0;
+    if(n>bestN){bestN=n;best=o.k}
+  });
+  box.querySelectorAll('.cand').forEach(function(b){
+    var n=q.counts[b.dataset.choice]||0;
+    var pct=q.total?Math.round(n/q.total*100):0;
+    b.querySelector('.fill').style.width=pct+'%';
+    b.querySelector('.pct').textContent=pct+'% · '+n;
+    b.classList.toggle('win',bestN>0&&b.dataset.choice===best);
+  });
+  box.classList.add('revealed');
+}
+
+/* ── closing — always at the END, never a leaderboard at the top ───── */
+function renderSummary(agg){
+  var locked=document.getElementById('locked'),final=document.getElementById('final');
+  if(!allVoted()){
+    final.classList.remove('on');locked.style.display='';
+    var falta=N-votedCount();
+    document.getElementById('lockedMsg').textContent=
+      falta===1?'1 scene to go. The result opens in full once it is voted.'
+               :falta+' scenes to go. The result opens in full once the last one is voted.';
+    return;
+  }
+  locked.style.display='none';final.classList.add('on');
+
+  /* votes summed per engine, across the scenes */
+  var totals={},grand=0;
+  CASES.forEach(function(c){
+    var q=counts(agg,c.id);
+    c.opts.forEach(function(o){
+      var n=q.counts[o.k]||0;
+      totals[o.engine]=(totals[o.engine]||0)+n;grand+=n;
+    });
+  });
+  var rank=Object.keys(totals).map(function(e){return{engine:e,n:totals[e]}})
+              .sort(function(a,b){return b.n-a.n});
+
+  document.getElementById('champName').textContent=rank[0]?rank[0].engine:'—';
+  document.getElementById('champLine').textContent=
+    rank[0]?rank[0].n+' of '+grand+' votes summed across '+N+' scenes':'—';
+
+  document.getElementById('leaderboard').innerHTML=rank.map(function(r,i){
+    var pct=grand?Math.round(r.n/grand*100):0;
+    return '<tr'+(i===0?' class="hot"':'')+'><td>'+r.engine+'</td>'+
+           '<td class="num">'+r.n+'</td><td class="num">'+pct+'%</td></tr>';
+  }).join('');
+
+  document.getElementById('perCase').innerHTML=CASES.map(function(c){
+    var q=counts(agg,c.id),mine=pick(c.id);
+    var best=null,bestN=-1;
+    c.opts.forEach(function(o){var n=q.counts[o.k]||0;if(n>bestN){bestN=n;best=o}});
+    var mineOpt=c.opts.filter(function(o){return o.k===mine})[0];
+    var hit=mineOpt&&best&&mineOpt.k===best.k;
+    return '<tr><td>'+c.title.split(' — ')[0]+'</td>'+
+           '<td>'+(best?best.engine:'—')+'</td>'+
+           '<td>'+(mineOpt?mineOpt.engine:'—')+'</td>'+
+           '<td>'+(hit?'<span class="ico">'+IC_CHECK+'</span> yes':'no')+'</td></tr>';
+  }).join('');
+}
+
+/* ── boot: the same ordering gate as pattern A ─────────────────────── */
+async function boot(){
+  online=!!(window.lattice&&window.lattice.poll);
+  if(!online){
+    document.getElementById('offline').classList.add('on');
+    cands.forEach(function(b){b.disabled=true;b.style.cursor='default'});
+    renderSummary({polls:{}});
+    return;
+  }
+  document.getElementById('offline').classList.remove('on');
+  cands.forEach(function(b){b.disabled=false;b.style.cursor=''});
+  afterVote(await lattice.results());        // restores previous votes
+}
+window.lattice&&window.lattice.poll
+  ? boot()
+  : document.addEventListener('lattice:ready',boot,{once:true});
+setTimeout(function(){if(!window.lattice||!window.lattice.poll)boot()},600);
+</script>
+</body>
+</html>
