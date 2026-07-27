@@ -81,8 +81,13 @@ lattice config unset theme.accent
 
 lattice login <token>
 lattice share report
+lattice share internal-report --domain furia.gg
 lattice shares
 lattice results report
+lattice threads report
+lattice comment report '#recommendation' 'Validate this assumption.'
+lattice reply report <thread-id> 'Validated with the current data.'
+lattice resolve report <thread-id>
 lattice unshare report
 ```
 
@@ -91,11 +96,24 @@ your laptop closed. It requires `lattice login <token>` first; re-running
 `share` updates the snapshot. Self-hosters can point the CLI at their own
 Worker with `--api` or `LATTICE_API_BASE`.
 
+Local summaries and hosted snapshots receive the same discussion bridge at
+response time. Local threads are the default for `threads`, `comment`, `reply`,
+`resolve`, and `reopen`; pass `--hosted` to operate on a published snapshot.
+Threads are
+anchored to stable CSS selectors and record the snapshot version where they
+started. Replies can come from authenticated viewers in the page or from agents
+using the CLI. `share --domain example.com` requires a verified Google Workspace
+identity from that domain. Re-sharing without an access flag preserves the
+current policy; `share --public` removes it.
+
 ## How local storage works
 
 Lattice registers each summary by storing its absolute source path in a small
 metadata sidecar under `~/.summaries/.lattice/meta/`. It does not copy, move, or
 symlink newly added files, so registration behaves the same on every platform.
+Local discussions are stored separately under
+`~/.summaries/.lattice/comments/`, keeping agent and human replies out of the
+source HTML while preserving them across document updates.
 Legacy symlinks and HTML files dropped directly into `~/.summaries/` remain
 supported. The in-memory search index rebuilds on startup and stays current
 through filesystem events. Open summaries receive a hot-reload bridge in the

@@ -41,11 +41,21 @@ usage:
       --force      overwrite an existing skill directory
   lattice login <token> [--api url]  log in to sharing (lattice.pub)
   lattice logout                     forget the sharing token
-  lattice share <slug> [--random]    share ONE summary publicly
+  lattice share <slug> [flags]       share ONE summary
       --random     8-char subdomain instead of the slug
+      --domain d   require Google identity from domain d (comma-separated)
+      --public     remove an existing domain restriction
   lattice unshare <slug>             stop sharing (poll data is kept)
   lattice shares                     list active shares + vote counts
   lattice results <slug>             dump poll submissions
+  lattice threads <slug> [flags]     list local discussion threads
+      --open       show only open threads
+      --json       print machine-readable JSON
+      --hosted     use the hosted share instead
+  lattice comment <slug> <selector> <message> [--hosted]
+  lattice reply <slug> <thread-id> <message> [--hosted]
+  lattice resolve <slug> <thread-id> [--hosted]
+  lattice reopen <slug> <thread-id> [--hosted]
 
 Sharing publishes a hosted snapshot to lattice.pub (stays up with your laptop
 closed) and requires "lattice login <token>" first.
@@ -115,12 +125,28 @@ func main() {
 	case "share":
 		fs := flag.NewFlagSet("share", flag.ExitOnError)
 		random := fs.Bool("random", false, "use a random 8-char subdomain")
-		fs.Parse(reorderFlags(os.Args[2:]))
+		domain := fs.String("domain", "", "restrict access to Google Workspace domain(s)")
+		public := fs.Bool("public", false, "remove an existing domain restriction")
+		fs.Parse(reorderFlags(os.Args[2:], "domain"))
 		if fs.NArg() != 1 {
-			err = fmt.Errorf("usage: lattice share <slug> [--random]")
+			err = fmt.Errorf("usage: lattice share <slug> [--random] [--domain d] [--public]")
 			break
 		}
-		err = hostedShare(fs.Arg(0), *random)
+		if *domain != "" && *public {
+			err = fmt.Errorf("--domain and --public cannot be used together")
+			break
+		}
+		var domains []string
+		if *domain != "" {
+			for _, value := range strings.Split(*domain, ",") {
+				if value = strings.TrimSpace(value); value != "" {
+					domains = append(domains, value)
+				}
+			}
+		} else if *public {
+			domains = []string{}
+		}
+		err = hostedShare(fs.Arg(0), *random, domains)
 	case "unshare":
 		if len(os.Args) != 3 {
 			err = fmt.Errorf("usage: lattice unshare <slug>")
@@ -135,6 +161,60 @@ func main() {
 			break
 		}
 		err = hostedResults(os.Args[2])
+	case "threads":
+		fs := flag.NewFlagSet("threads", flag.ExitOnError)
+		onlyOpen := fs.Bool("open", false, "show only open threads")
+		rawJSON := fs.Bool("json", false, "print JSON")
+		hosted := fs.Bool("hosted", false, "use hosted discussions")
+		fs.Parse(reorderFlags(os.Args[2:]))
+		if fs.NArg() != 1 {
+			err = fmt.Errorf("usage: lattice threads <slug> [--open] [--json] [--hosted]")
+			break
+		}
+		if *hosted {
+			err = hostedThreadsList(fs.Arg(0), *onlyOpen, *rawJSON)
+		} else {
+			err = localThreadsList(fs.Arg(0), *onlyOpen, *rawJSON)
+		}
+	case "comment":
+		fs := flag.NewFlagSet("comment", flag.ExitOnError)
+		hosted := fs.Bool("hosted", false, "use hosted discussions")
+		fs.Parse(reorderFlags(os.Args[2:]))
+		if fs.NArg() != 3 {
+			err = fmt.Errorf("usage: lattice comment <slug> <selector> <message> [--hosted]")
+			break
+		}
+		if *hosted {
+			err = hostedCreateThread(fs.Arg(0), fs.Arg(1), fs.Arg(2))
+		} else {
+			err = localCreateThread(fs.Arg(0), fs.Arg(1), fs.Arg(2))
+		}
+	case "reply":
+		fs := flag.NewFlagSet("reply", flag.ExitOnError)
+		hosted := fs.Bool("hosted", false, "use hosted discussions")
+		fs.Parse(reorderFlags(os.Args[2:]))
+		if fs.NArg() != 3 {
+			err = fmt.Errorf("usage: lattice reply <slug> <thread-id> <message> [--hosted]")
+			break
+		}
+		if *hosted {
+			err = hostedReply(fs.Arg(0), fs.Arg(1), fs.Arg(2))
+		} else {
+			err = localReply(fs.Arg(0), fs.Arg(1), fs.Arg(2))
+		}
+	case "resolve", "reopen":
+		fs := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
+		hosted := fs.Bool("hosted", false, "use hosted discussions")
+		fs.Parse(reorderFlags(os.Args[2:]))
+		if fs.NArg() != 2 {
+			err = fmt.Errorf("usage: lattice %s <slug> <thread-id> [--hosted]", os.Args[1])
+			break
+		}
+		if *hosted {
+			err = hostedThreadStatus(fs.Arg(0), fs.Arg(1), os.Args[1])
+		} else {
+			err = localThreadStatus(fs.Arg(0), fs.Arg(1), os.Args[1])
+		}
 	case "help", "-h", "--help":
 		fmt.Println(usage)
 	default:

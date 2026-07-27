@@ -13,6 +13,8 @@ rules = [
 [vars]
 SHARE_DOMAIN = ""
 PUBLIC_BASE = "https://share.example.com"
+AUTH_BASE = "https://api.example.com"
+SESSION_COOKIE_DOMAIN = ".example.com"
 MAX_SNAPSHOT_BYTES = "2097152"
 DEFAULT_MAX_SHARES = "10"
 

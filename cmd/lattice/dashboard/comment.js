@@ -1,0 +1,824 @@
+// Lattice discussion bridge. Injected at response time, never written into the
+// summary. Threads use stable CSS selectors and work in local and hosted views.
+(() => {
+  'use strict';
+
+  const script = document.currentScript || document.getElementById('lattice-comments');
+  const endpoint = (script && script.dataset.endpoint) || '/threads';
+  const isEmbedded = window.parent !== window;
+  const markerHosts = new Map();
+  let threads = [];
+  let commentMode = false;
+  let openSelector = '';
+  let composingSelector = '';
+  let openCommentMenuID = '';
+  let editingCommentID = '';
+  let deletingCommentID = '';
+  let commentActionError;
+
+  const pageStyle = document.createElement('style');
+  pageStyle.id = 'lattice-comment-page-style';
+  pageStyle.textContent = `
+    [data-lattice-comment-target]{position:relative;isolation:isolate}
+    body[data-lattice-comment-mode="true"] [data-lattice-comment-target]{
+      cursor:none!important
+    }
+    body[data-lattice-comment-mode="true"] [data-lattice-comment-target] *{
+      cursor:none!important
+    }
+    body[data-lattice-comment-mode="true"] [data-lattice-comment-target]::after{
+      content:"";
+      position:absolute;
+      inset:-12px;
+      z-index:2147482000;
+      border-radius:8px;
+      background:rgba(22,131,255,.10);
+      box-shadow:inset 0 0 0 1px rgba(22,131,255,.72);
+      opacity:0;
+      pointer-events:none;
+      transition:opacity 160ms cubic-bezier(.2,0,0,1)
+    }
+    body[data-lattice-comment-mode="true"] [data-lattice-comment-target].is-lattice-cursor-target::after{
+      opacity:1
+    }
+    .lattice-comment-marker.is-empty{
+      opacity:0;
+      visibility:hidden;
+      pointer-events:none;
+      transition:opacity 140ms cubic-bezier(.2,0,0,1),visibility 140ms
+    }
+    .lattice-comment-marker.is-empty.is-hovered,
+    .lattice-comment-marker.is-empty.is-open{
+      opacity:1;
+      visibility:visible;
+      pointer-events:none
+    }
+  `;
+  document.head.append(pageStyle);
+
+  const css = `
+    :host{all:initial;color-scheme:light dark;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--paper:#fff;--sub:#f5f5f4;--line:#e6e6e3;--blue:#1683ff;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+    *{box-sizing:border-box}button,textarea{font:inherit}button{color:inherit}.marker{position:relative;display:grid;place-items:center;width:28px;height:28px;padding:0;border:2px solid var(--paper);border-radius:50%;background:var(--blue);color:#fff;box-shadow:0 1px 3px #0002,0 4px 14px #0002;cursor:pointer;pointer-events:auto;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;transition:scale 160ms cubic-bezier(.2,0,0,1),box-shadow 160ms cubic-bezier(.2,0,0,1)}
+    .marker::before{content:"";position:absolute;inset:-6px;border-radius:50%}.marker:hover,.marker:focus-visible{scale:1.06;box-shadow:0 2px 5px #0002,0 8px 20px #0002;outline:none}.marker:active{scale:.96}.marker.is-new{background:var(--blue);color:#fff;cursor:none;pointer-events:none;font-size:17px;font-weight:400}
+    .preview{position:absolute;right:38px;top:-3px;width:260px;padding:12px 14px;border-radius:12px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 14px 36px #0002;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(3px) scale(.98);transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1),visibility 160ms}
+    .marker-wrap:hover .preview,.marker:focus-visible+.preview{opacity:1;visibility:visible;transform:none}.preview[hidden]{display:none}.preview-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}.avatar{display:grid;place-items:center;flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:10px;text-transform:uppercase}.preview b{font-weight:600}.preview-time{color:var(--muted)}.preview-body{display:-webkit-box;overflow:hidden;color:var(--ink-2);-webkit-box-orient:vertical;-webkit-line-clamp:2}.preview-replies{margin-top:4px;color:var(--muted);font-size:11px}
+    .popover{position:absolute;z-index:2;right:38px;top:-8px;width:min(360px,calc(100vw - 56px));overflow:hidden;border-radius:16px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 18px 48px #0002;opacity:1;pointer-events:auto;transform:none;transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1)}
+    .popover[hidden]{display:block;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(4px) scale(.98)}.pop-head{display:flex;align-items:center;min-height:52px;padding:0 6px 0 18px;background:var(--paper);border-bottom:1px solid var(--line)}.pop-head strong{min-width:0;flex:1;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pop-actions{display:flex;align-items:center;flex:0 0 auto}.close,.new-thread{display:grid;place-items:center;width:40px;height:40px;border:0;background:none;border-radius:50%;cursor:pointer;color:var(--muted)}.close{font-size:19px}.new-thread{font-size:18px}.close:hover,.new-thread:hover{background:var(--sub);color:var(--ink)}.close:active,.new-thread:active{scale:.96}
+    .pop-body{display:block;max-height:min(430px,66vh);overflow:auto;padding:18px 18px 20px}.thread{display:block}.thread+.thread{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}.thread-meta{display:block;margin-bottom:14px;color:var(--muted);font-size:10.5px}.comment{position:relative;display:grid;grid-template-columns:24px 1fr;gap:10px;margin-bottom:16px;padding-right:28px}.comment-main{min-width:0}.comment-head{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}.comment-head b{font-weight:600}.comment-head time,.edited{color:var(--muted);font-size:10.5px}.comment p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-2)}.comment p.is-deleted{color:var(--muted);font-style:italic}
+    .comment-actions{position:absolute;z-index:3;top:-6px;right:-6px}.comment-menu-trigger{position:relative;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:10px;background:transparent;color:var(--muted);cursor:pointer;font-size:7px;letter-spacing:1.5px;opacity:.72}.comment-menu-trigger::before{content:"";position:absolute;inset:-4px;border-radius:13px}.comment-menu-trigger:hover,.comment-menu-trigger:focus-visible{background:var(--sub);color:var(--ink);opacity:1;outline:none}.comment-menu-trigger:active{scale:.96}.comment-menu{position:absolute;z-index:4;top:36px;right:0;width:132px;padding:5px;border-radius:10px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #0002,0 14px 34px #0001}.comment-menu button{display:flex;align-items:center;width:100%;min-height:38px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--ink);cursor:pointer;text-align:left}.comment-menu button:hover,.comment-menu button:focus-visible{background:var(--sub);outline:none}.comment-menu button:active{scale:.96}.comment-menu .danger{color:#c43b3b}.delete-confirm{padding:7px}.delete-confirm p{margin:0 0 8px;color:var(--ink);font-size:11.5px;line-height:1.35}.delete-confirm-actions{display:flex;gap:4px}.delete-confirm-actions button{justify-content:center;min-height:34px;padding:0 8px}.delete-confirm-actions .danger{background:#c43b3b;color:#fff}.delete-confirm-actions .danger:hover{background:#ad3030}
+    .inline-edit{margin-top:5px}.inline-edit textarea{display:block;width:100%;min-height:72px;max-height:160px;resize:vertical;padding:10px 11px;border:0;border-radius:10px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px var(--blue)}.inline-edit-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}.inline-edit-actions button{min-height:36px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--ink);cursor:pointer}.inline-edit-actions button:hover{background:var(--sub)}.inline-edit-actions button:active{scale:.96}.inline-edit-actions .save{background:var(--ink);color:var(--paper)}.inline-edit-actions .save:disabled{opacity:.3;cursor:default}.action-error{margin-top:7px;color:#c43b3b;font-size:11px}
+    .composer{display:grid;grid-template-columns:24px 1fr;gap:10px;margin-top:16px}.composer-box{position:relative}.composer textarea{display:block;width:100%;height:44px;min-height:44px;max-height:120px;resize:none;overflow-y:auto;padding:11px 44px 10px 12px;border:0;border-radius:12px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px transparent;transition:box-shadow 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}.composer textarea:focus{background:var(--paper);box-shadow:inset 0 0 0 1px var(--blue)}.send{position:absolute;right:6px;bottom:6px;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);cursor:pointer}.send:disabled{opacity:.24;cursor:default}.send:not(:disabled):active{scale:.96}.error{grid-column:2;color:#c43b3b;font-size:11px}
+    .launcher{position:fixed;z-index:2147483645;right:18px;bottom:18px;display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);box-shadow:0 2px 5px #0002,0 10px 28px #0003;cursor:pointer}.launcher:active{scale:.96}
+    @media(prefers-color-scheme:dark){:host{--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#777;--paper:#171717;--sub:#242424;--line:#303030}}
+    @media(max-width:560px){.popover{position:fixed;inset:auto 12px 12px;width:auto;max-height:70vh;transform-origin:bottom center}.preview{display:none}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  `;
+
+  const esc = (value) => {
+    if (window.CSS && CSS.escape) return CSS.escape(value);
+    return String(value).replace(/[^a-zA-Z0-9_-]/g, (char) => '\\' + char);
+  };
+
+  const attrSelector = (name, value) =>
+    `[${name}="${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`;
+
+  const selectorFor = (element) => {
+    if (element.id) return '#' + esc(element.id);
+    const commentKey = element.getAttribute('data-lattice-comment');
+    if (commentKey) return attrSelector('data-lattice-comment', commentKey);
+    const sectionKey = element.getAttribute('data-lattice-section');
+    if (sectionKey) return attrSelector('data-lattice-section', sectionKey);
+    const generatedKey = element.getAttribute('data-lattice-comment-anchor');
+    if (generatedKey) return attrSelector('data-lattice-comment-anchor', generatedKey);
+    return '';
+  };
+
+  const anchorText = (element) => {
+    const heading = element.matches('h1,h2,h3,h4,h5,h6')
+      ? element
+      : element.querySelector('h1,h2,h3,h4,h5,h6');
+    const localLabel = element.querySelector('figcaption,caption,.lbl,.k');
+    return (
+      element.getAttribute('data-lattice-comment-label') ||
+      (heading && heading.textContent) ||
+      element.getAttribute('aria-label') ||
+      (localLabel && localLabel.textContent) ||
+      ''
+    ).trim().slice(0, 500);
+  };
+
+  const formatTime = (seconds) => {
+    const date = new Date(seconds * 1000);
+    const delta = Math.max(0, Date.now() - date.getTime());
+    if (delta < 60_000) return 'now';
+    if (delta < 3_600_000) return Math.floor(delta / 60_000) + 'm';
+    if (delta < 86_400_000) return Math.floor(delta / 3_600_000) + 'h';
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
+  const initials = (name) => (name || '?').trim().slice(0, 1).toUpperCase();
+
+  const request = async (url, options) => {
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'content-type': 'application/json',
+        'x-lattice-return-to': location.href,
+      },
+      ...options,
+    });
+    const out = await response.json().catch(() => ({}));
+    if (response.status === 401 && out.login) {
+      location.href = out.login;
+      return null;
+    }
+    if (!response.ok) throw new Error(out.error || 'Request failed');
+    return out;
+  };
+
+  const autoAnchorSelector = [
+    '.card',
+    '.metric',
+    '.cell',
+    '.tblwrap',
+    'table',
+    'figure',
+    'pre',
+    'blockquote',
+    'progress',
+    '[role="progressbar"]',
+    '[role="img"]',
+    '.progress',
+    '.bar',
+    '.chart',
+    '.flow',
+    '.ba',
+    '.invert',
+    '.disclose',
+    'details',
+  ].join(',');
+
+  const anchorKind = (element) => {
+    if (element.matches('.card')) return 'card';
+    if (element.matches('.metric')) return 'metric';
+    if (element.matches('.cell')) return 'cell';
+    if (element.matches('.tblwrap,table')) return 'table';
+    if (element.matches('progress,[role="progressbar"],.progress,.bar')) return 'progress';
+    if (element.matches('.chart')) return 'chart';
+    if (element.matches('.flow')) return 'flow';
+    if (element.matches('.ba')) return 'comparison';
+    if (element.matches('.invert')) return 'callout';
+    if (element.matches('figure,[role="img"]')) return 'visual';
+    if (element.matches('pre')) return 'code';
+    if (element.matches('blockquote')) return 'quote';
+    if (element.matches('.disclose,details')) return 'detail';
+    return element.tagName.toLowerCase();
+  };
+
+  const sectionKeyFor = (element) => {
+    const section = element.closest('section[id],[data-lattice-section]');
+    if (!section) return 'document';
+    return section.id || section.getAttribute('data-lattice-section') || 'document';
+  };
+
+  const eligibleAnchors = () => {
+    document.querySelectorAll('[data-lattice-comment-anchor]').forEach((element) =>
+      element.removeAttribute('data-lattice-comment-anchor'));
+
+    const anchors = new Set(document.querySelectorAll(
+      'section[id], [data-lattice-section], [data-lattice-comment]',
+    ));
+    const counters = new Map();
+    document.querySelectorAll(autoAnchorSelector).forEach((element) => {
+      if (element.matches('[data-lattice-comment]')) return;
+      if (element.parentElement?.closest('[data-lattice-comment]')) return;
+      if (element.matches('table') && element.closest('.tblwrap')) return;
+
+      const base = sectionKeyFor(element);
+      const kind = anchorKind(element);
+      const counterKey = `${base}/${kind}`;
+      const order = (counters.get(counterKey) || 0) + 1;
+      counters.set(counterKey, order);
+      element.setAttribute('data-lattice-comment-anchor', `${counterKey}-${order}`);
+      anchors.add(element);
+    });
+    return anchors;
+  };
+
+  const threadsFor = (selector) => threads.filter((thread) => thread.selector === selector);
+
+  const avatar = (author) => {
+    const node = document.createElement('span');
+    node.className = 'avatar';
+    node.textContent = initials(author);
+    return node;
+  };
+
+  const makeHost = (selector, element) => {
+    const host = document.createElement('span');
+    host.className = 'lattice-comment-marker';
+    host.dataset.selector = selector;
+    const root = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = css;
+    const wrap = document.createElement('span');
+    wrap.className = 'marker-wrap';
+    root.append(style, wrap);
+    const position = getComputedStyle(element).position;
+    if (position === 'static') element.style.position = 'relative';
+    element.append(host);
+    markerHosts.set(selector, host);
+    return host;
+  };
+
+  const placeHost = (host, element, hasThreads) => {
+    if (hasThreads) {
+      if (host.parentElement !== element) element.append(host);
+      host.style.cssText = 'position:absolute;right:-8px;top:12px;left:auto;transform:none;z-index:2147483000';
+      host.classList.remove('is-hovered');
+      return;
+    }
+
+    if (host.parentElement !== document.body) document.body.append(host);
+    if (!host.dataset.cursorPosition) host.dataset.cursorPosition = '-100px,-100px';
+    const [x, y] = host.dataset.cursorPosition.split(',');
+    host.style.display = 'block';
+    host.style.width = '28px';
+    host.style.height = '28px';
+    host.style.position = 'fixed';
+    host.style.left = '0';
+    host.style.top = '0';
+    host.style.right = 'auto';
+    host.style.transform = `translate3d(${x},${y},0) translate(-50%,-50%)`;
+    host.style.zIndex = '2147483000';
+  };
+
+  const preview = (items) => {
+    const box = document.createElement('span');
+    box.className = 'preview';
+    const first = items[0] && items[0].comments && items[0].comments[0];
+    if (!first) {
+      box.hidden = true;
+      return box;
+    }
+    const head = document.createElement('span');
+    head.className = 'preview-head';
+    const identity = document.createElement('span');
+    const name = document.createElement('b');
+    name.textContent = first.author || 'Unknown';
+    const time = document.createElement('span');
+    time.className = 'preview-time';
+    time.textContent = formatTime(first.created);
+    identity.append(name, document.createTextNode(' '), time);
+    head.append(avatar(first.author), identity);
+    const body = document.createElement('span');
+    body.className = 'preview-body';
+    body.textContent = first.body;
+    const replies = document.createElement('span');
+    replies.className = 'preview-replies';
+    const count = items.reduce((total, item) => total + Math.max(0, (item.comments || []).length - 1), 0);
+    replies.textContent = count + (count === 1 ? ' reply' : ' replies');
+    box.append(head, body, replies);
+    return box;
+  };
+
+  const resetCommentActions = () => {
+    openCommentMenuID = '';
+    editingCommentID = '';
+    deletingCommentID = '';
+    commentActionError = undefined;
+  };
+
+  const commentMutationURL = (thread, comment) =>
+    `${endpoint}/${encodeURIComponent(thread.id)}/comments/${encodeURIComponent(comment.id)}`;
+
+  const commentRow = (thread, comment) => {
+    const row = document.createElement('article');
+    row.className = 'comment';
+    const main = document.createElement('div');
+    main.className = 'comment-main';
+    const head = document.createElement('div');
+    head.className = 'comment-head';
+    const author = document.createElement('b');
+    author.textContent = comment.author || 'Unknown';
+    const time = document.createElement('time');
+    time.textContent = formatTime(comment.created);
+    if (!comment.deleted && (comment.edited || Number(comment.updated) > Number(comment.created))) {
+      const edited = document.createElement('span');
+      edited.className = 'edited';
+      edited.textContent = 'edited';
+      head.append(author, time, edited);
+    } else {
+      head.append(author, time);
+    }
+    const body = document.createElement('p');
+    body.textContent = comment.deleted ? 'Comment deleted' : comment.body;
+    body.classList.toggle('is-deleted', Boolean(comment.deleted));
+    main.append(head);
+
+    if (editingCommentID === comment.id && !comment.deleted) {
+      const form = document.createElement('form');
+      form.className = 'inline-edit';
+      const area = document.createElement('textarea');
+      area.value = comment.body;
+      area.setAttribute('aria-label', 'Edit comment');
+      const actions = document.createElement('div');
+      actions.className = 'inline-edit-actions';
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', (event) => {
+        event.stopPropagation();
+        resetCommentActions();
+        render();
+      });
+      const save = document.createElement('button');
+      save.className = 'save';
+      save.type = 'submit';
+      save.textContent = 'Save';
+      save.disabled = true;
+      area.addEventListener('input', () => {
+        save.disabled = !area.value.trim() || area.value.trim() === comment.body;
+      });
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const text = area.value.trim();
+        if (!text || text === comment.body) return;
+        save.disabled = true;
+        commentActionError = undefined;
+        try {
+          await request(commentMutationURL(thread, comment), {
+            method: 'PATCH',
+            body: JSON.stringify({ body: text }),
+          });
+          resetCommentActions();
+          await refresh();
+        } catch (cause) {
+          commentActionError = { id: comment.id, message: cause.message || 'Could not edit comment' };
+          save.disabled = false;
+          render();
+        }
+      });
+      actions.append(cancel, save);
+      form.append(area, actions);
+      if (commentActionError?.id === comment.id) {
+        const error = document.createElement('div');
+        error.className = 'action-error';
+        error.textContent = commentActionError.message;
+        form.append(error);
+      }
+      main.append(form);
+      queueMicrotask(() => {
+        area.focus();
+        area.setSelectionRange(area.value.length, area.value.length);
+      });
+    } else {
+      main.append(body);
+    }
+    row.append(avatar(comment.author), main);
+
+    if (comment.can_edit && !comment.deleted && editingCommentID !== comment.id) {
+      const actions = document.createElement('div');
+      actions.className = 'comment-actions';
+      const trigger = document.createElement('button');
+      trigger.className = 'comment-menu-trigger';
+      trigger.type = 'button';
+      trigger.textContent = '•••';
+      trigger.setAttribute('aria-label', 'Comment actions');
+      trigger.setAttribute('aria-expanded', String(openCommentMenuID === comment.id));
+      trigger.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openCommentMenuID = openCommentMenuID === comment.id ? '' : comment.id;
+        deletingCommentID = '';
+        commentActionError = undefined;
+        render();
+      });
+      actions.append(trigger);
+
+      if (openCommentMenuID === comment.id) {
+        const menu = document.createElement('div');
+        menu.className = 'comment-menu';
+        menu.setAttribute('role', 'menu');
+        if (deletingCommentID === comment.id) {
+          const confirm = document.createElement('div');
+          confirm.className = 'delete-confirm';
+          const label = document.createElement('p');
+          label.textContent = 'Delete this comment?';
+          const buttons = document.createElement('div');
+          buttons.className = 'delete-confirm-actions';
+          const cancel = document.createElement('button');
+          cancel.type = 'button';
+          cancel.textContent = 'Cancel';
+          cancel.addEventListener('click', (event) => {
+            event.stopPropagation();
+            deletingCommentID = '';
+            commentActionError = undefined;
+            render();
+          });
+          const remove = document.createElement('button');
+          remove.className = 'danger';
+          remove.type = 'button';
+          remove.textContent = 'Delete';
+          remove.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            remove.disabled = true;
+            commentActionError = undefined;
+            try {
+              await request(commentMutationURL(thread, comment), { method: 'DELETE' });
+              resetCommentActions();
+              await refresh();
+            } catch (cause) {
+              commentActionError = { id: comment.id, message: cause.message || 'Could not delete comment' };
+              remove.disabled = false;
+              render();
+            }
+          });
+          buttons.append(cancel, remove);
+          confirm.append(label, buttons);
+          if (commentActionError?.id === comment.id) {
+            const error = document.createElement('div');
+            error.className = 'action-error';
+            error.textContent = commentActionError.message;
+            confirm.append(error);
+          }
+          menu.append(confirm);
+        } else {
+          const edit = document.createElement('button');
+          edit.type = 'button';
+          edit.setAttribute('role', 'menuitem');
+          edit.textContent = 'Edit';
+          edit.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openCommentMenuID = '';
+            editingCommentID = comment.id;
+            commentActionError = undefined;
+            render();
+          });
+          const remove = document.createElement('button');
+          remove.className = 'danger';
+          remove.type = 'button';
+          remove.setAttribute('role', 'menuitem');
+          remove.textContent = 'Delete';
+          remove.addEventListener('click', (event) => {
+            event.stopPropagation();
+            deletingCommentID = comment.id;
+            commentActionError = undefined;
+            render();
+          });
+          menu.append(edit, remove);
+        }
+        actions.append(menu);
+      }
+      row.append(actions);
+    }
+    return row;
+  };
+
+  const composer = (placeholder, submit) => {
+    const form = document.createElement('form');
+    form.className = 'composer';
+    const box = document.createElement('div');
+    box.className = 'composer-box';
+    const area = document.createElement('textarea');
+    area.placeholder = placeholder;
+    area.rows = 1;
+    const send = document.createElement('button');
+    send.className = 'send';
+    send.type = 'submit';
+    send.disabled = true;
+    send.setAttribute('aria-label', placeholder);
+    send.textContent = '↑';
+    const error = document.createElement('div');
+    error.className = 'error';
+    area.addEventListener('input', () => {
+      send.disabled = !area.value.trim();
+      area.style.height = '44px';
+      area.style.height = Math.min(area.scrollHeight, 120) + 'px';
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const body = area.value.trim();
+      if (!body) return;
+      send.disabled = true;
+      error.textContent = '';
+      try {
+        await submit(body);
+        area.value = '';
+        composingSelector = '';
+        exitCommentMode(false);
+        await refresh();
+      } catch (cause) {
+        error.textContent = cause.message || 'Could not save comment';
+        send.disabled = false;
+      }
+    });
+    box.append(area, send);
+    form.append(avatar('You'), box, error);
+    return { form, area };
+  };
+
+  const popover = (selector, items, isComposing) => {
+    const box = document.createElement('div');
+    box.className = 'popover';
+    box.hidden = openSelector !== selector;
+    const head = document.createElement('div');
+    head.className = 'pop-head';
+    const title = document.createElement('strong');
+    let element;
+    try { element = document.querySelector(selector); } catch {}
+    title.textContent = (items[0] && items[0].anchor_text) || (element && anchorText(element)) || selector;
+    const close = document.createElement('button');
+    close.className = 'close';
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Close');
+    close.textContent = '×';
+    close.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openSelector = '';
+      composingSelector = '';
+      resetCommentActions();
+      render();
+    });
+    const actions = document.createElement('div');
+    actions.className = 'pop-actions';
+    if (items.length) {
+      const fresh = document.createElement('button');
+      fresh.className = 'new-thread';
+      fresh.type = 'button';
+      fresh.setAttribute('aria-label', 'Start another thread');
+      fresh.textContent = '+';
+      fresh.addEventListener('click', (event) => {
+        event.stopPropagation();
+        composingSelector = composingSelector === selector ? '' : selector;
+        resetCommentActions();
+        render();
+      });
+      actions.append(fresh);
+    }
+    actions.append(close);
+    head.append(title, actions);
+    const body = document.createElement('div');
+    body.className = 'pop-body';
+    items.forEach((thread) => {
+      const section = document.createElement('div');
+      section.className = 'thread';
+      const meta = document.createElement('span');
+      meta.className = 'thread-meta';
+      const source = typeof thread.snapshot_version_created === 'number'
+        ? ` · snapshot v${thread.snapshot_version_created}`
+        : ' · local source';
+      meta.textContent = (thread.status === 'resolved' ? 'resolved' : 'open') + source;
+      section.append(meta);
+      (thread.comments || []).forEach((comment) => section.append(commentRow(thread, comment)));
+      const reply = composer('Reply', (message) =>
+        request(`${endpoint}/${encodeURIComponent(thread.id)}/comments`, {
+          method: 'POST',
+          body: JSON.stringify({ body: message, author: 'You', author_kind: 'human' }),
+        }),
+      );
+      section.append(reply.form);
+      body.append(section);
+    });
+    if (isComposing || !items.length) {
+      const fresh = composer('Add a comment', (message) =>
+        request(endpoint, {
+          method: 'POST',
+          body: JSON.stringify({
+            selector,
+            anchor_text: element ? anchorText(element) : '',
+            body: message,
+            author: 'You',
+            author_kind: 'human',
+          }),
+        }),
+      );
+      body.append(fresh.form);
+      queueMicrotask(() => fresh.area.focus());
+    }
+    box.append(head, body);
+    return box;
+  };
+
+  const renderMarker = (selector, element, items) => {
+    const host = markerHosts.get(selector) || makeHost(selector, element);
+    placeHost(host, element, items.length > 0);
+    host.classList.toggle('is-empty', !items.length);
+    host.classList.toggle('is-open', openSelector === selector);
+    const wrap = host.shadowRoot.querySelector('.marker-wrap');
+    wrap.replaceChildren();
+    const button = document.createElement('button');
+    button.className = 'marker' + (items.length ? '' : ' is-new');
+    button.type = 'button';
+    button.textContent = items.length ? String(items.length) : '+';
+    button.setAttribute('aria-label', items.length ? `${items.length} discussion threads` : 'Add comment');
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openSelector = openSelector === selector ? '' : selector;
+      composingSelector = items.length ? '' : selector;
+      resetCommentActions();
+      render();
+    });
+    wrap.append(button, preview(items), popover(selector, items, composingSelector === selector));
+  };
+
+  const render = () => {
+    const anchors = eligibleAnchors();
+    threads.forEach((thread) => {
+      try {
+        const element = document.querySelector(thread.selector);
+        if (element) anchors.add(element);
+      } catch {}
+    });
+    anchors.forEach((element) => {
+      const selector = selectorFor(element);
+      if (!selector) return;
+      element.toggleAttribute('data-lattice-comment-target', commentMode);
+      const items = threadsFor(selector);
+      if (items.length || commentMode || markerHosts.has(selector)) {
+        renderMarker(selector, element, items);
+        const host = markerHosts.get(selector);
+        host.hidden = !items.length && !commentMode && openSelector !== selector;
+      }
+    });
+    reportTheme();
+  };
+
+  const enterCommentMode = () => {
+    commentMode = true;
+    document.body.dataset.latticeCommentMode = 'true';
+    render();
+    notifyMode();
+  };
+
+  const exitCommentMode = (renderNow = true) => {
+    commentMode = false;
+    delete document.body.dataset.latticeCommentMode;
+    document.querySelectorAll('[data-lattice-comment-target]').forEach((element) => {
+      element.removeAttribute('data-lattice-comment-target');
+      element.classList.remove('is-lattice-cursor-target');
+    });
+    markerHosts.forEach((host) => host.classList.remove('is-hovered'));
+    if (renderNow) render();
+    notifyMode();
+  };
+
+  const notifyMode = () => {
+    if (isEmbedded) window.parent.postMessage({ type: 'lattice:comment-mode-state', active: commentMode }, location.origin);
+  };
+
+  const refresh = async () => {
+    const out = await request(endpoint);
+    if (!out) return;
+    threads = Array.isArray(out) ? out : (out.threads || []);
+    render();
+    if (isEmbedded) {
+      window.parent.postMessage({ type: 'lattice:comment-count', count: threads.length }, location.origin);
+    }
+  };
+
+  const reportTheme = () => {
+    const rootStyle = getComputedStyle(document.documentElement);
+    const bodyStyle = getComputedStyle(document.body);
+    const value = (name, fallback) => rootStyle.getPropertyValue(name).trim() || fallback;
+    const theme = {
+      '--paper': value('--bg', bodyStyle.backgroundColor),
+      '--sub': value('--bg-sub', bodyStyle.backgroundColor),
+      '--ink': value('--ink', bodyStyle.color),
+      '--ink-2': value('--ink-2', bodyStyle.color),
+      '--muted': value('--muted', bodyStyle.color),
+      '--line': value('--line', bodyStyle.color),
+    };
+    markerHosts.forEach((host) => {
+      Object.entries(theme).forEach(([name, color]) => host.style.setProperty(name, color));
+      host.style.colorScheme = rootStyle.colorScheme;
+    });
+    if (isEmbedded) {
+      window.parent.postMessage({
+        type: 'lattice:document-theme',
+        background: theme['--paper'],
+        color: theme['--ink'],
+      }, location.origin);
+    }
+  };
+
+  let cursorTarget;
+  const clearCursorTarget = () => {
+    if (!cursorTarget) return;
+    cursorTarget.classList.remove('is-lattice-cursor-target');
+    const selector = selectorFor(cursorTarget);
+    const host = selector && markerHosts.get(selector);
+    if (host) host.classList.remove('is-hovered');
+    cursorTarget = null;
+  };
+
+  document.addEventListener('pointermove', (event) => {
+    if (!commentMode) return;
+    const insideMarker = event.composedPath().some((node) =>
+      node.classList && node.classList.contains('lattice-comment-marker'));
+    if (insideMarker) return;
+
+    const target = event.target.closest && event.target.closest('[data-lattice-comment-target]');
+    if (!target) {
+      clearCursorTarget();
+      return;
+    }
+
+    if (cursorTarget !== target) {
+      clearCursorTarget();
+      cursorTarget = target;
+      target.classList.add('is-lattice-cursor-target');
+    }
+
+    const selector = selectorFor(target);
+    const host = selector && markerHosts.get(selector);
+    if (!host || !host.classList.contains('is-empty')) return;
+    host.dataset.cursorPosition = `${event.clientX}px,${event.clientY}px`;
+    host.style.transform = `translate3d(${event.clientX}px,${event.clientY}px,0) translate(-50%,-50%)`;
+    host.classList.add('is-hovered');
+  }, true);
+
+  document.addEventListener('pointerout', (event) => {
+    if (commentMode && !event.relatedTarget) clearCursorTarget();
+  }, true);
+
+  document.addEventListener('click', (event) => {
+    if (commentMode) {
+      const target = event.target.closest && event.target.closest('[data-lattice-comment-target]');
+      if (target && !event.composedPath().some((node) => node.classList && node.classList.contains('lattice-comment-marker'))) {
+        event.preventDefault();
+        event.stopPropagation();
+        const selector = selectorFor(target);
+        const items = threadsFor(selector);
+        openSelector = selector;
+        composingSelector = items.length ? '' : selector;
+        resetCommentActions();
+        render();
+        return;
+      }
+    }
+    const insideMarker = event.composedPath().some((node) =>
+      node.classList && node.classList.contains('lattice-comment-marker'));
+    if (!insideMarker && openSelector) {
+      openSelector = '';
+      composingSelector = '';
+      resetCommentActions();
+      render();
+    }
+  }, true);
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (openCommentMenuID || editingCommentID || deletingCommentID) {
+      resetCommentActions();
+      render();
+    } else if (openSelector) {
+      openSelector = '';
+      composingSelector = '';
+      render();
+    } else if (commentMode) {
+      exitCommentMode();
+    }
+  });
+
+  addEventListener('message', (event) => {
+    if (event.origin !== location.origin || event.data?.type !== 'lattice:comment-mode') return;
+    if (event.data.active === false) exitCommentMode();
+    else if (event.data.active === true) enterCommentMode();
+    else commentMode ? exitCommentMode() : enterCommentMode();
+  });
+
+  new MutationObserver(reportTheme).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'style', 'class'],
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', reportTheme);
+
+  if (!isEmbedded) {
+    const host = document.createElement('span');
+    const root = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = css;
+    const launcher = document.createElement('button');
+    launcher.className = 'launcher';
+    launcher.type = 'button';
+    launcher.setAttribute('aria-label', 'Comment');
+    launcher.textContent = '＋';
+    launcher.addEventListener('click', () => commentMode ? exitCommentMode() : enterCommentMode());
+    root.append(style, launcher);
+    document.body.append(host);
+  }
+
+  window.lattice = Object.assign(window.lattice || {}, {
+    comments: {
+      list: () => threads.slice(),
+      refresh,
+      start: enterCommentMode,
+      stop: exitCommentMode,
+    },
+  });
+
+  reportTheme();
+  refresh().catch(() => {});
+  document.dispatchEvent(new CustomEvent('lattice:comments-ready', { detail: window.lattice.comments }));
+})();

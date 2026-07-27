@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SSO gating em documentos compartilhados — lattice.pub</title>
+<script>(function(){try{var t=localStorage.getItem('lattice-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}})()</script>
+<style>
+  :root{
+    --bg:#ffffff; --bg-sub:#fafafa;
+    --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
+    --line:#e4e4e4; --line-2:#111111;
+    --accent:#ed1a4d;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --serif:ui-serif,Georgia,"Times New Roman",serif;
+    --pad-section:56px;        /* density: comfortable */
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.6 var(--sans);
+    font-variant-numeric:tabular-nums;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+  header{
+    display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+    padding:18px 0;border-bottom:1px solid var(--line-2);
+  }
+  .brand{font-weight:500;font-family:var(--serif)}
+  .meta{color:var(--muted);font-size:11px;font-family:var(--mono)}
+  .toggle{
+    font:inherit;font-size:11px;font-family:var(--mono);
+    background:none;border:1px solid var(--line);color:var(--ink);
+    padding:4px 10px;cursor:pointer;
+  }
+  .toggle:hover{border-color:var(--line-2)}
+
+  section{padding:var(--pad-section) 0 8px}
+  .eyebrow{font-size:11px;color:var(--muted);margin:0 0 12px;font-family:var(--mono)}
+  h1{font-family:var(--serif);font-size:27px;font-weight:500;line-height:1.25;margin:0 0 12px}
+  h2{font-family:var(--serif);font-size:20px;font-weight:500;margin:0 0 8px}
+  h3{font-family:var(--serif);font-size:15px;font-weight:600;margin:0 0 6px}
+  p{margin:0 0 14px;color:var(--ink-2);max-width:70ch}
+  .lead{color:var(--ink);font-size:16px;max-width:78ch}
+  .sub{color:var(--muted);font-size:11px;font-family:var(--mono)}
+  a{color:var(--accent);text-underline-offset:3px}
+  code{font-family:var(--mono);font-size:.88em;background:var(--bg-sub);padding:1px 5px;border:1px solid var(--line)}
+
+  /* verdict chips — qualitative, borderless-ish cards (dividers: soft, modules: cards) */
+  .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:24px}
+  .fact{background:var(--bg-sub);padding:18px 18px 20px}
+  .fact .k{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:8px}
+  .fact .v{font-family:var(--serif);font-size:17px;font-weight:500;line-height:1.35}
+  @media(max-width:720px){.facts{grid-template-columns:1fr}}
+
+  /* flow steps — cards, separated */
+  .flow{display:grid;gap:12px;margin-top:22px}
+  .step{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start;background:var(--bg-sub);padding:16px 18px}
+  .step .n{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:600;padding-top:2px;min-width:2ch}
+  .step h3{margin:0 0 3px}
+  .step p{margin:0;font-size:13px;max-width:74ch}
+
+  /* two-up cards */
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px}
+  .panel{background:var(--bg-sub);padding:18px}
+  .panel .k{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:8px}
+  .panel p{margin:0;font-size:13px;max-width:60ch}
+  @media(max-width:720px){.duo{grid-template-columns:1fr}}
+
+  /* table — hairlines allowed here even under soft dividers */
+  .tblwrap{overflow-x:auto;margin-top:20px}
+  table{width:100%;border-collapse:collapse;font-size:13px;font-family:var(--mono)}
+  th{text-align:left;font-weight:500;color:var(--muted);font-size:11px;padding:9px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+  td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:nth-child(even){background:var(--bg-sub)}
+  .tag{display:inline-block;font-size:11px;font-family:var(--mono);border:1px solid var(--line);color:var(--ink-2);padding:2px 8px;white-space:nowrap}
+  .tag.hot{border-color:var(--accent);color:var(--accent)}
+
+  ul.tight{margin:6px 0 0;padding-left:18px}
+  ul.tight li{color:var(--ink-2);font-size:13px;margin-bottom:8px;max-width:74ch}
+  ul.tight li b{color:var(--ink);font-weight:600}
+
+  .invert{background:var(--ink);color:var(--bg);padding:26px;margin-top:40px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+  .invert .lbl{font-size:11px;opacity:.6;font-family:var(--mono)}
+  .invert .big{font-family:var(--serif);font-size:17px;font-weight:500;margin-top:6px;max-width:60ch}
+
+  footer{margin-top:36px;padding:24px 0;border-top:1px solid var(--line-2);color:var(--muted);font-size:11px;font-family:var(--mono);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .ico{display:inline-flex;width:1em;height:1em;vertical-align:-.14em}
+  .ico svg{width:100%;height:100%;display:block}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">SSO gating · lattice.pub</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="meta">2026-07-24</span>
+      <button class="toggle" id="themeBtn">tema</button>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">01 — Veredito</p>
+    <h1>Restringir um documento compartilhado a <span style="color:var(--accent)">@furia.gg</span> é viável, e o bloqueio pode ser seamless</h1>
+    <p class="lead">A pergunta era se dá pra pôr uma barreira de acesso por domínio antes de servir o snapshot, e se ela fica sem fricção pra quem já está logado. As duas respostas são sim. O mecanismo é OIDC com o Google, idêntico ao comportamento de um doc do Google Docs restrito à organização.</p>
+    <div class="facts">
+      <div class="fact"><div class="k">viabilidade</div><div class="v">Alta. Só um ponto no Worker precisa do gate.</div></div>
+      <div class="fact"><div class="k">seamless?</div><div class="v">Sim. Quem já está no Workspace entra num flash de redirect, sem senha.</div></div>
+      <div class="fact"><div class="k">base atual</div><div class="v">Já é <code>no-store</code>, sem CDN. Cenário ideal pra encaixar.</div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">02 — O fluxo sem fricção</p>
+    <h2>O que acontece quando alguém abre o link protegido</h2>
+    <p>O Worker vira o Relying Party do OIDC. O "seamless" vem da etapa 2: se a pessoa já tem sessão no Workspace da furia, o Google devolve sem pedir nada.</p>
+    <div class="flow">
+      <div class="step"><div class="n">1</div><div><h3>Sem cookie de sessão</h3><p>O <code>servePublic</code> vê que o snapshot exige <code>allowed_domain</code> e não há sessão. Responde <code>302</code> pro Google com <code>hd=furia.gg</code>, <code>state</code> e <code>nonce</code>.</p></div></div>
+      <div class="step"><div class="n">2</div><div><h3>Google devolve sem interação</h3><p>Já logado no Workspace, o consentimento é invisível. É o flash de redirect. O ID token volta pra uma rota nova, tipo <code>/__auth/callback</code>.</p></div></div>
+      <div class="step"><div class="n">3</div><div><h3>Valida server-side</h3><p>O Worker confere a assinatura do token contra o JWKS do Google e compara o claim <code>hd</code>/<code>email</code> com o <code>allowed_domain</code> do documento.</p></div></div>
+      <div class="step"><div class="n">4</div><div><h3>Sessão ou 403</h3><p>Bate → seta cookie assinado (<code>HttpOnly; Secure; SameSite=Lax</code>) e redireciona pro snapshot. Não bate → <code>403</code>. Visitas seguintes servem direto.</p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">03 — Onde estamos hoje</p>
+    <h2>A base atual ajuda mais do que atrapalha</h2>
+    <div class="duo">
+      <div class="panel">
+        <div class="k">ajuda</div>
+        <h3>Já é rota dinâmica, sem cache</h3>
+        <p>O serving lê R2+D1 a cada request e responde com <code>Cache-Control: no-store</code> (<code>index.ts:262</code>). Não há CDN cacheando o HTML, então o gate não vaza o conteúdo por trás de um cache público.</p>
+      </div>
+      <div class="panel">
+        <div class="k">falta</div>
+        <h3>Leitura é 100% aberta por URL</h3>
+        <p>Não existe cookie, sessão nem noção de visibilidade — a única "proteção" é a obscuridade do subdomínio. O Bearer token só cobre o namespace de gerência <code>/v1/*</code>, não a leitura pública.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">04 — O que construir</p>
+    <h2>Escopo</h2>
+    <p>O trabalho mora quase todo no Worker. O CLI e o schema são mudanças pequenas.</p>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Peça</th><th>Onde</th><th>Esforço</th></tr></thead>
+        <tbody>
+          <tr><td>Coluna <code>allowed_domain</code> (nullable = público como hoje)</td><td>cloud/schema.sql · <code>shares</code></td><td><span class="tag">trivial</span></td></tr>
+          <tr><td>Enviar e persistir o campo no publish</td><td>hosted.go:112 · <code>CreateBody</code> · createShare</td><td><span class="tag">pequeno</span></td></tr>
+          <tr><td>Flag no CLI, ex. <code>--allow-domain furia.gg</code></td><td>cmd/lattice/hosted.go</td><td><span class="tag">pequeno</span></td></tr>
+          <tr><td>Callback OAuth + troca de code + validação de JWT</td><td>index.ts · <code>route</code></td><td><span class="tag hot">o grosso</span></td></tr>
+          <tr><td>Cookie de sessão assinado + gate no serving</td><td>index.ts:238 servePublic · :266 recordVote</td><td><span class="tag">médio</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">05 — Pontos de atenção</p>
+    <h2>O que decide se fica seguro de verdade</h2>
+    <ul class="tight">
+      <li><b>Valide o domínio no backend, não confie no request.</b> O <code>hd=furia.gg</code> no auth URL só filtra o seletor de conta. A checagem real é o claim do ID token depois de validar a assinatura. E <code>hd</code> só existe em conta Workspace — Gmail pessoal não tem.</li>
+      <li><b>Sessão precisa de storage ou de assinatura.</b> Cookie stateless com HMAC (um secret no Worker) é o caminho mais simples pra começar, sem tabela de sessões.</li>
+      <li><b>Escopo do cookie define a experiência.</b> Cookie por subdomínio → re-login por doc. Cookie no domínio-pai <code>.lattice.pub</code> → uma sessão vale pra todos os docs. Decisão de design.</li>
+      <li><b>Credenciais OAuth viram secrets do Worker</b> (<code>wrangler secret</code>), nunca no código.</li>
+    </ul>
+  </section>
+
+  <div class="invert">
+    <div>
+      <div class="lbl">Em aberto</div>
+      <div class="big">Implementar agora? E o gate é só Google Workspace, ou precisa pensar em Microsoft / Entra ID lá na frente?</div>
+    </div>
+    <div class="lbl"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg></span> decidir antes de codar</div>
+  </div>
+
+  <footer>
+    <span>Hugo · dúvida de arquitetura sobre compartilhamento protegido</span>
+    <span>lattice.pub · snapshot</span>
+  </footer>
+
+</div>
+<script>
+document.getElementById('themeBtn').addEventListener('click',function(){
+  var r=document.documentElement;
+  var cur=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  var next=cur==='dark'?'light':'dark';
+  r.dataset.theme=next;
+  try{localStorage.setItem('lattice-theme',next)}catch(e){}
+});
+</script>
+</body>
+</html>

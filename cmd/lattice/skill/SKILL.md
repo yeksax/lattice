@@ -10,7 +10,9 @@ description: >-
   Invoke it BEFORE writing any HTML/CSS so the output matches the house style
   instead of defaulting to generic cream-and-serif slop. Also invoke it when
   updating or following up on an earlier summary — summaries are per-step
-  snapshots and must never be overwritten to reflect later state.
+  snapshots and must never be overwritten to reflect later state. Use it too
+  when operating the lattice CLI for summary registration, configuration,
+  sharing, polls, or local and hosted discussion threads.
 ---
 
 # HTML Summary — house style
@@ -24,10 +26,11 @@ possible** — dense, scannable, functional. Not an editorial landing page.
 
 | file | when to open it |
 |---|---|
-| `template.html` | always — the shared base (tokens, header, theme toggle, footer) sits at the top of it |
+| `template.html` | always: the shared base (tokens, sticky header, theme control, footer) sits at the top of it |
 | `references/layout.md` | before choosing your sections: the template is a **guide**, not a mould |
 | `references/diagrams.md` | the drawing vocabulary — flow chain, before/after, layers, waterfall, matrix, count strip |
 | `references/polls.md` | when the summary collects votes — the bridge, both patterns, graceful degradation |
+| `references/lattice-cli.md` | before any Lattice CLI operation: complete commands, flags, local/hosted behavior, and comment workflows |
 | `examples/poll-live-reveal.html` | ordinary poll: vote, reveal immediately |
 | `examples/poll-bakeoff.html` | blind bake-off: nothing reveals until the last vote |
 | `examples/interactive-walkthrough.html` | manual / onboarding: re-enacted interaction + step-by-step narration |
@@ -165,6 +168,50 @@ empty bento cell is still worse than no bento. See the KPI-strip trap in
 Illustration is line art: hairline strokes, ≤ 6 nodes, labels of 1–3 words,
 `color: var(--muted)` so it stays calm in both schemes, no fills unless the fill
 is data.
+
+## Stable comment anchors
+
+Every meaningful top-level section gets a stable, semantic HTML `id`. Anchors
+make the document addressable for deep links, accessibility, browser navigation,
+automation, and commentary tools. They are part of the document's interface,
+even when no library or sharing service is installed.
+
+```html
+<section id="recommendation">
+  <h2>Ship the simpler path</h2>
+</section>
+```
+
+Use short lowercase kebab-case names derived from the section's meaning. Keep an
+existing ID when the snapshot is revised and the section still represents the
+same concept. Never use presentation order (`section-3`), generated hashes, DOM
+position, or selectors such as `:nth-child()` as durable identity. IDs must be
+unique within the page.
+
+Meaningful modules inside a section also get a stable, semantic
+`data-lattice-comment` value when they could receive useful feedback on their
+own. This includes cards, metric cells, tables, charts, progress bars, diagrams,
+code blocks, comparisons, and callouts.
+
+```html
+<div class="metric" data-lattice-comment="monthly-cost">
+  <div class="val">$184</div>
+  <div class="lbl">monthly cost</div>
+</div>
+
+<div class="tblwrap"
+     data-lattice-comment="regional-breakdown"
+     data-lattice-comment-label="Cost by region">
+  <table>...</table>
+</div>
+```
+
+Values must be unique across the page and describe meaning, not presentation:
+use `regional-breakdown`, never `card-2`. Keep them across revisions while the
+module still represents the same concept. Add `data-lattice-comment-label` when
+the visible text does not provide a concise title. Do not annotate both a
+wrapper and its children unless each level is independently worth discussing.
+Sections remain the broad fallback; module anchors provide precise feedback.
 
 ## One file per step — never overwrite a previous summary
 
@@ -368,12 +415,10 @@ glowing white rule that turns every card into a lightbox. Text and fills invert;
 - The exception is **data ink**: a filled bar, a metric, the inverted block. Those
   are content, not chrome, and they invert normally.
 
-Support both schemes: `@media (prefers-color-scheme: dark)` as the default
-signal, plus `:root[data-theme]` overrides if you add a theme toggle. **Never
-write a static `data-theme` on `<html>`** — it outranks the media query by
-specificity and silently kills dark mode for everyone who never clicks the
-toggle. Let the attribute exist only once the toggle sets it, and gate the dark
-media query on `:root:not([data-theme="light"])`.
+Support both schemes with `@media (prefers-color-scheme: dark)` as the default,
+plus `:root[data-theme]` overrides controlled by the document's theme button.
+Never write a static `data-theme` on `<html>`. Restore an explicit reader choice
+before first paint, and let the surrounding Lattice chrome follow the document.
 
 ## Type
 
@@ -395,6 +440,9 @@ media query on `:root:not([data-theme="light"])`.
 ## Layout
 
 - Content column `max-width: 1080–1180px`, centered, `padding: 0 20px`.
+- Keep the document header compact and sticky: 52px high, title on the left,
+  metadata and one theme control on the right, plus a single muted bottom
+  hairline. Truncate long titles and metadata instead of letting it grow.
 - **Don't rule every section.** Whitespace + the eyebrow label *is* the
   delimiter. A hairline divider between every section is visual noise — cut them.
   Use a divider only where scanning genuinely needs one (≤1–2 per page); the header
@@ -509,6 +557,9 @@ icons (buttons, list markers, status), not typography.
 - [ ] **Drawn**: each section carries a visual (diagram, bar, table, metric,
       simulated surface) or is a deliberate two-line statement. Deleting all the
       paragraphs would still transmit the point.
+- [ ] **Addressable**: every meaningful top-level section has a unique, semantic,
+      stable `id`, and independently discussable modules have stable
+      `data-lattice-comment` values. No positional or generated identities.
 - [ ] **New step = new file.** You did NOT overwrite an earlier summary to bring
       it up to date. Earlier snapshots are untouched and cross-linked.
 - [ ] Single `.html`, everything inline (CSS/JS/images-as-`data:`/SVG glyphs),
@@ -538,15 +589,21 @@ stays up) or just hand them the file.
 Every summary gets registered in **lattice**, the local app serving `~/.summaries`
 at `http://127.0.0.1:4600`.
 
-1. **Before naming the file**, check slugs already taken: `ls ~/.summaries`.
+**Read `references/lattice-cli.md` before running any Lattice command.** It is
+the authoritative manual for the full CLI, including flags, configuration,
+sharing side effects, selector syntax, and the local versus hosted discussion
+workflow. The steps below are only the normal registration handoff.
+
+1. **Before naming the file**, run `lattice ls` and check the existing slugs.
    Lattice slugifies the filename (`My Report.html` → `my-report`) and de-dupes
    with `-2`, `-3`… — pick a filename whose slug doesn't collide so the URL
    stays clean.
 2. **After writing the file**, register it:
    `~/.local/bin/lattice add "<abs path>" --tags <comma,separated,topics>`
-   This symlinks it into `~/.summaries` (original file untouched) and opens it
-   at `http://127.0.0.1:4600/s/<slug>` — which live-reloads on every edit to
-   the file, so register early if iterating. Add `--no-open` to skip the browser.
+   This records the absolute source path in Lattice metadata, leaves the
+   original file untouched, and opens it at
+   `http://127.0.0.1:4600/s/<slug>`. It live-reloads on every edit to the
+   file, so register early if iterating. Add `--no-open` to skip the browser.
 3. **Non-fatal**: if the `lattice` binary or server is missing, skip silently and
    mention the file can be added later with `lattice add`.
 

@@ -8,9 +8,18 @@
 //                       /submit + /results endpoints - byte-for-byte the same
 //                       contract as the local daemon's public listener.
 //
-// Storage: snapshots in R2 (key snap/<sub>), metadata + votes in D1.
+// Storage: versioned snapshots in R2, metadata + interactions in D1.
 
 import pollBridge from './poll.bridge.txt';
+import threadBridge from './thread.bridge.txt';
+import {
+  configureShareAccess,
+  handleAuth,
+  handleOwnerThreads,
+  handlePublicThreads,
+  requireShareAccess,
+  validateAllowedDomains,
+} from './threads';
 
 export interface Env {
   DB: D1Database;
@@ -19,6 +28,10 @@ export interface Env {
   PUBLIC_BASE: string;  // path form: <PUBLIC_BASE>/s/<sub> (a plain custom domain)
   MAX_SNAPSHOT_BYTES: string;
   DEFAULT_MAX_SHARES: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  AUTH_BASE: string;
+  SESSION_COOKIE_DOMAIN: string;
 }
 
 // A shared snapshot is public-by-URL, never public-to-search. Every response
@@ -51,6 +64,8 @@ async function route(req: Request, env: Env): Promise<Response> {
   // 0. robots.txt. It is per-host, so every <sub>.<SHARE_DOMAIN> needs its own.
   if (path === '/robots.txt') return robotsTxt();
 
+  if (path.startsWith('/auth/')) return handleAuth(req, env, path);
+
   // 1. Authenticated share API.
   if (path === '/v1/shares' || path.startsWith('/v1/shares/')) {
     return apiShares(req, env, path);
@@ -68,7 +83,7 @@ async function route(req: Request, env: Env): Promise<Response> {
 }
 
 // resolveTarget extracts (sub, rest) for public serving. rest is the sub-path:
-// '' for the page, '/submit', '/results'.
+// '' for the page or the public interaction endpoint path.
 function resolveTarget(url: URL, env: Env): { sub: string; rest: string } | null {
   // Subdomain form: <sub>.<SHARE_DOMAIN>
   if (env.SHARE_DOMAIN) {
@@ -83,15 +98,15 @@ function resolveTarget(url: URL, env: Env): { sub: string; rest: string } | null
       }
     }
   }
-  // Path form (dev): /s/<sub>[/submit|/results]
-  const m = url.pathname.match(/^\/s\/([a-z0-9-]+)(\/submit|\/results)?$/);
+  // Path form (dev): /s/<sub>[/submit|/results|/threads...]
+  const m = url.pathname.match(/^\/s\/([a-z0-9-]+)(\/.*)?$/);
   if (m) return { sub: m[1], rest: m[2] ?? '' };
   return null;
 }
 
 // ---- Authenticated share API -------------------------------------------------
 
-interface Token {
+export interface Token {
   token: string;
   owner: string;
   max_shares: number | null;
@@ -118,8 +133,12 @@ async function apiShares(req: Request, env: Env, path: string): Promise<Response
     return json({ error: 'method not allowed' }, 405);
   }
 
-  // /v1/shares/<slug> and /v1/shares/<slug>/results
+  // /v1/shares/<slug>, results, and owner-managed threads.
   const rest = path.slice('/v1/shares/'.length);
+  const threadMatch = rest.match(/^(.+?)(\/threads(?:\/.*)?)$/);
+  if (threadMatch) {
+    return handleOwnerThreads(req, env, tok, decodeURIComponent(threadMatch[1]), threadMatch[2]);
+  }
   const resultsMatch = rest.match(/^(.+)\/results$/);
   if (resultsMatch) {
     if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
@@ -136,6 +155,7 @@ interface CreateBody {
   html?: string;
   title?: string;
   random?: boolean;
+  allowed_domains?: string[];
 }
 
 async function createShare(req: Request, env: Env, tok: Token): Promise<Response> {
@@ -143,11 +163,15 @@ async function createShare(req: Request, env: Env, tok: Token): Promise<Response
   try {
     body = await req.json();
   } catch {
-    return json({ error: 'body must be JSON: {slug, html, sub?, title?, random?}' }, 400);
+    return json({ error: 'body must be JSON: {slug, html, sub?, title?, random?, allowed_domains?}' }, 400);
   }
   const slug = (body.slug ?? '').trim();
   const html = body.html ?? '';
   if (!slug || !html) return json({ error: 'slug and html are required' }, 400);
+  const allowedDomains = validateAllowedDomains(body.allowed_domains);
+  if (allowedDomains === null) {
+    return json({ error: 'allowed_domains must contain valid domain names' }, 400);
+  }
 
   const maxBytes = intVar(env.MAX_SNAPSHOT_BYTES, 2 << 20);
   if (byteLength(html) > maxBytes) {
@@ -180,32 +204,80 @@ async function createShare(req: Request, env: Env, tok: Token): Promise<Response
     if (taken) return json({ error: `subdomain "${sub}" is taken; retry with --random` }, 409);
   }
 
-  const r2Key = 'snap/' + sub;
+  // Access changes happen before the live snapshot pointer moves. A failed
+  // domain-gated publish therefore fails closed instead of briefly exposing the
+  // new snapshot. A brand-new share without a policy is explicitly public.
+  await configureShareAccess(env, sub, existing ? allowedDomains : (allowedDomains ?? []));
+
+  let version = 1;
+  if (existing) {
+    const versionRow = await env.DB.prepare(
+      'SELECT MAX(version) AS version FROM snapshot_versions WHERE sub = ?',
+    )
+      .bind(sub)
+      .first<{ version: number | null }>();
+    if (versionRow?.version) {
+      version = versionRow.version + 1;
+    } else {
+      // A legacy share predates explicit versions. Preserve its current object
+      // as version 1 before moving the live pointer to version 2.
+      const legacy = await env.SNAPSHOTS.get(existing.r2_key);
+      if (legacy) {
+        const legacyKey = `snap/${sub}/v1`;
+        await env.SNAPSHOTS.put(legacyKey, legacy.body, {
+          httpMetadata: { contentType: 'text/html; charset=utf-8' },
+        });
+        await env.DB.prepare(
+          'INSERT OR IGNORE INTO snapshot_versions (sub, version, r2_key, created) VALUES (?, 1, ?, ?)',
+        )
+          .bind(sub, legacyKey, now)
+          .run();
+      }
+      version = 2;
+    }
+  }
+  const r2Key = `snap/${sub}/v${version}`;
   await env.SNAPSHOTS.put(r2Key, html, { httpMetadata: { contentType: 'text/html; charset=utf-8' } });
 
+  const versionInsert = env.DB.prepare(
+    'INSERT INTO snapshot_versions (sub, version, r2_key, created) VALUES (?, ?, ?, ?)',
+  ).bind(sub, version, r2Key, now);
   if (existing) {
-    await env.DB.prepare('UPDATE shares SET r2_key = ?, title = ?, updated = ? WHERE sub = ?')
-      .bind(r2Key, body.title ?? null, now, sub)
-      .run();
+    await env.DB.batch([
+      env.DB.prepare('UPDATE shares SET r2_key = ?, title = ?, updated = ? WHERE sub = ?')
+        .bind(r2Key, body.title ?? null, now, sub),
+      versionInsert,
+    ]);
   } else {
-    await env.DB.prepare(
-      'INSERT INTO shares (sub, token, slug, r2_key, title, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    )
-      .bind(sub, tok.token, slug, r2Key, body.title ?? null, now, now)
-      .run();
+    await env.DB.batch([
+      env.DB.prepare(
+        'INSERT INTO shares (sub, token, slug, r2_key, title, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ).bind(sub, tok.token, slug, r2Key, body.title ?? null, now, now),
+      versionInsert,
+    ]);
   }
 
-  return json({ slug, sub, url: publicURL(env, sub) }, existing ? 200 : 201);
+  return json({ slug, sub, url: publicURL(env, sub), version }, existing ? 200 : 201);
 }
 
 async function listShares(env: Env, tok: Token): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT s.sub, s.slug, s.title, s.created, s.updated,
+            (SELECT sa.allowed_domains FROM share_access sa
+              WHERE sa.sub = s.sub AND sa.mode = 'domain') AS allowed_domains,
             (SELECT COUNT(*) FROM votes v WHERE v.sub = s.sub) AS votes
      FROM shares s WHERE s.token = ? ORDER BY s.updated DESC`,
   )
     .bind(tok.token)
-    .all<{ sub: string; slug: string; title: string | null; created: number; updated: number; votes: number }>();
+    .all<{
+      sub: string;
+      slug: string;
+      title: string | null;
+      created: number;
+      updated: number;
+      votes: number;
+      allowed_domains: string | null;
+    }>();
   return json(
     (results ?? []).map((r) => ({
       slug: r.slug,
@@ -215,6 +287,7 @@ async function listShares(env: Env, tok: Token): Promise<Response> {
       created: r.created,
       updated: r.updated,
       votes: r.votes,
+      domains: parseStringArray(r.allowed_domains),
     })),
   );
 }
@@ -224,8 +297,27 @@ async function deleteShare(env: Env, tok: Token, slug: string): Promise<Response
     .bind(tok.token, slug)
     .first<{ sub: string; r2_key: string }>();
   if (!row) return json({ error: `not shared: ${slug}` }, 404);
-  await env.SNAPSHOTS.delete(row.r2_key);
-  await env.DB.prepare('DELETE FROM shares WHERE sub = ?').bind(row.sub).run();
+  const versions = await env.DB.prepare('SELECT r2_key FROM snapshot_versions WHERE sub = ?')
+    .bind(row.sub)
+    .all<{ r2_key: string }>();
+  const keys = new Set([row.r2_key, ...(versions.results ?? []).map((version) => version.r2_key)]);
+  await Promise.all([...keys].map((key) => env.SNAPSHOTS.delete(key)));
+  await env.DB.batch([
+    env.DB.prepare(
+      `DELETE FROM comment_revisions
+        WHERE comment_id IN (
+          SELECT c.id FROM comments c
+          JOIN threads t ON t.id = c.thread_id
+          WHERE t.sub = ?
+        )`,
+    ).bind(row.sub),
+    env.DB.prepare('DELETE FROM comments WHERE thread_id IN (SELECT id FROM threads WHERE sub = ?)')
+      .bind(row.sub),
+    env.DB.prepare('DELETE FROM threads WHERE sub = ?').bind(row.sub),
+    env.DB.prepare('DELETE FROM snapshot_versions WHERE sub = ?').bind(row.sub),
+    env.DB.prepare('DELETE FROM share_access WHERE sub = ?').bind(row.sub),
+    env.DB.prepare('DELETE FROM shares WHERE sub = ?').bind(row.sub),
+  ]);
   // Votes are kept (mirrors local unshare: poll data survives).
   return new Response(null, { status: 204 });
 }
@@ -252,6 +344,11 @@ async function shareResults(env: Env, tok: Token, slug: string): Promise<Respons
 // ---- Public serving ----------------------------------------------------------
 
 async function servePublic(req: Request, env: Env, sub: string, rest: string): Promise<Response> {
+  const denied = await requireShareAccess(req, env, sub);
+  if (denied) return denied;
+  if (rest === '/threads' || rest.startsWith('/threads/')) {
+    return handlePublicThreads(req, env, sub, rest);
+  }
   if (rest === '/submit') {
     if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
     return recordVote(req, env, sub);
@@ -259,6 +356,7 @@ async function servePublic(req: Request, env: Env, sub: string, rest: string): P
   if (rest === '/results') {
     return json(await aggregate(env, sub));
   }
+  if (rest !== '') return json({ error: 'not found' }, 404);
   // The page itself.
   const share = await env.DB.prepare('SELECT r2_key FROM shares WHERE sub = ?')
     .bind(sub)
@@ -269,12 +367,16 @@ async function servePublic(req: Request, env: Env, sub: string, rest: string): P
   const html = await obj.text();
   // Endpoints are relative - resolve against whatever origin served the page,
   // so subdomain (prod) and /s/<sub> (dev) both work without hard-coding.
-  const base = rest === '' && !env.SHARE_DOMAIN ? `/s/${sub}` : '';
-  const tag =
+  const base = new URL(req.url).pathname.startsWith('/s/') ? `/s/${sub}` : '';
+  const pollTag =
     `<script id="lattice-poll" data-endpoint="${base}/submit" data-results="${base}/results">` +
     pollBridge +
     `</script>`;
-  return new Response(injectNoindex(injectScript(html, tag)), {
+  const threadTag =
+    `<script id="lattice-comments" data-endpoint="${base}/threads">` +
+    threadBridge +
+    `</script>`;
+  return new Response(injectNoindex(injectScript(injectScript(html, pollTag), threadTag)), {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
@@ -360,7 +462,15 @@ async function aggregate(env: Env, sub: string): Promise<{ polls: Record<string,
 // available for this page" result everybody has seen. Letting it fetch the page
 // is what gets the URL dropped rather than listed.
 function robotsTxt(): Response {
-  const body = ['User-agent: *', 'Disallow: /v1/', 'Disallow: /submit', 'Disallow: /results', ''].join('\n');
+  const body = [
+    'User-agent: *',
+    'Disallow: /v1/',
+    'Disallow: /auth/',
+    'Disallow: /submit',
+    'Disallow: /results',
+    'Disallow: /threads',
+    '',
+  ].join('\n');
   return new Response(body, {
     headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': NOINDEX, 'Cache-Control': 'no-store' },
   });
@@ -421,6 +531,16 @@ function intVar(v: string, dflt: number): number {
 
 function byteLength(s: string): number {
   return new TextEncoder().encode(s).length;
+}
+
+function parseStringArray(value: string | null): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 function json(v: unknown, status = 200): Response {

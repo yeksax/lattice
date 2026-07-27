@@ -12,6 +12,7 @@
   --fill: color-mix(in srgb, var(--ink) 4%, transparent);
   --fill-strong: color-mix(in srgb, var(--ink) 7%, transparent);
   --focus: #171717;
+  --comment: #1683ff;
   --sidebar-w: 240px;
   --col: 1120px; /* matches html-summary skill wrap (1080–1180) */
   --radius: 10px;
@@ -84,12 +85,22 @@ a { color: inherit; }
 }
 .shell.is-reading {
   grid-template-columns: minmax(0, 1fr);
+  --bg: var(--reader-bg, #ffffff);
+  --bg-elev: var(--reader-bg, #ffffff);
+  --ink: var(--reader-ink, #111111);
+  --ink-2: color-mix(in srgb, var(--reader-ink, #111111) 68%, transparent);
+  --muted: color-mix(in srgb, var(--reader-ink, #111111) 48%, transparent);
+  --line: color-mix(in srgb, var(--reader-ink, #111111) 11%, transparent);
+  --line-strong: color-mix(in srgb, var(--reader-ink, #111111) 18%, transparent);
+  --fill: color-mix(in srgb, var(--reader-ink, #111111) 5%, transparent);
+  --fill-strong: color-mix(in srgb, var(--reader-ink, #111111) 9%, transparent);
 }
 .shell.is-reading .sidebar { display: none; }
 .shell.is-reading .main-top {
   width: 100%;
   max-width: none;
 }
+.shell.is-reading .theme-toggle { display: none; }
 
 .sidebar {
   display: flex;
@@ -311,6 +322,28 @@ a { color: inherit; }
   height: 14px;
   flex-shrink: 0;
 }
+.reader-actions button:active,
+.reader-actions > a:active {
+  scale: 0.96;
+}
+#r-comment.is-active {
+  color: var(--comment);
+  background: color-mix(in srgb, var(--comment) 10%, transparent);
+}
+.reader-comment-count {
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: currentColor;
+  color: var(--bg);
+  font-size: 9px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.reader-comment-count[hidden] { display: none; }
 
 .search-slot {
   --search-ease: cubic-bezier(0.22, 1, 0.36, 1);
