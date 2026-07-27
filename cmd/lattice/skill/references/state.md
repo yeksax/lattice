@@ -57,6 +57,10 @@ no listener, no save button:
 | `<select>`, `<select multiple>` | value, or array of values |
 | `<details>` | `true` / `false` (open) |
 
+Wrap the whole row in the `<label>`, not just the words next to the box. A
+native checkbox is a ~13px target; the row is ~350px wide, and on a phone that
+is the difference between a checklist you can use one-handed and one you can't.
+
 Keys follow the `data-lattice-comment` rule: **stable and semantic**.
 `cut.cloudrun-analytics`, never `item-7`. A renamed key is a lost value, and
 positional keys break the moment the page is reordered.

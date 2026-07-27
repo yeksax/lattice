@@ -219,7 +219,9 @@ Anything the reader can **change** — a checkbox, a note field, a section they
 collapse — gets the same treatment, through `data-lattice-state`: a stable,
 semantic key naming the decision (`cut.analytics-api`), never its position
 (`item-3`). That key is what lets the tick be restored later instead of lost;
-it costs nothing when nothing is restoring it. A loose file forgets on reload —
+it costs nothing when nothing is restoring it. Wrap the whole row in the
+`<label>` while you are there: a native checkbox is a ~13px target, and on a
+phone the row is what the thumb actually hits. A loose file forgets on reload —
 say so in one line if it matters, and never fake saved progress or build an
 export-your-ticks flow.
 
