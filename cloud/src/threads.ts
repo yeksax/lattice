@@ -451,6 +451,14 @@ async function listThreads(env: Env, sub: string, viewerActorID: string | null):
   return out;
 }
 
+// viewerActorID is the identity the state bridge writes user-scoped keys under
+// when the reader is signed in. Anonymous readers fall back to the browser id
+// they send themselves - see state.ts.
+export async function viewerActorID(req: Request, env: Env): Promise<string | null> {
+  const actor = await sessionActor(req, env);
+  return actor?.id ?? null;
+}
+
 async function sessionActor(req: Request, env: Env): Promise<Actor | null> {
   const raw = cookie(req, SESSION_COOKIE);
   if (!raw) return null;

@@ -37,6 +37,23 @@ CREATE TABLE IF NOT EXISTS votes (
 );
 CREATE INDEX IF NOT EXISTS idx_votes_sub ON votes(sub);
 
+-- Arbitrary page state: what a reader ticked, typed or collapsed, mirroring the
+-- local .lattice/state/<slug>.json shape. `document` rows are shared by every
+-- reader of the snapshot (viewer is ''); `user` rows are per reader, keyed by
+-- the Google actor id when signed in and by the browser's own id otherwise.
+-- Dropped on unshare, like threads: a released subdomain must not hand its
+-- state to whatever share claims it next.
+CREATE TABLE IF NOT EXISTS doc_state (
+  sub     TEXT NOT NULL,
+  scope   TEXT NOT NULL CHECK (scope IN ('document', 'user')),
+  viewer  TEXT NOT NULL DEFAULT '',
+  "key"   TEXT NOT NULL,
+  "value" TEXT NOT NULL,          -- the value as JSON, verbatim
+  updated INTEGER NOT NULL,
+  PRIMARY KEY (sub, scope, viewer, "key")
+);
+CREATE INDEX IF NOT EXISTS idx_doc_state_sub ON doc_state(sub, scope, viewer);
+
 -- Immutable snapshot revisions. Legacy shares without rows here are version 1;
 -- the Worker backfills their current R2 object before publishing version 2.
 CREATE TABLE IF NOT EXISTS snapshot_versions (

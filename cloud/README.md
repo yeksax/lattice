@@ -7,7 +7,7 @@ daemon) uploads a snapshot. Self-hosters can run their own Worker and point the
 CLI at it with `--api` / `LATTICE_API_BASE`.
 
 - **Snapshot versions** live in R2 (`snap/<sub>/v<version>`).
-- **Metadata, votes, identities, and discussions** live in D1.
+- **Metadata, votes, identities, discussions, and page state** live in D1.
 - **Auth** is a Bearer token per user. No signup yet - insert token rows by hand
   (see below). Free-tier caps (active shares, snapshot size) are `[vars]` in
   `wrangler.toml`.
@@ -29,6 +29,8 @@ CLI at it with `--api` / `LATTICE_API_BASE`.
 | `DELETE /v1/shares/{slug}/threads/{id}/comments/{comment}` | Bearer | soft-delete the actor's own comment |
 | `POST /v1/shares/{slug}/threads/{id}/resolve` | Bearer | resolve a thread |
 | `POST /v1/shares/{slug}/threads/{id}/reopen` | Bearer | reopen a thread |
+| `GET /v1/shares/{slug}/state` | Bearer | dump the snapshot's persisted state, per scope and reader |
+| `POST /v1/shares/{slug}/state` | Bearer | apply `{viewer?, ops:[{key, value, scope?, delete?}]}` |
 
 ## Hosted serving
 
@@ -45,6 +47,9 @@ DNS.
 - `POST /threads/{id}/comments` - reply after Google authentication
 - `PATCH /threads/{id}/comments/{comment}` - edit your own comment
 - `DELETE /threads/{id}/comments/{comment}` - soft-delete your own comment
+- `GET /state` - this reader's window on the page's persisted state
+- `POST /state` - apply state operations (`document` scope is shared, `user` is
+  per reader: the Google actor when signed in, the browser's own id otherwise)
 
 Each upload creates an immutable snapshot version. A thread stores its stable
 CSS selector, fallback anchor text, and the version where it began. The live
@@ -59,13 +64,21 @@ Shares are public by URL unless they have a row in `share_access`. Passing
 `allowed_domains` during upload enables Google Workspace domain gating for the
 page, polls, and discussion endpoints.
 
-`DELETE /v1/shares/{slug}` removes every stored snapshot version, access policy,
-thread, and comment for that share. Poll submissions retain the existing
-keep-on-unshare behavior.
+Page state carries the trust model of the share it belongs to: on a public-by-URL
+snapshot, anyone with the link can write the `document` scope, exactly as anyone
+with the link can vote. Per-reader values belong in the `user` scope. Caps are
+8 KB per value, 500 keys per scope, and 5000 rows per snapshot.
 
-The poll bridge and `/results` aggregation are byte/logic-identical to the local
-daemon (`src/poll.bridge.txt` mirrors `cmd/lattice/dashboard/poll.js`; `aggregate()` ports
-`pollagg.go`), so a page behaves the same viewed locally or shared.
+`DELETE /v1/shares/{slug}` removes every stored snapshot version, access policy,
+thread, comment, and state row for that share - a released subdomain must not
+hand its state to whatever share claims it next. Poll submissions retain the
+existing keep-on-unshare behavior.
+
+The poll and state bridges and the `/results` aggregation are byte/logic-identical
+to the local daemon (`src/poll.bridge.txt` mirrors `cmd/lattice/dashboard/poll.js`
+and `src/state.bridge.txt` mirrors `dashboard/state.js`; `aggregate()` ports
+`pollagg.go` and `src/state.ts` ports `state.go`), so a page behaves the same
+viewed locally or shared.
 
 ## Setup
 
@@ -122,4 +135,5 @@ lattice share <slug> --domain example.com
 curl http://localhost:8787/s/<sub>  # snapshot + injected bridge
 lattice results <slug>              # votes recorded via /submit show up
 lattice threads <slug>              # humans and agents share one discussion
+lattice state <slug> --hosted       # what readers ticked on the public snapshot
 ```
