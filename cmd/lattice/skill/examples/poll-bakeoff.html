@@ -6,7 +6,11 @@
 <title>Example — blind bake-off</title>
 <script>(function(){try{var t=localStorage.getItem('lattice-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}})()</script>
 <style>
-  /* ═══ SHARED BASE (identical to template.html) ═════════════════════ */
+  /* ═══ SHARED BASE ══════════════════════════════════════════════════
+     Same tokens, type scale and components as template.html, trimmed to
+     what this file actually uses. Copy the base from template.html (it
+     carries the full set) and change only what sits below "SPECIFIC".
+     ================================================================== */
   :root{
     --bg:#ffffff; --bg-sub:#fafafa;
     --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
@@ -128,13 +132,10 @@
   <section>
     <p class="eyebrow">01 — what this file teaches</p>
     <h1>Blind means blind until the last vote.</h1>
-    <p class="lead">This is the pattern agents get wrong: they reveal each case as soon
-      as it is voted. Don't. While a single vote is missing, the page shows only
-      progress and your own pick — no identity, no numbers, no partial tally.</p>
-    <p>When the last vote lands, everything opens at once and the closing block
-      appears at the end of the page: champion, summed leaderboard and a
-      winner-vs-your-pick comparison. That closing block is the payoff for
-      finishing. Full reference in <span class="tag">references/polls.md</span>.</p>
+    <p class="lead">Agents get this wrong by revealing each case as it is voted. While
+      one vote is missing, the page shows progress and your own pick, nothing else.</p>
+    <p class="sub">The last vote opens everything at once, at the end of the page.
+      Full reference: <span class="tag">references/polls.md</span>.</p>
 
     <div class="progress">
       <span class="n" id="progN">0 / 3 voted</span>
@@ -153,7 +154,7 @@
   <section>
     <p class="eyebrow">02 — the scenes</p>
     <h2>Which layout solves each case best?</h2>
-    <p>Judge by the drawing, not the name — that is why the name is hidden.</p>
+    <p>Judge by the drawing. That is why the name stays hidden.</p>
     <div id="cases"></div>
   </section>
 

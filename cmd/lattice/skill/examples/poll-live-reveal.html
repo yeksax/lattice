@@ -9,8 +9,9 @@
 <script>(function(){try{var t=localStorage.getItem('lattice-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}})()</script>
 <style>
   /* ═══ SHARED BASE ══════════════════════════════════════════════════
-     Identical in template.html and every examples/ file. Copy this whole
-     block and change only what sits BELOW the "specific" marker.
+     Same tokens, type scale and components as template.html, trimmed to
+     what this file actually uses. Copy the base from template.html (it
+     carries the full set) and change only what sits below "SPECIFIC".
      ================================================================== */
   :root{
     --bg:#ffffff; --bg-sub:#fafafa;
@@ -115,19 +116,16 @@
   <section>
     <p class="eyebrow">01 — what this file teaches</p>
     <h1>Voted, revealed.</h1>
-    <p class="lead">Pattern A is the ordinary poll: someone votes, the result shows
-      up immediately, they can change their mind, and a reload neither loses nor
-      duplicates the vote. Use it when revealing the tally early spoils nothing.</p>
-    <p>If revealing early <em>does</em> spoil it — a blind test, a bake-off where
-      seeing the leader contaminates the next vote — the pattern is B, in
-      <span class="tag">poll-bakeoff.html</span>. The full bridge reference is in
-      <span class="tag">references/polls.md</span>.</p>
+    <p class="lead">Vote, see the result, change your mind, reload without losing
+      or duplicating it. Use it when an early tally spoils nothing.</p>
+    <p class="sub">Blind test? That is pattern B, in <span class="tag">poll-bakeoff.html</span>.
+      Bridge reference: <span class="tag">references/polls.md</span>.</p>
   </section>
 
   <section>
     <p class="eyebrow">02 — live</p>
     <h2>Is the nightly job worth keeping?</h2>
-    <p>Click. Then click a different option — the vote <em>changes</em>, it does not add up.</p>
+    <p>Click, then click another option. The vote <em>changes</em> instead of adding up.</p>
 
     <div class="poll" id="poll">
       <div class="q">How would you vote today?</div>
@@ -163,11 +161,10 @@
     </div>
 
     <div class="offline" id="offline">
-      This file was opened straight from disk, so the vote has nowhere to go.
-      Register it with <span class="tag">lattice add</span> and open it at
-      <span class="tag">127.0.0.1:4600/s/&lt;slug&gt;</span> — or share it with
-      <span class="tag">lattice share</span>. The page stays readable exactly as it
-      is; it just does not collect.
+      Opened straight from disk, so the vote has nowhere to go. Register it with
+      <span class="tag">lattice add</span> and open it at
+      <span class="tag">127.0.0.1:4600/s/&lt;slug&gt;</span>. The page stays readable;
+      it just does not collect.
     </div>
   </section>
 

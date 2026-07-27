@@ -76,7 +76,10 @@
   .sub{color:var(--muted);font-size:11px}                   /* caption / unit / caveat */
   a{color:var(--ink);text-underline-offset:3px}
 
-  /* ---- bento grid: cells joined by hairlines, no gaps/shadows ---- */
+  /* ---- bento grid: cells joined by hairlines, no gaps/shadows ----
+     Markup: <div class="grid"><div class="cell">…</div> ×N </div>
+     Deliberately NOT instantiated in the demo below: three cells invite three
+     findings that don't exist. Use it when there are genuinely N peers. */
   .grid{
     display:grid;grid-template-columns:repeat(3,1fr);
     gap:1px;background:var(--line);border:1px solid var(--line);margin-top:20px;
@@ -110,6 +113,26 @@
   .metric{background:var(--bg);padding:16px 20px;flex:1 1 160px}
   .metric .val{font-size:26px;font-weight:500}
   .metric .lbl{color:var(--muted);font-size:11px;margin-top:4px}
+
+  /* ---- flow chain: a sequence, a mechanism, a request path ----
+     The default drawing. One inverted node marks where the chain breaks;
+     never two. references/diagrams.md has the rest of the vocabulary
+     (before/after, layer stack, waterfall, matrix). */
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;margin-top:20px}
+  .flow .node{flex:1 1 165px;min-width:0;background:var(--bg-sub);padding:12px 14px}
+  .flow .node .k{font-size:11px;color:var(--muted)}
+  .flow .node .v{font-size:12.5px;margin-top:4px}
+  .flow .node.hot{background:var(--ink);color:var(--bg)}
+  .flow .node.hot .k{color:var(--bg);opacity:.6}
+  .flow .arrow{display:flex;align-items:center;color:var(--muted)}
+  .flow .arrow svg{width:16px;height:16px}
+  @media(max-width:820px){.flow .arrow{display:none}}
+
+  /* ---- count strip: a long list reduced to the line that IS the finding ----
+     Reach for this before printing an inventory of 13 rows. */
+  .counts{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:16px;font-size:12.5px;color:var(--ink-2)}
+  .counts span:not(:first-child)::before{content:"· ";color:var(--muted)}
+  .counts b{color:var(--ink);font-weight:500}
 
   /* ---- stacked segmented bar: one ink, opacity ramp darkest→lightest ----
      Six steps, because real data rarely has exactly four categories. Past six,
@@ -170,18 +193,21 @@
   </header>
 
   <!-- ═══ demo content — replace all of it ═══════════════════════════
-       What follows is a bake-off page: metric strip, three-cell bento,
-       table, inverted close. That shape fits a bake-off. It does NOT fit
-       a decision doc, a plan, a diagnosis or a manual — see
+       A bake-off page: conclusion + metrics, the pipeline drawn, the
+       table, an inverted close. That shape fits a bake-off. It does NOT
+       fit a decision doc, a plan, a diagnosis or a manual — see
        references/layout.md before reaching for it by reflex.
+
+       Note what is NOT here: no three-cell bento of invented findings, no
+       paragraph restating the heading, no section over two lines of prose.
+       Whole page: ~60 words. That is the budget (SKILL.md → Digest it).
        ═════════════════════════════════════════════════════════════ -->
 
   <section>
-    <p class="eyebrow">01 — Summary</p>
-    <h1>One-line statement of the outcome</h1>
-    <p>Lead with the conclusion. One or two sentences of context, no more. This
-      page moves information from A to B: a coworker scanning for fifteen seconds should
-      get the point before they reach the grid below.</p>
+    <p class="eyebrow">01 — summary</p>
+    <h1>Lead with the conclusion, in one sentence</h1>
+    <p>Two lines of context, at most. Only what the reader needs to believe the
+      headline, never what they already lived through.</p>
     <div class="metrics">
       <div class="metric"><div class="val">7,164<span style="font-size:13px;color:var(--muted)">ms</span></div><div class="lbl">latency p50</div></div>
       <div class="metric"><div class="val">$0.0045</div><div class="lbl">cost / run</div></div>
@@ -191,17 +217,30 @@
   </section>
 
   <section>
-    <p class="eyebrow">02 — Breakdown</p>
-    <h2>Three things worth knowing</h2>
-    <div class="grid">
-      <div class="cell"><div class="idx">01</div><h3>First finding</h3><p style="font-size:12.5px">Terse explanation. Hairlines divide the cells — no gaps, no shadows, no rounded corners.</p></div>
-      <div class="cell"><div class="idx">02</div><h3>Second finding</h3><p style="font-size:12.5px">Everything is monospace. The only color is ink, white, and grays.</p></div>
-      <div class="cell"><div class="idx">03</div><h3>Third finding</h3><p style="font-size:12.5px">Dense by default. Works on a 1366×768 laptop without a hero eating the fold.</p></div>
+    <p class="eyebrow">02 — where the time goes</p>
+    <h2>Segmentation is the step that costs</h2>
+
+    <!-- The drawing carries the sequence, so no paragraph narrates it.
+         One node inverted: the eye lands on the bottleneck immediately. -->
+    <div class="flow">
+      <div class="node"><div class="k">prompt</div><div class="v">1 call</div></div>
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg></div>
+      <div class="node"><div class="k">generation</div><div class="v">7.1s</div></div>
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg></div>
+      <div class="node hot"><div class="k">segmentation</div><div class="v">5.5s, serial</div></div>
+      <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg></div>
+      <div class="node"><div class="k">compose</div><div class="v">4.5s</div></div>
     </div>
+
+    <!-- 18 runs reduced to the line that is actually the finding. -->
+    <p class="counts">
+      <span><b>3</b> engines</span><span><b>6</b> cases each</span>
+      <span><b>1</b> inside the cost budget</span>
+    </p>
   </section>
 
   <section>
-    <p class="eyebrow">03 — Data</p>
+    <p class="eyebrow">03 — data</p>
     <h2>Results</h2>
 
     <!-- two independent disclosures: cost owns a cost popover, time owns a time

@@ -26,14 +26,20 @@ possible** — dense, scannable, functional. Not an editorial landing page.
 |---|---|
 | `template.html` | always — the shared base (tokens, header, theme toggle, footer) sits at the top of it |
 | `references/layout.md` | before choosing your sections: the template is a **guide**, not a mould |
+| `references/diagrams.md` | the drawing vocabulary — flow chain, before/after, layers, waterfall, matrix, count strip |
 | `references/polls.md` | when the summary collects votes — the bridge, both patterns, graceful degradation |
 | `examples/poll-live-reveal.html` | ordinary poll: vote, reveal immediately |
 | `examples/poll-bakeoff.html` | blind bake-off: nothing reveals until the last vote |
 | `examples/interactive-walkthrough.html` | manual / onboarding: re-enacted interaction + step-by-step narration |
 
-The `examples/` are there to **read the technique from**, not to paste wholesale.
-What you actually copy is the shared base block at the top of `template.html` —
-it is byte-for-byte identical in every one of them.
+The `examples/` are there to **read the technique from**, not to paste wholesale:
+each one exists to teach the poll bridge or the simulator boundary, and its demo
+content is deliberately thin. What you copy is the shared base at the top of
+`template.html` — it carries the full component set; each example trims that base
+to what it uses.
+
+**None of these files is a content model.** They show components and mechanics;
+what goes on your page comes from the material and the budgets below.
 
 ## The template is a guide, not a mould
 
@@ -67,26 +73,98 @@ it — no zip, no folder, no build, no network. Everything lives inline:
   and compress images before embedding, inline only the icon glyphs you actually
   use (not a whole icon font), drop unused CSS. Small enough to open instantly.
 
-## Length — short by default
+## Digest it — the reader wants the food chewed, not the ingredients
 
-**A summary is a short read, not a document.** Default target: **one to two
-screens of scroll** — roughly 4–6 sections, ~10–12KB of HTML. Someone opens it,
-gets the point, closes it. If it takes more than ~2 minutes to read, it stopped
-being a summary.
+The reader is not going to reconstruct your conclusion from the evidence you
+laid out. **You do the reduction.** Decide what the material means, state that,
+and show the one thing that proves it. Everything you would keep "for
+completeness" belongs in the companion `.md`, not on this page.
+
+The failure mode is not ugliness, it is **a wall of correct text**. A section
+whose heading states a fact, followed by four lines restating it, followed by a
+thirteen-row table of raw inventory, is a file dump wearing house style.
+
+### Budgets — ceilings, not targets
+
+| | budget |
+|---|---|
+| whole page | 4–6 sections · **~350 words of prose total** · ≤ 2 screens |
+| `h1` | one sentence, ≤ 15 words, and it is the conclusion |
+| section | one claim + one visual + ≤ 40 words around it |
+| paragraph | 2 lines. There is no third line. |
+| bullet | one line, ≤ 12 words. A bullet that wraps is a table row. |
+| list | 5 items. A sixth means it is a table or a count, not a list. |
+| table | ~8 rows and ~4 columns. Longer inventories get grouped (below). |
+
+Count the words before you hand it off. If prose is over budget, the fix is
+never smaller type — it is deleting sentences or turning them into a visual.
+
+### Two tests
+
+- **Delete every paragraph.** Does the page still transmit? If not, the visuals
+  aren't carrying their weight and prose is propping them up.
+- **Delete every visual.** Does the prose still say the same things? Then the
+  prose is narrating the picture, and the prose is what goes.
+
+A heading that states the finding needs no paragraph restating it. That reflex
+"lead" under every `h2` is the single biggest source of bloat.
+
+### A long inventory: the summary IS the grouping
+
+Thirteen rows of raw list is the file, not a summary of it. Reduce to verdict
+counts first, in one line:
+
+`3 ficam · 5 duplicam o banco · 3 viram server-side · 2 mortos`
+
+The rows themselves go behind a disclosure, into the companion `.md`, or nowhere.
+Print the full table only when acting on it needs every row **and** the user
+asked for the inventory.
+
+### When length is genuinely earned
 
 Go long **only when explicitly asked** ("full writeup", "be exhaustive", "map
 everything") — or when the piece genuinely IS a map/audit whose value is the
-inventory. Even then, front-load: the first screen carries the conclusion.
+inventory. Even then, front-load: the first screen carries the conclusion, and
+the budgets above still govern every individual section.
 
-Cut, in this order, when it's running long:
-- **Detail the reader won't act on.** Supporting evidence belongs in the
-  companion `.md`, not here. Link to it; don't inline it.
-- **Anything the reader already knows** — context they lived through, a recap of
-  the previous step, restating the ask.
-- **Sections that repeat a point** already made in a table or metric row.
+Cut, in this order, when it's running long: detail the reader won't act on →
+anything they already know (context they lived through, a recap of the previous
+step, restating the ask) → sections repeating a point a table already made.
 
-A hover disclosure is the pressure valve: headline number visible, breakdown
-one hover away. Use it instead of a paragraph explaining the number.
+A hover disclosure is the pressure valve: headline number visible, breakdown one
+hover away. Use it instead of a paragraph explaining the number.
+
+## Draw it — prose is the fallback, not the default
+
+Most of what a summary carries is **shape**: a sequence, a split, a proportion,
+a hierarchy, an order of work. Shape drawn is understood in a second; shape
+written costs a paragraph and often isn't read. Pick the form from the shape of
+the content, then write only what the form can't show.
+
+| The content is | Draw it as |
+|---|---|
+| a sequence, a mechanism, a request path | flow chain — left→right nodes with connectors |
+| what changed, or what should change | before → after split, the two states side by side |
+| a proportion or composition | stacked segmented bar |
+| an inventory with verdicts | count strip first, then the table (if at all) |
+| layers of a system | stacked bands, one per layer, the relevant one filled |
+| cost in time / a waterfall | offset bars on a shared track |
+| position on two axes | 2×2 matrix |
+| work with dependencies | numbered steps, one dependency line each |
+| a screen or product surface | a simulated surface (`references/layout.md`) |
+
+**`references/diagrams.md` ships all of these as copy-paste CSS + markup.**
+
+Aim for **one visual element per section** — diagram, bar, table, metric strip,
+simulated surface. A section that is a heading plus two paragraphs is a section
+whose shape you haven't found yet; the honest alternative is to cut it to a
+single two-line statement, not to pad it. (Do not invert this into filler: an
+empty bento cell is still worse than no bento. See the KPI-strip trap in
+`references/layout.md`.)
+
+Illustration is line art: hairline strokes, ≤ 6 nodes, labels of 1–3 words,
+`color: var(--muted)` so it stays calm in both schemes, no fills unless the fill
+is data.
 
 ## One file per step — never overwrite a previous summary
 
@@ -317,7 +395,7 @@ media query on `:root:not([data-theme="light"])`.
 ## Layout
 
 - Content column `max-width: 1080–1180px`, centered, `padding: 0 20px`.
-- **Don't rule every section.** Whitespace + the uppercase eyebrow label *is* the
+- **Don't rule every section.** Whitespace + the eyebrow label *is* the
   delimiter. A hairline divider between every section is visual noise — cut them.
   Use a divider only where scanning genuinely needs one (≤1–2 per page); the header
   underline and footer top-rule are usually the only rules a summary needs.
@@ -425,6 +503,12 @@ icons (buttons, list markers, status), not typography.
       Cool `tone` means no warm/cream paper. `modules`/`dividers` match the guidelines.
 - [ ] **Short**: one to two screens of scroll unless length was explicitly asked
       for. If it reads like a document, cut detail to the companion `.md`.
+- [ ] **Digested**: prose under ~350 words for the page; no paragraph over two
+      lines; no list over five one-line bullets; no `h2` followed by a paragraph
+      that restates it. Any inventory past ~8 rows is grouped into counts first.
+- [ ] **Drawn**: each section carries a visual (diagram, bar, table, metric,
+      simulated surface) or is a deliberate two-line statement. Deleting all the
+      paragraphs would still transmit the point.
 - [ ] **New step = new file.** You did NOT overwrite an earlier summary to bring
       it up to date. Earlier snapshots are untouched and cross-linked.
 - [ ] Single `.html`, everything inline (CSS/JS/images-as-`data:`/SVG glyphs),

@@ -6,7 +6,11 @@
 <title>Example — interactive walkthrough</title>
 <script>(function(){try{var t=localStorage.getItem('lattice-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}})()</script>
 <style>
-  /* ═══ SHARED BASE (identical to template.html) ═════════════════════ */
+  /* ═══ SHARED BASE ══════════════════════════════════════════════════
+     Same tokens, type scale and components as template.html, trimmed to
+     what this file actually uses. Copy the base from template.html (it
+     carries the full set) and change only what sits below "SPECIFIC".
+     ================================================================== */
   :root{
     --bg:#ffffff; --bg-sub:#fafafa;
     --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
@@ -199,20 +203,17 @@
   <section>
     <p class="eyebrow">01 — what this file teaches</p>
     <h1>When the thing to explain is a conversation, not a table.</h1>
-    <p class="lead">Manual, onboarding, "how this product works": in those documents
-      the content is a sequence in time, and the KPI strip plus three-cell bento is
-      useless. The right form is to re-enact the interaction and narrate each step
-      beside it.</p>
-    <p>The simulator below replicates Slack. Notice what it does with the house
-      style — and what it does <em>not</em> do. The rule is commented in the CSS and
-      explained in <span class="tag">references/layout.md</span>.</p>
+    <p class="lead">Manual, onboarding, "how this product works": the content is a
+      sequence in time. Re-enact the interaction and narrate each step beside it.</p>
+    <p class="sub">The simulator replicates Slack, and the boundary between its rules
+      and the house's is commented in the CSS. See <span class="tag">references/layout.md</span>.</p>
   </section>
 
   <section>
     <p class="eyebrow">02 — the simulator</p>
     <h2>Three scenarios, one player</h2>
-    <p>Click the conversation to advance. Use <span class="tag">←</span>
-      <span class="tag">→</span> on the keyboard. Hovering pauses the autoplay.</p>
+    <p class="sub">Click to advance. <span class="tag">←</span>
+      <span class="tag">→</span> on the keyboard. Hover pauses the autoplay.</p>
 
     <div class="tabs" role="tablist">
       <button class="tab" data-flow="setup">01 · first contact</button>

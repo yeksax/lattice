@@ -113,6 +113,10 @@ operations manual exceed it by nature — and there the problem stops being leng
 and becomes **navigation**. A five-screen document with no orientation is worse
 than a ten-screen one with it.
 
+Length earned by inventory does **not** buy looser sections. The per-section
+budgets hold everywhere: one claim, one visual, two lines of prose. A long page
+is many tight sections, never a few sprawling ones.
+
 Past roughly three screens:
 
 - An `id` on every section and a short index at the top (titles only, hairline,
@@ -141,6 +145,9 @@ hard-coding around them inside a component.
 2. List what the reader needs in order to believe it. Those become the sections.
 3. **Only then** pick the components, one section at a time, from the shape of
    the data. Comparable numbers → table. Composition → stacked bar. Sequence →
-   steps. Interaction → simulator. None of the above → prose, which is a
-   legitimate answer.
+   flow chain. Change → before/after. Work → steps. Interaction → simulator.
+   The full vocabulary is in `references/diagrams.md`.
 4. If a component is left over with no content justifying it, delete it.
+5. Write the prose last, and only what the components could not show. Two lines
+   per section is the budget (SKILL.md → Digest it). Prose that narrates the
+   component beside it is the thing to cut.
