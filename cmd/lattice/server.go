@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -144,10 +145,30 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("GET /api/polls/{slug}", s.listPoll)
 	mux.HandleFunc("GET /api/polls/{slug}/results", s.pollResults)
 	mux.HandleFunc("POST /api/polls/{slug}/submit", s.submitPoll)
+	// Blanket disallow, unlike the hosted Worker, which lets crawlers fetch a
+	// snapshot so they can read its noindex. Here the whole library is behind
+	// the port: if this ever gets tunnelled, keeping a crawler from downloading
+	// every summary matters more than winning an argument about URL-only
+	// indexing. The X-Robots-Tag below covers what the crawl block cannot.
+	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write([]byte("User-agent: *\nDisallow: /\n"))
+	})
 	if s.devDir != "" {
 		mux.HandleFunc("GET /api/dev-reload", s.watchDashboard)
 	}
-	return mux
+	return noindex(mux)
+}
+
+// noindex marks every response as unindexable. The daemon listens on loopback,
+// so no crawler reaches it today - but the whole point of `expose`-style tunnels
+// is that a local port stops being local, and the library must not become a
+// search result the day someone forwards this port.
+func noindex(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet, noimageindex")
+		h.ServeHTTP(w, r)
+	})
 }
 
 func (s *server) getConfig(w http.ResponseWriter, _ *http.Request) {
@@ -310,8 +331,33 @@ func (s *server) serveSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	tags := `<script id="lattice-poll" data-endpoint="/api/polls/` + slug + `/submit" data-results="/api/polls/` + slug + `/results">` + string(s.pollJS()) + `</script>` +
 		`<script id="lattice-reload" data-slug="` + slug + `">` + string(s.reloadJS()) + `</script>`
-	w.Write(injectScript(b, tags))
+	w.Write(injectNoindex(injectScript(b, tags)))
 }
+
+// injectNoindex adds the robots meta tag to the served HTML - the response only,
+// never the file. The X-Robots-Tag header is the authoritative signal; this
+// covers crawlers that read markup and survives the page being re-hosted.
+func injectNoindex(b []byte) []byte {
+	tag := []byte(`<meta name="robots" content="noindex, nofollow, noarchive">`)
+	at := 0
+	if m := reHeadOpen.FindIndex(b); m != nil {
+		at = m[1]
+	} else if m := reDoctype.FindIndex(b); m != nil {
+		// No <head>: the parser builds one implicitly and a leading <meta> lands
+		// in it. Stay after the doctype so the page keeps standards mode.
+		at = m[1]
+	}
+	out := make([]byte, 0, len(b)+len(tag))
+	out = append(out, b[:at]...)
+	out = append(out, tag...)
+	return append(out, b[at:]...)
+}
+
+// The tag must not match <header>, which every summary has in its body.
+var (
+	reHeadOpen = regexp.MustCompile(`(?i)<head(\s[^>]*)?>`)
+	reDoctype  = regexp.MustCompile(`(?i)^\s*<!doctype[^>]*>`)
+)
 
 // injectScript inserts markup before </body> (append as fallback) - into the
 // response only, never the file.

@@ -21,19 +21,35 @@ export interface Env {
   DEFAULT_MAX_SHARES: string;
 }
 
+// A shared snapshot is public-by-URL, never public-to-search. Every response
+// this Worker emits carries the noindex directive, so a crawler that reaches a
+// snapshot (a link pasted in a public channel, a leaked referrer, a wildcard
+// scan) is told to drop it instead of listing it.
+const NOINDEX = 'noindex, nofollow, noarchive, nosnippet, noimageindex';
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
+    let res: Response;
     try {
-      return await route(req, env);
+      res = await route(req, env);
     } catch (e) {
-      return json({ error: String((e as Error)?.message ?? e) }, 500);
+      res = json({ error: String((e as Error)?.message ?? e) }, 500);
     }
+    // Set here, once, so no future handler can forget it.
+    if (!res.headers.has('X-Robots-Tag')) {
+      res = new Response(res.body, res);
+      res.headers.set('X-Robots-Tag', NOINDEX);
+    }
+    return res;
   },
 };
 
 async function route(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
+
+  // 0. robots.txt. It is per-host, so every <sub>.<SHARE_DOMAIN> needs its own.
+  if (path === '/robots.txt') return robotsTxt();
 
   // 1. Authenticated share API.
   if (path === '/v1/shares' || path.startsWith('/v1/shares/')) {
@@ -258,8 +274,16 @@ async function servePublic(req: Request, env: Env, sub: string, rest: string): P
     `<script id="lattice-poll" data-endpoint="${base}/submit" data-results="${base}/results">` +
     pollBridge +
     `</script>`;
-  return new Response(injectScript(html, tag), {
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  return new Response(injectNoindex(injectScript(html, tag)), {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Robots-Tag': NOINDEX,
+      // A snapshot URL is the secret. Without this, every outbound click hands
+      // that URL to a third party, where it lands in logs and analytics and
+      // eventually in a crawler's queue.
+      'Referrer-Policy': 'no-referrer',
+    },
   });
 }
 
@@ -325,6 +349,42 @@ async function aggregate(env: Env, sub: string): Promise<{ polls: Record<string,
 }
 
 // ---- helpers -----------------------------------------------------------------
+
+// robotsTxt answers on every host this Worker serves: <sub>.<SHARE_DOMAIN>,
+// share.<SHARE_DOMAIN> and api.<SHARE_DOMAIN>. The marketing site sits on the
+// apex, which this Worker never handles, so its own robots.txt is untouched.
+//
+// Note what is NOT disallowed: the snapshot itself. Blocking the crawl would
+// stop a crawler from ever reading the noindex header, and Google lists a
+// robots-blocked URL it found in a link anyway — that is the "No information is
+// available for this page" result everybody has seen. Letting it fetch the page
+// is what gets the URL dropped rather than listed.
+function robotsTxt(): Response {
+  const body = ['User-agent: *', 'Disallow: /v1/', 'Disallow: /submit', 'Disallow: /results', ''].join('\n');
+  return new Response(body, {
+    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': NOINDEX, 'Cache-Control': 'no-store' },
+  });
+}
+
+// injectNoindex puts the meta tag in the served HTML. The header above is the
+// authoritative signal; this covers crawlers that only parse markup, and it
+// survives the page being saved and re-hosted somewhere else. Snapshots on disk
+// are never modified — the tag exists only in the response, like the poll bridge.
+function injectNoindex(html: string): string {
+  const tag = '<meta name="robots" content="noindex, nofollow, noarchive">';
+  // Anchored on <head> proper: a bare "<head" prefix also matches the <header>
+  // every summary has in its body, which would bury the tag mid-document.
+  const head = /<head(\s[^>]*)?>/i.exec(html);
+  if (head) {
+    const at = head.index + head[0].length;
+    return html.slice(0, at) + tag + html.slice(at);
+  }
+  // No <head>: the parser builds one implicitly and a leading <meta> lands in
+  // it. Stay after the doctype so the document does not fall into quirks mode.
+  const m = html.match(/^\s*<!doctype[^>]*>/i);
+  const at = m ? m[0].length : 0;
+  return html.slice(0, at) + tag + html.slice(at);
+}
 
 // injectScript inserts markup before </body> (append as fallback). Port of the
 // Go injectScript so injection is identical to the daemon.
