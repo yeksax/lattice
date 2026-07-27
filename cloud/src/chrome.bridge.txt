@@ -1,0 +1,151 @@
+// Lattice reader chrome for hosted snapshots. Injected at response time, never
+// written into the snapshot. It gives a public reader the same top bar the
+// dashboard has, minus everything that only makes sense to the owner: no home
+// link, no library search, no Raw, no Share popover (that one talks to the
+// share API with the owner's token).
+//
+// Runs before the comment bridge so it can claim the launcher: window.lattice
+// Chrome tells that bridge to skip its floating button, since the Comment
+// action lives in this bar instead.
+(() => {
+  'use strict';
+
+  // Embedded in the dashboard's reader iframe? The dashboard's own header is
+  // already there — a second bar inside the frame would be a duplicate.
+  if (window.parent !== window) return;
+  window.latticeChrome = true;
+
+  const script = document.currentScript || document.getElementById('lattice-chrome');
+  const base = (script && script.dataset.base) || '';
+  const repo = (script && script.dataset.repo) || 'https://github.com/yeksax/lattice';
+  const BAR = 52;
+
+  const pt = (navigator.language || '').toLowerCase().startsWith('pt');
+  const t = pt
+    ? { comment: 'Comentar', commentTitle: 'Adicionar ou ver comentários', download: 'Baixar', downloadTitle: 'Baixar o arquivo original' }
+    : { comment: 'Comment', commentTitle: 'Add or review comments', download: 'Download', downloadTitle: 'Download the original file' };
+
+  const css = `
+    :host{all:initial;--paper:#fff;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--line:#e6e6e3;--fill:#f5f5f4;--blue:#1683ff;
+      font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+    *{box-sizing:border-box}
+    .bar{position:fixed;z-index:2147483644;top:0;left:0;right:0;display:flex;align-items:center;gap:16px;
+      min-height:${BAR}px;padding:10px 20px;background:var(--paper);border-bottom:1px solid var(--line)}
+    .title{min-width:0;flex:1;overflow:hidden;color:var(--ink);font-size:13px;font-weight:500;
+      text-overflow:ellipsis;white-space:nowrap}
+    .actions{display:inline-flex;align-items:center;flex:0 0 auto;gap:2px}
+    button,a{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:0;border-radius:999px;
+      background:none;color:var(--ink-2);font:500 12.5px/1 inherit;text-decoration:none;cursor:pointer;
+      transition:color 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}
+    button:hover,a:hover{color:var(--ink);background:var(--fill)}
+    button:active,a:active{scale:.96}
+    button:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+    svg{width:14px;height:14px;flex-shrink:0}
+    .gh{margin-left:4px;color:var(--muted)}
+    .gh svg{width:15px;height:15px}
+    #comment.is-active{color:var(--blue);background:color-mix(in srgb,var(--blue) 10%,transparent)}
+    .count{display:grid;place-items:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;
+      background:var(--blue);color:#fff;font-size:10px;font-weight:600;font-variant-numeric:tabular-nums}
+    .count[hidden]{display:none}
+    /* Under ~560px the title is the first thing to go: the actions are why the
+       bar exists, and the page states its own title two lines below anyway. */
+    @media(max-width:560px){.title{display:none}.gh{display:none}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  `;
+
+  const icon = {
+    comment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/><path d="M8 10h8"/><path d="M12 6v8"/></svg>',
+    download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>',
+    // GitHub mark from svgl (id 575), same path the dashboard ships.
+    github: '<svg viewBox="0 0 1024 1024" fill="none" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M512 0C229.12 0 0 229.12 0 512c0 226.56 146.56 417.92 350.08 485.76 25.6 4.48 35.2-10.88 35.2-24.32 0-12.16-.64-52.48-.64-95.36-128.64 23.68-161.92-31.36-172.16-60.16-5.76-14.72-30.72-60.16-52.48-72.32-17.92-9.6-43.52-33.28-.64-33.92 40.32-.64 69.12 37.12 78.72 52.48 46.08 77.44 119.68 55.68 149.12 42.24 4.48-33.28 17.92-55.68 32.64-68.48-113.92-12.8-232.96-56.96-232.96-252.8 0-55.68 19.84-101.76 52.48-137.6-5.12-12.8-23.04-65.28 5.12-135.68 0 0 42.88-13.44 140.8 52.48 40.96-11.52 84.48-17.28 128-17.28s87.04 5.76 128 17.28c97.92-66.56 140.8-52.48 140.8-52.48 28.16 70.4 10.24 122.88 5.12 135.68 32.64 35.84 52.48 81.28 52.48 137.6 0 196.48-119.68 240-233.6 252.8 18.56 16 34.56 46.72 34.56 94.72 0 68.48-.64 123.52-.64 140.8 0 13.44 9.6 29.44 35.2 24.32C877.44 929.92 1024 737.92 1024 512 1024 229.12 794.88 0 512 0"/></svg>',
+  };
+
+  const host = document.createElement('span');
+  const root = host.attachShadow({ mode: 'open' });
+  const style = document.createElement('style');
+  style.textContent = css;
+
+  const bar = document.createElement('header');
+  bar.className = 'bar';
+  bar.innerHTML =
+    '<span class="title"></span>' +
+    '<span class="actions">' +
+      `<button id="comment" type="button" aria-pressed="false" title="${t.commentTitle}">` +
+        icon.comment + `<span>${t.comment}</span><span class="count" hidden></span>` +
+      '</button>' +
+      `<a id="download" href="${base}/download" download title="${t.downloadTitle}">` +
+        icon.download + `<span>${t.download}</span>` +
+      '</a>' +
+      `<a class="gh" href="${repo}" target="_blank" rel="noopener noreferrer" title="lattice on GitHub">` +
+        icon.github + '<span>GitHub</span>' +
+      '</a>' +
+    '</span>';
+
+  const title = bar.querySelector('.title');
+  const commentBtn = bar.querySelector('#comment');
+  const count = bar.querySelector('.count');
+  title.textContent = document.title || '';
+
+  root.append(style, bar);
+
+  // Push the document down instead of covering its first lines. Reading the
+  // computed value first keeps whatever padding the snapshot already had.
+  const mount = () => {
+    document.body.append(host);
+    const prev = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
+    document.body.style.paddingTop = prev + BAR + 'px';
+    document.documentElement.style.scrollPaddingTop = BAR + 'px';
+  };
+  if (document.body) mount();
+  else addEventListener('DOMContentLoaded', mount, { once: true });
+
+  // The snapshot owns the palette (it may carry a theme toggle of its own), so
+  // the bar reads its tokens rather than declaring a second source of truth.
+  const syncTheme = () => {
+    const rootStyle = getComputedStyle(document.documentElement);
+    const bodyStyle = getComputedStyle(document.body || document.documentElement);
+    const value = (name, fallback) => rootStyle.getPropertyValue(name).trim() || fallback;
+    host.style.setProperty('--paper', value('--bg', bodyStyle.backgroundColor));
+    host.style.setProperty('--fill', value('--bg-sub', bodyStyle.backgroundColor));
+    host.style.setProperty('--ink', value('--ink', bodyStyle.color));
+    host.style.setProperty('--ink-2', value('--ink-2', bodyStyle.color));
+    host.style.setProperty('--muted', value('--muted', bodyStyle.color));
+    host.style.setProperty('--line', value('--line', 'rgba(128,128,128,.28)'));
+    host.style.colorScheme = rootStyle.colorScheme;
+  };
+  syncTheme();
+  new MutationObserver(syncTheme).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'style', 'class'],
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
+
+  // ---- comment mode --------------------------------------------------------
+  // The comment bridge owns the mode; this button is one more way to toggle it,
+  // and it listens back so Escape (or a click on the page) leaves the button in
+  // the right state.
+  const api = () => (window.lattice && window.lattice.comments) || null;
+  commentBtn.addEventListener('click', () => {
+    const c = api();
+    if (!c) return;
+    commentBtn.getAttribute('aria-pressed') === 'true' ? c.stop() : c.start();
+  });
+
+  const setMode = (active) => {
+    commentBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    commentBtn.classList.toggle('is-active', !!active);
+  };
+  const setCount = (n) => {
+    count.hidden = !n;
+    count.textContent = n > 99 ? '99+' : String(n);
+  };
+
+  document.addEventListener('lattice:comment-mode-state', (e) => setMode(e.detail && e.detail.active));
+  document.addEventListener('lattice:comment-count', (e) => setCount((e.detail && e.detail.count) || 0));
+  document.addEventListener('lattice:comments-ready', (e) => {
+    const c = e.detail || api();
+    if (c && c.list) setCount(c.list().length);
+  });
+  const ready = api();
+  if (ready && ready.list) setCount(ready.list().length);
+})();

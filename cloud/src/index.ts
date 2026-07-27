@@ -12,6 +12,7 @@
 
 import pollBridge from './poll.bridge.txt';
 import threadBridge from './thread.bridge.txt';
+import chromeBridge from './chrome.bridge.txt';
 import {
   configureShareAccess,
   handleAuth,
@@ -356,7 +357,7 @@ async function servePublic(req: Request, env: Env, sub: string, rest: string): P
   if (rest === '/results') {
     return json(await aggregate(env, sub));
   }
-  if (rest !== '') return json({ error: 'not found' }, 404);
+  if (rest !== '' && rest !== '/download') return json({ error: 'not found' }, 404);
   // The page itself.
   const share = await env.DB.prepare('SELECT r2_key FROM shares WHERE sub = ?')
     .bind(sub)
@@ -364,6 +365,21 @@ async function servePublic(req: Request, env: Env, sub: string, rest: string): P
   if (!share) return new Response('gone', { status: 404 });
   const obj = await env.SNAPSHOTS.get(share.r2_key);
   if (!obj) return new Response('gone', { status: 404 });
+
+  // The chrome's Download action: the snapshot as uploaded, with none of the
+  // bridges injected. What the reader saves is the file the author wrote.
+  if (rest === '/download') {
+    return new Response(obj.body, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${sub}.html"`,
+        'Cache-Control': 'no-store',
+        'X-Robots-Tag': NOINDEX,
+        'Referrer-Policy': 'no-referrer',
+      },
+    });
+  }
+
   const html = await obj.text();
   // Endpoints are relative - resolve against whatever origin served the page,
   // so subdomain (prod) and /s/<sub> (dev) both work without hard-coding.
@@ -376,7 +392,12 @@ async function servePublic(req: Request, env: Env, sub: string, rest: string): P
     `<script id="lattice-comments" data-endpoint="${base}/threads">` +
     threadBridge +
     `</script>`;
-  return new Response(injectNoindex(injectScript(injectScript(html, pollTag), threadTag)), {
+  // Reader chrome: the dashboard's top bar, minus home, search, Raw and Share.
+  // Injected BEFORE the comment bridge so it can claim the launcher — the
+  // Comment action belongs in the bar, not in a second floating button.
+  const chromeTag = `<script id="lattice-chrome" data-base="${base}">` + chromeBridge + `</script>`;
+  const page = injectScript(injectScript(injectScript(html, pollTag), chromeTag), threadTag);
+  return new Response(injectNoindex(page), {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',

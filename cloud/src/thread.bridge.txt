@@ -665,6 +665,7 @@
 
   const notifyMode = () => {
     if (isEmbedded) window.parent.postMessage({ type: 'lattice:comment-mode-state', active: commentMode }, location.origin);
+    else document.dispatchEvent(new CustomEvent('lattice:comment-mode-state', { detail: { active: commentMode } }));
   };
 
   const refresh = async () => {
@@ -674,6 +675,8 @@
     render();
     if (isEmbedded) {
       window.parent.postMessage({ type: 'lattice:comment-count', count: threads.length }, location.origin);
+    } else {
+      document.dispatchEvent(new CustomEvent('lattice:comment-count', { detail: { count: threads.length } }));
     }
   };
 
@@ -794,7 +797,7 @@
   });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', reportTheme);
 
-  if (!isEmbedded) {
+  if (!isEmbedded && !window.latticeChrome) {
     const host = document.createElement('span');
     const root = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
