@@ -30,6 +30,7 @@ type server struct {
 	reload  []byte           // reload.js, wrapped at request time
 	poll    []byte           // poll.js bridge
 	comment []byte           // comment.js bridge
+	state   []byte           // state.js bridge
 	devDir  string           // LATTICE_DEV: serve dashboard from disk (live reload)
 	bootID  string           // per-process id; moves the dev-reload digest on restart
 }
@@ -70,6 +71,11 @@ func newServer(ix *Index) *server {
 		log.Fatal("embedded comment.js missing")
 	}
 	s.comment = cl
+	st, err := dashboardFS.ReadFile("dashboard/state.js")
+	if err != nil {
+		log.Fatal("embedded state.js missing")
+	}
+	s.state = st
 	if dir := devDashboardDir(); dir != "" {
 		s.devDir = dir
 		log.Printf("dev mode: serving dashboard from %s (live reload on)", dir)
@@ -140,6 +146,15 @@ func (s *server) commentJS() []byte {
 	return s.comment
 }
 
+func (s *server) stateJS() []byte {
+	if s.devDir != "" {
+		if b, err := s.readDash("state.js"); err == nil {
+			return b
+		}
+	}
+	return s.state
+}
+
 func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { s.asset(w, r, "index.html") })
@@ -160,6 +175,9 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("GET /api/polls/{slug}", s.listPoll)
 	mux.HandleFunc("GET /api/polls/{slug}/results", s.pollResults)
 	mux.HandleFunc("POST /api/polls/{slug}/submit", s.submitPoll)
+	mux.HandleFunc("GET /api/state/{slug}", s.getState)
+	mux.HandleFunc("POST /api/state/{slug}", s.postState)
+	mux.HandleFunc("DELETE /api/state/{slug}", s.deleteState)
 	mux.HandleFunc("GET /api/comments/{slug}/threads", s.listComments)
 	mux.HandleFunc("POST /api/comments/{slug}/threads", s.createCommentThread)
 	mux.HandleFunc("POST /api/comments/{slug}/threads/{thread}/comments", s.replyCommentThread)
@@ -274,7 +292,7 @@ func (s *server) watchDashboard(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) dashDigest() string {
 	h := sha256.New()
-	for _, name := range []string{"index.html", "style.css", "i18n.js", "app.js", "poll.js", "comment.js", "reload.js"} {
+	for _, name := range []string{"index.html", "style.css", "i18n.js", "app.js", "poll.js", "comment.js", "state.js", "reload.js"} {
 		if fi, err := os.Stat(filepath.Join(s.devDir, name)); err == nil {
 			fmt.Fprintf(h, "%s:%d:%d;", name, fi.ModTime().UnixNano(), fi.Size())
 		} else {
@@ -350,7 +368,10 @@ func (s *server) serveSummary(w http.ResponseWriter, r *http.Request) {
 		w.Write(b)
 		return
 	}
-	tags := `<script id="lattice-poll" data-endpoint="/api/polls/` + slug + `/submit" data-results="/api/polls/` + slug + `/results">` + string(s.pollJS()) + `</script>` +
+	// State goes in before the poll bridge on purpose: poll.js fires the shared
+	// `lattice:ready` event, and a page waiting on it must find both bridges.
+	tags := `<script id="lattice-state" data-endpoint="/api/state/` + slug + `" data-poll="4000">` + string(s.stateJS()) + `</script>` +
+		`<script id="lattice-poll" data-endpoint="/api/polls/` + slug + `/submit" data-results="/api/polls/` + slug + `/results">` + string(s.pollJS()) + `</script>` +
 		`<script id="lattice-comments" data-endpoint="/api/comments/` + slug + `/threads">` + string(s.commentJS()) + `</script>` +
 		`<script id="lattice-reload" data-slug="` + slug + `">` + string(s.reloadJS()) + `</script>`
 	w.Write(injectNoindex(injectScript(b, tags)))
@@ -473,6 +494,63 @@ func (s *server) submitPoll(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) pollResults(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, aggregate(r.PathValue("slug")))
+}
+
+// State endpoints back the persistence bridge (dashboard/state.js). GET is one
+// viewer's window on the summary's state; POST applies a batch of writes and
+// returns the same window, so a client reconciles from one round trip.
+// ?all=1 returns every viewer's keys instead of one window - the CLI's view,
+// and the reason `lattice state <slug>` can show what each reader ticked.
+func (s *server) getState(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	w.Header().Set("Cache-Control", "no-store")
+	if r.URL.Query().Get("all") == "1" {
+		snapshot, err := stateSnapshot(slug)
+		if err != nil {
+			httpErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, unwrapState(slug, snapshot))
+		return
+	}
+	view, err := readState(slug, r.URL.Query().Get("viewer"))
+	if err != nil {
+		httpErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, view)
+}
+
+func (s *server) postState(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Viewer string    `json:"viewer"`
+		Ops    []stateOp `json:"ops"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10)).Decode(&req); err != nil {
+		httpErr(w, http.StatusBadRequest, `body must be JSON: {"viewer"?, "ops":[{"key","value","scope"?,"delete"?}]}`)
+		return
+	}
+	view, err := applyState(r.PathValue("slug"), req.Viewer, req.Ops)
+	if err != nil {
+		httpErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, view)
+}
+
+func (s *server) deleteState(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	scope := ""
+	if raw := q.Get("scope"); raw != "" {
+		scope = normalizeScope(raw)
+	}
+	removed, err := clearState(r.PathValue("slug"), scope, q.Get("viewer"), q.Get("key"))
+	if err != nil {
+		httpErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"slug": r.PathValue("slug"), "removed": removed})
 }
 
 func (s *server) listComments(w http.ResponseWriter, r *http.Request) {
