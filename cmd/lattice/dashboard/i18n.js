@@ -35,6 +35,8 @@
 
     'reader.share': 'Share',
     'reader.share.title': 'Share this summary at a public URL',
+    'reader.comment': 'Comment',
+    'reader.comment.title': 'Add or review comments',
     'reader.raw': 'Raw',
     'reader.raw.title': 'Original file, no injected code',
     'reader.download': 'Download',
@@ -199,6 +201,8 @@
 
     'reader.share': 'Compartilhar',
     'reader.share.title': 'Publicar este sumário numa URL pública',
+    'reader.comment': 'Comentar',
+    'reader.comment.title': 'Adicionar ou revisar comentários',
     'reader.raw': 'Original',
     'reader.raw.title': 'Arquivo original, sem código injetado',
     'reader.download': 'Baixar',

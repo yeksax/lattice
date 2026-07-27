@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 var errNotLoggedIn = errors.New("not logged in - run: lattice login <token>")
@@ -98,22 +99,44 @@ func hostedAPI(c Config, method, path string, body any) (*http.Response, error) 
 }
 
 type hostedShareRow struct {
-	Slug  string `json:"slug"`
-	URL   string `json:"url"`
-	Votes int    `json:"votes"`
+	Slug    string   `json:"slug"`
+	URL     string   `json:"url"`
+	Votes   int      `json:"votes"`
+	Domains []string `json:"domains"`
+}
+
+type hostedCommentRow struct {
+	ID       string `json:"id"`
+	Author   string `json:"author"`
+	Body     string `json:"body"`
+	Created  int64  `json:"created"`
+	Provider string `json:"author_provider"`
+}
+
+type hostedThread struct {
+	ID                     string             `json:"id"`
+	Selector               string             `json:"selector"`
+	AnchorText             string             `json:"anchor_text"`
+	SnapshotVersionCreated int                `json:"snapshot_version_created"`
+	Status                 string             `json:"status"`
+	Comments               []hostedCommentRow `json:"comments"`
 }
 
 // hostedCreate uploads a snapshot and returns its public URL. Re-creating an
 // existing share replaces the snapshot (that's how updates work).
-func hostedCreate(c Config, slug string, html []byte, random bool) (string, error) {
+func hostedCreate(c Config, slug string, html []byte, random bool, domains []string) (string, error) {
 	if c.Hosted.Token == "" {
 		return "", errNotLoggedIn
 	}
-	resp, err := hostedAPI(c, http.MethodPost, "/v1/shares", map[string]any{
+	payload := map[string]any{
 		"slug":   slug,
 		"html":   string(html),
 		"random": random,
-	})
+	}
+	if domains != nil {
+		payload["allowed_domains"] = domains
+	}
+	resp, err := hostedAPI(c, http.MethodPost, "/v1/shares", payload)
 	if err != nil {
 		return "", fmt.Errorf("hosted API unreachable at %s: %w", c.resolvedAPIBase(), err)
 	}
@@ -192,6 +215,50 @@ func hostedSubmissions(c Config, slug string) ([]json.RawMessage, error) {
 	return out.Submissions, nil
 }
 
+func hostedThreads(c Config, slug string) ([]hostedThread, error) {
+	resp, err := hostedAPI(c, http.MethodGet, "/v1/shares/"+slug+"/threads", nil)
+	if err != nil {
+		return nil, fmt.Errorf("hosted API unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	var out struct {
+		Threads []hostedThread `json:"threads"`
+		Error   string         `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		if out.Error == "" {
+			out.Error = resp.Status
+		}
+		return nil, errors.New(out.Error)
+	}
+	return out.Threads, nil
+}
+
+func hostedThreadMutation(c Config, slug, path string, body any) error {
+	if c.Hosted.Token == "" {
+		return errNotLoggedIn
+	}
+	resp, err := hostedAPI(c, http.MethodPost, "/v1/shares/"+slug+path, body)
+	if err != nil {
+		return fmt.Errorf("hosted API unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		var out struct {
+			Error string `json:"error"`
+		}
+		json.NewDecoder(resp.Body).Decode(&out)
+		if out.Error == "" {
+			out.Error = resp.Status
+		}
+		return errors.New(out.Error)
+	}
+	return nil
+}
+
 // --- CLI wrappers -------------------------------------------------------------
 
 // rawSummaryHTML returns the pristine snapshot bytes for a slug. Prefers the
@@ -212,7 +279,7 @@ func rawSummaryHTML(slug string) ([]byte, error) {
 	return b, nil
 }
 
-func hostedShare(slug string, random bool) error {
+func hostedShare(slug string, random bool, domains []string) error {
 	c := loadConfigClient()
 	if c.Hosted.Token == "" {
 		return errNotLoggedIn
@@ -221,12 +288,69 @@ func hostedShare(slug string, random bool) error {
 	if err != nil {
 		return err
 	}
-	url, err := hostedCreate(c, slug, html, random)
+	url, err := hostedCreate(c, slug, html, random, domains)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("shared %s → %s\n", slug, url)
+	if len(domains) > 0 {
+		fmt.Printf("access restricted to %s via Google\n", strings.Join(domains, ", "))
+	} else if domains != nil {
+		fmt.Println("access changed to public-by-URL")
+	}
 	fmt.Println("stays online with your laptop closed; re-run to update, unshare to stop")
+	return nil
+}
+
+func hostedThreadsList(slug string, onlyOpen, rawJSON bool) error {
+	threads, err := hostedThreads(loadConfigClient(), slug)
+	if err != nil {
+		return err
+	}
+	if rawJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(threads)
+	}
+	shown := 0
+	for _, thread := range threads {
+		if onlyOpen && thread.Status != "open" {
+			continue
+		}
+		shown++
+		fmt.Printf("%s  %s  %s  snapshot v%d\n", thread.ID, thread.Status, thread.Selector, thread.SnapshotVersionCreated)
+		for _, comment := range thread.Comments {
+			fmt.Printf("  %s: %s\n", comment.Author, comment.Body)
+		}
+	}
+	if shown == 0 {
+		fmt.Println("no threads")
+	}
+	return nil
+}
+
+func hostedCreateThread(slug, selector, message string) error {
+	return hostedThreadMutation(loadConfigClient(), slug, "/threads", map[string]string{
+		"selector": selector,
+		"body":     message,
+	})
+}
+
+func hostedReply(slug, threadID, message string) error {
+	return hostedThreadMutation(
+		loadConfigClient(),
+		slug,
+		"/threads/"+threadID+"/comments",
+		map[string]string{"body": message},
+	)
+}
+
+func hostedThreadStatus(slug, threadID, action string) error {
+	if err := hostedThreadMutation(loadConfigClient(), slug, "/threads/"+threadID+"/"+action, nil); err != nil {
+		return err
+	}
+	past := map[string]string{"resolve": "resolved", "reopen": "reopened"}[action]
+	fmt.Printf("%s %s\n", past, threadID)
 	return nil
 }
 
@@ -234,7 +358,7 @@ func hostedUnshare(slug string) error {
 	if err := hostedDelete(loadConfigClient(), slug); err != nil {
 		return err
 	}
-	fmt.Printf("unshared %s (poll data kept)\n", slug)
+	fmt.Printf("unshared %s (poll data kept; snapshots and discussions removed)\n", slug)
 	return nil
 }
 
@@ -248,7 +372,11 @@ func hostedSharesList() error {
 		return nil
 	}
 	for _, sh := range shares {
-		fmt.Printf("%-32s  %-40s  %d vote(s)\n", sh.Slug, sh.URL, sh.Votes)
+		access := "public-by-URL"
+		if len(sh.Domains) > 0 {
+			access = "@" + strings.Join(sh.Domains, ", @")
+		}
+		fmt.Printf("%-32s  %-40s  %d vote(s)  %s\n", sh.Slug, sh.URL, sh.Votes, access)
 	}
 	return nil
 }

@@ -4,9 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Summary — starter</title>
-<!-- Restores the theme before first paint (no white flash). NEVER write a
-     static data-theme on <html>: it outranks prefers-color-scheme and kills
-     dark mode for everyone who never touches the toggle. -->
 <script>(function(){try{var t=localStorage.getItem('lattice-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}})()</script>
 <style>
   /* ============================================================
@@ -25,8 +22,6 @@
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
     --pad-section:40px;      /* theme.density: compact 40 · comfortable 56 · spacious 72 */
   }
-  /* :not([data-theme="light"]) is what keeps the OS preference working when
-     the toggle has never been used. */
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
     --bg:#0b0b0b; --bg-sub:#141414;
     --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
@@ -50,17 +45,25 @@
 
   /* ---- header (one of the few rules a summary needs) ---- */
   header{
-    display:flex;align-items:baseline;justify-content:space-between;gap:16px;
-    padding:18px 0;border-bottom:1px solid var(--line-2);
+    position:sticky;top:0;z-index:20;
+    display:flex;align-items:center;justify-content:space-between;gap:20px;
+    min-height:52px;margin:0 -20px;padding:0 20px;
+    border-bottom:1px solid var(--line);
+    background:color-mix(in srgb,var(--bg) 92%,transparent);
+    -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
   }
-  .brand{font-weight:500}
-  .meta{color:var(--muted);font-size:11px}
+  .brand{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+  .meta{flex:0 0 auto;color:var(--muted);font-size:11px;white-space:nowrap}
+  .header-end{display:flex;align-items:center;justify-content:flex-end;gap:4px;min-width:0}
   .toggle{
-    font:inherit;font-size:11px;
-    background:none;border:1px solid var(--line);color:var(--ink);
-    padding:4px 10px;cursor:pointer;
+    position:relative;flex:0 0 auto;min-width:0;height:26px;padding:0 5px;border:0;border-radius:0;
+    background:transparent;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;
+    transition:color 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1);
   }
-  .toggle:hover{border-color:var(--line-2)}
+  .toggle::before{content:"";position:absolute;inset:-7px}
+  .toggle:hover,.toggle:focus-visible{background:var(--bg-sub);color:var(--ink);outline:none}
+  .toggle:active{scale:.96}
+  @media(max-width:640px){header{gap:12px}.header-end{max-width:52%}.meta{overflow:hidden;text-overflow:ellipsis}}
 
   /* ---- section: separated by SPACE + eyebrow, not a rule ---- */
   section{padding:var(--pad-section) 0 8px}
@@ -186,9 +189,9 @@
 
   <header>
     <div class="brand">Report title</div>
-    <div style="display:flex;align-items:center;gap:12px">
+    <div class="header-end">
       <span class="meta">YYYY-MM-DD</span>
-      <button class="toggle" id="themeBtn">theme</button>
+      <button class="toggle" id="themeBtn" type="button" aria-label="Toggle color scheme">theme</button>
     </div>
   </header>
 
@@ -203,26 +206,26 @@
        Whole page: ~60 words. That is the budget (SKILL.md → Digest it).
        ═════════════════════════════════════════════════════════════ -->
 
-  <section>
+  <section id="summary">
     <p class="eyebrow">01 — summary</p>
     <h1>Lead with the conclusion, in one sentence</h1>
     <p>Two lines of context, at most. Only what the reader needs to believe the
       headline, never what they already lived through.</p>
     <div class="metrics">
-      <div class="metric"><div class="val">7,164<span style="font-size:13px;color:var(--muted)">ms</span></div><div class="lbl">latency p50</div></div>
-      <div class="metric"><div class="val">$0.0045</div><div class="lbl">cost / run</div></div>
-      <div class="metric"><div class="val">6 / 6</div><div class="lbl">cases passed</div></div>
-      <div class="metric"><div class="val">98.2%</div><div class="lbl">agreement</div></div>
+      <div class="metric" data-lattice-comment="latency-p50"><div class="val">7,164<span style="font-size:13px;color:var(--muted)">ms</span></div><div class="lbl">latency p50</div></div>
+      <div class="metric" data-lattice-comment="cost-per-run"><div class="val">$0.0045</div><div class="lbl">cost / run</div></div>
+      <div class="metric" data-lattice-comment="cases-passed"><div class="val">6 / 6</div><div class="lbl">cases passed</div></div>
+      <div class="metric" data-lattice-comment="agreement-rate"><div class="val">98.2%</div><div class="lbl">agreement</div></div>
     </div>
   </section>
 
-  <section>
+  <section id="latency-breakdown">
     <p class="eyebrow">02 — where the time goes</p>
     <h2>Segmentation is the step that costs</h2>
 
     <!-- The drawing carries the sequence, so no paragraph narrates it.
          One node inverted: the eye lands on the bottleneck immediately. -->
-    <div class="flow">
+    <div class="flow" data-lattice-comment="latency-flow" data-lattice-comment-label="Latency breakdown">
       <div class="node"><div class="k">prompt</div><div class="v">1 call</div></div>
       <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg></div>
       <div class="node"><div class="k">generation</div><div class="v">7.1s</div></div>
@@ -239,7 +242,7 @@
     </p>
   </section>
 
-  <section>
+  <section id="results">
     <p class="eyebrow">03 — data</p>
     <h2>Results</h2>
 
@@ -247,7 +250,7 @@
          popover. Each caret is a hand-coded inline SVG (no external file). -->
     <div class="discloses">
 
-      <div class="disclose" tabindex="0">
+      <div class="disclose" tabindex="0" data-lattice-comment="cost-breakdown" data-lattice-comment-label="Cost breakdown">
         <div class="summary"><span>total <b>$0.0094</b></span>
           <span class="caret" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </div>
@@ -267,7 +270,7 @@
         </div>
       </div>
 
-      <div class="disclose" tabindex="0">
+      <div class="disclose" tabindex="0" data-lattice-comment="elapsed-breakdown" data-lattice-comment-label="Elapsed time breakdown">
         <div class="summary"><span>elapsed <b>17.1s</b></span>
           <span class="caret" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </div>
@@ -287,7 +290,7 @@
 
     </div>
 
-    <div class="tblwrap">
+    <div class="tblwrap" data-lattice-comment="engine-comparison" data-lattice-comment-label="Engine comparison">
       <table>
         <thead><tr><th>Engine</th><th>Model</th><th class="num">Latency</th><th class="num">Cost</th><th>Status</th></tr></thead>
         <tbody>
@@ -299,7 +302,7 @@
     </div>
   </section>
 
-  <div class="invert">
+  <div class="invert" data-lattice-comment="recommendation">
     <div><div class="lbl">Recommendation</div><div style="font-size:15px;font-weight:500;margin-top:4px">Ship grade-suica. Retire the cream mocks.</div></div>
     <div class="lbl"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14 6 20 12 14 18"/></svg></span> next steps in thread</div>
   </div>
@@ -311,8 +314,6 @@
 
 </div>
 <script>
-/* Theme toggle. Reads the OS preference when no choice was made yet, and
-   remembers the choice — the inline-onclick version forgot it on every reload. */
 document.getElementById('themeBtn').addEventListener('click',function(){
   var r=document.documentElement;
   var cur=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');

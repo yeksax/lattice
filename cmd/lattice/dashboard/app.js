@@ -9,6 +9,8 @@
   const searchMenu = $('search-menu');
   const breadcrumb = $('breadcrumb');
   const readerActions = $('reader-actions');
+  const commentBtn = $('r-comment');
+  const commentCount = $('r-comment-count');
   const settingsSave = $('settings-save');
   const sharingSave = $('sharing-save');
 
@@ -18,6 +20,7 @@
   let sharingDirty = false;
   let currentView = 'home';
   let readerSlug = null;
+  let readerCommentMode = false;
 
   const views = {
     home: $('view-home'),
@@ -77,6 +80,45 @@
   });
 
   applyTheme(readTheme());
+
+  const paintCommentMode = (active) => {
+    readerCommentMode = active;
+    commentBtn.classList.toggle('is-active', active);
+    commentBtn.setAttribute('aria-pressed', String(active));
+  };
+
+  commentBtn.addEventListener('click', () => {
+    if (!readerSlug || !frame.contentWindow) return;
+    frame.contentWindow.postMessage({
+      type: 'lattice:comment-mode',
+      active: !readerCommentMode,
+    }, location.origin);
+  });
+
+  addEventListener('message', (event) => {
+    if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
+    if (event.data?.type === 'lattice:comment-mode-state') {
+      paintCommentMode(Boolean(event.data.active));
+      return;
+    }
+    if (event.data?.type === 'lattice:comment-count') {
+      const n = Number(event.data.count) || 0;
+      commentCount.textContent = String(n);
+      commentCount.hidden = n === 0;
+      return;
+    }
+    if (event.data?.type === 'lattice:document-theme') {
+      const background = String(event.data.background || '');
+      const color = String(event.data.color || '');
+      if (background) shell.style.setProperty('--reader-bg', background);
+      if (color) shell.style.setProperty('--reader-ink', color);
+    }
+  });
+
+  frame.addEventListener('load', () => {
+    paintCommentMode(false);
+    commentCount.hidden = true;
+  });
 
   const esc = (s) => s.replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1313,6 +1355,10 @@
   // repaint a retitled doc without reloading the iframe (which would throw away
   // the in-place morph the injected hot-reload client just did).
   function paintReader(slug) {
+    shell.style.removeProperty('--reader-bg');
+    shell.style.removeProperty('--reader-ink');
+    paintCommentMode(false);
+    commentCount.hidden = true;
     $('r-raw').href = `/s/${slug}?raw=1`;
     const dl = $('r-dl');
     dl.href = `/s/${slug}?raw=1`;
@@ -1414,7 +1460,13 @@
       q.focus();
       q.select();
     } else if (e.key === 'Escape') {
-      if (anySelectOpen()) closeAllSelects();
+      if (readerCommentMode && readerSlug && frame.contentWindow) {
+        e.preventDefault();
+        frame.contentWindow.postMessage({
+          type: 'lattice:comment-mode',
+          active: false,
+        }, location.origin);
+      } else if (anySelectOpen()) closeAllSelects();
       else if (!sharePop.hidden) closeShare();
       else if (!searchMenu.hidden) closeSearchMenu();
       else if (currentView === 'read') location.hash = '#/';

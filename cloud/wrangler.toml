@@ -28,10 +28,12 @@ rules = [
 # share.lattice.pub/s/<sub> URL form working for existing links.
 SHARE_DOMAIN = "lattice.pub"
 PUBLIC_BASE = "https://share.lattice.pub"
+AUTH_BASE = "https://api.lattice.pub"
+SESSION_COOKIE_DOMAIN = ".lattice.pub"
 MAX_SNAPSHOT_BYTES = "2097152"   # 2 MiB per snapshot
 DEFAULT_MAX_SHARES = "10"        # active shares per token on the free tier
 
-# Snapshots: one HTML object per share at key snap/<sub>.
+# Immutable snapshots at snap/<sub>/v<version>.
 [[r2_buckets]]
 binding = "SNAPSHOTS"
 bucket_name = "lattice-snapshots"

@@ -25,12 +25,13 @@ import (
 var dashboardFS embed.FS
 
 type server struct {
-	ix     *Index
-	assets map[string]asset // pre-hashed embedded files
-	reload []byte           // reload.js, wrapped at request time
-	poll   []byte           // poll.js bridge
-	devDir string           // LATTICE_DEV: serve dashboard from disk (live reload)
-	bootID string           // per-process id; moves the dev-reload digest on restart
+	ix      *Index
+	assets  map[string]asset // pre-hashed embedded files
+	reload  []byte           // reload.js, wrapped at request time
+	poll    []byte           // poll.js bridge
+	comment []byte           // comment.js bridge
+	devDir  string           // LATTICE_DEV: serve dashboard from disk (live reload)
+	bootID  string           // per-process id; moves the dev-reload digest on restart
 }
 
 type asset struct {
@@ -64,6 +65,11 @@ func newServer(ix *Index) *server {
 		log.Fatal("embedded poll.js missing")
 	}
 	s.poll = pl
+	cl, err := dashboardFS.ReadFile("dashboard/comment.js")
+	if err != nil {
+		log.Fatal("embedded comment.js missing")
+	}
+	s.comment = cl
 	if dir := devDashboardDir(); dir != "" {
 		s.devDir = dir
 		log.Printf("dev mode: serving dashboard from %s (live reload on)", dir)
@@ -125,6 +131,15 @@ func (s *server) pollJS() []byte {
 	return s.poll
 }
 
+func (s *server) commentJS() []byte {
+	if s.devDir != "" {
+		if b, err := s.readDash("comment.js"); err == nil {
+			return b
+		}
+	}
+	return s.comment
+}
+
 func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { s.asset(w, r, "index.html") })
@@ -145,6 +160,12 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("GET /api/polls/{slug}", s.listPoll)
 	mux.HandleFunc("GET /api/polls/{slug}/results", s.pollResults)
 	mux.HandleFunc("POST /api/polls/{slug}/submit", s.submitPoll)
+	mux.HandleFunc("GET /api/comments/{slug}/threads", s.listComments)
+	mux.HandleFunc("POST /api/comments/{slug}/threads", s.createCommentThread)
+	mux.HandleFunc("POST /api/comments/{slug}/threads/{thread}/comments", s.replyCommentThread)
+	mux.HandleFunc("PATCH /api/comments/{slug}/threads/{thread}/comments/{comment}", s.editComment)
+	mux.HandleFunc("DELETE /api/comments/{slug}/threads/{thread}/comments/{comment}", s.deleteComment)
+	mux.HandleFunc("POST /api/comments/{slug}/threads/{thread}/{action}", s.setCommentThreadStatus)
 	// Blanket disallow, unlike the hosted Worker, which lets crawlers fetch a
 	// snapshot so they can read its noindex. Here the whole library is behind
 	// the port: if this ever gets tunnelled, keeping a crawler from downloading
@@ -253,7 +274,7 @@ func (s *server) watchDashboard(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) dashDigest() string {
 	h := sha256.New()
-	for _, name := range []string{"index.html", "style.css", "i18n.js", "app.js", "poll.js", "reload.js"} {
+	for _, name := range []string{"index.html", "style.css", "i18n.js", "app.js", "poll.js", "comment.js", "reload.js"} {
 		if fi, err := os.Stat(filepath.Join(s.devDir, name)); err == nil {
 			fmt.Fprintf(h, "%s:%d:%d;", name, fi.ModTime().UnixNano(), fi.Size())
 		} else {
@@ -330,6 +351,7 @@ func (s *server) serveSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tags := `<script id="lattice-poll" data-endpoint="/api/polls/` + slug + `/submit" data-results="/api/polls/` + slug + `/results">` + string(s.pollJS()) + `</script>` +
+		`<script id="lattice-comments" data-endpoint="/api/comments/` + slug + `/threads">` + string(s.commentJS()) + `</script>` +
 		`<script id="lattice-reload" data-slug="` + slug + `">` + string(s.reloadJS()) + `</script>`
 	w.Write(injectNoindex(injectScript(b, tags)))
 }
@@ -407,7 +429,7 @@ func (s *server) postShare(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusNotFound, "summary not found (or source missing): "+req.Slug)
 		return
 	}
-	url, err := hostedCreate(c, req.Slug, html, req.Random)
+	url, err := hostedCreate(c, req.Slug, html, req.Random, nil)
 	if err != nil {
 		httpErr(w, http.StatusBadGateway, err.Error())
 		return
@@ -440,6 +462,143 @@ func (s *server) submitPoll(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) pollResults(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, aggregate(r.PathValue("slug")))
+}
+
+func (s *server) listComments(w http.ResponseWriter, r *http.Request) {
+	threads, err := readLocalThreads(r.PathValue("slug"))
+	if err != nil {
+		httpErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	markLocalCommentPermissions(threads)
+	writeJSON(w, threads)
+}
+
+func (s *server) createCommentThread(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Selector   string `json:"selector"`
+		AnchorText string `json:"anchor_text"`
+		Body       string `json:"body"`
+		Author     string `json:"author"`
+		AuthorKind string `json:"author_kind"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 20<<10)).Decode(&req); err != nil {
+		httpErr(w, http.StatusBadRequest, "body must be JSON")
+		return
+	}
+	thread, err := newLocalThread(
+		r.PathValue("slug"),
+		req.Selector,
+		req.AnchorText,
+		req.Body,
+		req.Author,
+		req.AuthorKind,
+	)
+	if err != nil {
+		httpErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, thread)
+}
+
+func (s *server) replyCommentThread(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Body       string `json:"body"`
+		Author     string `json:"author"`
+		AuthorKind string `json:"author_kind"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 20<<10)).Decode(&req); err != nil {
+		httpErr(w, http.StatusBadRequest, "body must be JSON")
+		return
+	}
+	comment, err := replyLocalThread(
+		r.PathValue("slug"),
+		r.PathValue("thread"),
+		req.Body,
+		req.Author,
+		req.AuthorKind,
+	)
+	if err != nil {
+		status := http.StatusBadRequest
+		if err.Error() == "thread not found" {
+			status = http.StatusNotFound
+		}
+		httpErr(w, status, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, comment)
+}
+
+func (s *server) editComment(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Body string `json:"body"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 20<<10)).Decode(&req); err != nil {
+		httpErr(w, http.StatusBadRequest, "body must be JSON")
+		return
+	}
+	comment, err := editLocalComment(
+		r.PathValue("slug"),
+		r.PathValue("thread"),
+		r.PathValue("comment"),
+		req.Body,
+	)
+	if err != nil {
+		httpErr(w, localCommentMutationStatus(err), err.Error())
+		return
+	}
+	markLocalCommentPermission(comment)
+	writeJSON(w, comment)
+}
+
+func (s *server) deleteComment(w http.ResponseWriter, r *http.Request) {
+	comment, err := deleteLocalComment(
+		r.PathValue("slug"),
+		r.PathValue("thread"),
+		r.PathValue("comment"),
+	)
+	if err != nil {
+		httpErr(w, localCommentMutationStatus(err), err.Error())
+		return
+	}
+	markLocalCommentPermission(comment)
+	writeJSON(w, comment)
+}
+
+func localCommentMutationStatus(err error) int {
+	switch err.Error() {
+	case "thread not found", "comment not found":
+		return http.StatusNotFound
+	case "comment not editable":
+		return http.StatusForbidden
+	default:
+		return http.StatusBadRequest
+	}
+}
+
+func (s *server) setCommentThreadStatus(w http.ResponseWriter, r *http.Request) {
+	action := r.PathValue("action")
+	status := ""
+	switch action {
+	case "resolve":
+		status = "resolved"
+	case "reopen":
+		status = "open"
+	default:
+		httpErr(w, http.StatusNotFound, "unknown action")
+		return
+	}
+	if err := setLocalThreadStatus(r.PathValue("slug"), r.PathValue("thread"), status); err != nil {
+		code := http.StatusBadRequest
+		if err.Error() == "thread not found" {
+			code = http.StatusNotFound
+		}
+		httpErr(w, code, err.Error())
+		return
+	}
+	writeJSON(w, map[string]string{"id": r.PathValue("thread"), "status": status})
 }
 
 // watchSummary is the SSE stream behind hot reload. It stat-polls the
