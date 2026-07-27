@@ -411,12 +411,16 @@ func (s *server) listShares(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *server) postShare(w http.ResponseWriter, r *http.Request) {
+	// Domains is a pointer so the three cases stay distinct, the same way the
+	// CLI's --domain/--public pair does: absent leaves the current policy alone,
+	// [] drops the restriction, and a list replaces it.
 	var req struct {
-		Slug   string `json:"slug"`
-		Random bool   `json:"random"`
+		Slug    string    `json:"slug"`
+		Random  bool      `json:"random"`
+		Domains *[]string `json:"domains"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Slug == "" {
-		httpErr(w, http.StatusBadRequest, `body must be JSON: {"slug", "random"?}`)
+		httpErr(w, http.StatusBadRequest, `body must be JSON: {"slug", "random"?, "domains"?}`)
 		return
 	}
 	c := loadConfig()
@@ -429,13 +433,20 @@ func (s *server) postShare(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusNotFound, "summary not found (or source missing): "+req.Slug)
 		return
 	}
-	url, err := hostedCreate(c, req.Slug, html, req.Random, nil)
+	var domains []string
+	if req.Domains != nil {
+		domains = *req.Domains
+		if domains == nil {
+			domains = []string{} // JSON null inside the field still means "public"
+		}
+	}
+	url, err := hostedCreate(c, req.Slug, html, req.Random, domains)
 	if err != nil {
 		httpErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, map[string]any{"slug": req.Slug, "url": url})
+	writeJSON(w, map[string]any{"slug": req.Slug, "url": url, "domains": domains})
 }
 
 func (s *server) deleteShare(w http.ResponseWriter, r *http.Request) {

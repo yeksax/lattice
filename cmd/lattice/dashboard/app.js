@@ -1265,20 +1265,40 @@
 
   function shareLoading() { sharePop.replaceChildren(el('div', { class: 'lead' }, t('share.loading'))); }
 
+  // "acme.com, @Team.dev " → ['acme.com', 'team.dev']. An empty field means
+  // public, which is what the API reads an empty array as.
+  const parseDomains = (value) =>
+    String(value || '')
+      .split(/[,\s]+/)
+      .map((d) => d.trim().toLowerCase().replace(/^@+/, '').replace(/^https?:\/\//, '').replace(/\/.*$/, ''))
+      .filter(Boolean);
+
+  const domainField = (value) =>
+    el('input', {
+      class: 'url',
+      type: 'text',
+      value: value || '',
+      placeholder: t('share.domains.placeholder'),
+      spellcheck: 'false',
+      autocapitalize: 'off',
+    });
+
   function shareUnshared(slug) {
     const random = el('input', { type: 'checkbox' });
+    const domains = domainField('');
     const btn = el('button', { class: 'btn wide' }, t('share.publish'));
     btn.addEventListener('click', async () => {
       btn.disabled = true; btn.textContent = t('share.publishing');
+      const list = parseDomains(domains.value);
       try {
         const r = await fetch('/api/shares', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ slug, random: random.checked }),
+          body: JSON.stringify({ slug, random: random.checked, domains: list }),
         });
         const out = await r.json();
         if (!r.ok) throw new Error(out.error || 'share failed');
-        shareShared({ slug, url: out.url, votes: 0 });
+        shareShared({ slug, url: out.url, votes: 0, domains: list });
       } catch (e) {
         btn.disabled = false; btn.textContent = t('share.publish');
         sharePop.querySelector('.meta')?.remove();
@@ -1288,6 +1308,11 @@
     sharePop.replaceChildren(
       el('div', { class: 'lead' }, t('share.lede.off')),
       el('label', { class: 'opt' }, random, t('share.random')),
+      el('div', { class: 'field' },
+        el('span', { class: 'field-label' }, t('share.domains.label')),
+        domains,
+        el('div', { class: 'meta tight' }, t('share.domains.hint')),
+      ),
       btn,
     );
   }
@@ -1312,10 +1337,45 @@
         shareUnshared(sh.slug);
       } catch { stop.disabled = false; stop.textContent = t('share.stop'); }
     });
+    // Access editor. Saving posts the share again, which is also how the CLI
+    // changes a restriction — the note under the button says so out loud.
+    const current = sh.domains || [];
+    const domains = domainField(current.join(', '));
+    const save = el('button', { class: 'btn' }, t('share.access.save'));
+    const state = el('div', { class: 'meta tight' },
+      current.length
+        ? t('share.access.restricted', { d: current.map((d) => '@' + d).join(', ') })
+        : t('share.access.public'));
+    save.addEventListener('click', async () => {
+      save.disabled = true; save.textContent = t('share.access.saving');
+      const list = parseDomains(domains.value);
+      try {
+        const r = await fetch('/api/shares', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ slug: sh.slug, domains: list }),
+        });
+        const out = await r.json();
+        if (!r.ok) throw new Error(out.error || 'save failed');
+        save.textContent = t('share.access.saved');
+        setTimeout(() => shareShared({ ...sh, url: out.url || sh.url, domains: list }), 700);
+      } catch (e) {
+        save.disabled = false; save.textContent = t('share.access.save');
+        state.textContent = String(e.message || e);
+      }
+    });
+
     sharePop.replaceChildren(
-      el('div', { class: 'lead' }, t('share.lede.on')),
+      el('div', { class: 'lead' }, t(current.length ? 'share.lede.on.domain' : 'share.lede.on')),
       el('div', { class: 'row2' }, url, copy),
       el('div', { class: 'row2', style: 'margin-top:8px' }, open, stop),
+      el('div', { class: 'sep' }),
+      el('div', { class: 'field' },
+        el('span', { class: 'field-label' }, t('share.access')),
+        state,
+        el('div', { class: 'row2', style: 'margin-top:8px' }, domains, save),
+        el('div', { class: 'meta tight' }, t('share.access.republish')),
+      ),
       el('div', { class: 'meta' }, t('share.tally', { n: sh.votes || 0 }), el('code', {}, `lattice results ${sh.slug}`)),
     );
   }

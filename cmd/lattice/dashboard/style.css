@@ -1425,6 +1425,22 @@ mark {
   white-space: nowrap;
 }
 .share-pop .url:focus { border-color: var(--line-strong); }
+.share-pop .url::placeholder { color: var(--muted); }
+.share-pop .sep {
+  height: 1px;
+  margin: 14px 0;
+  background: var(--line);
+}
+.share-pop .field { margin-bottom: 12px; }
+.share-pop .field-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.share-pop .field .url { width: 100%; }
+.share-pop .meta.tight { margin-top: 6px; }
 
 .share-pop .btn {
   display: inline-flex;
