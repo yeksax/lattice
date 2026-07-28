@@ -699,6 +699,12 @@
       area.style.height = '44px';
       area.style.height = Math.min(area.scrollHeight, 120) + 'px';
     });
+    area.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+      event.preventDefault();
+      if (!area.value.trim()) return;
+      form.requestSubmit();
+    });
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const body = area.value.trim();
