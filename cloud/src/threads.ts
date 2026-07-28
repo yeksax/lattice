@@ -218,6 +218,12 @@ export async function handlePublicThreads(
   if (reaction && req.method === 'POST') {
     return toggleReaction(req, env, sub, reaction[1], reaction[2], actor);
   }
+  // Same surface as the local daemon: any signed-in reader can quiet a thread.
+  // (Hard-deleting a thread stays owner-only on the authenticated share API.)
+  const status = rest.match(/^\/threads\/([^/]+)\/(resolve|reopen)$/);
+  if (status && req.method === 'POST') {
+    return setThreadStatus(env, sub, status[1], status[2] === 'resolve' ? 'resolved' : 'open');
+  }
   return json({ error: 'not found' }, 404);
 }
 
@@ -275,16 +281,29 @@ export async function handleOwnerThreads(
   }
   const status = rest.match(/^\/threads\/([^/]+)\/(resolve|reopen)$/);
   if (status && req.method === 'POST') {
-    const next = status[2] === 'resolve' ? 'resolved' : 'open';
-    const result = await env.DB.prepare(
-      'UPDATE threads SET status = ?, updated = ? WHERE id = ? AND sub = ?',
-    )
-      .bind(next, now(), status[1], share.sub)
-      .run();
-    if (!result.meta.changes) return json({ error: 'thread not found' }, 404);
-    return json({ id: status[1], status: next });
+    return setThreadStatus(
+      env,
+      share.sub,
+      status[1],
+      status[2] === 'resolve' ? 'resolved' : 'open',
+    );
   }
   return json({ error: 'not found' }, 404);
+}
+
+async function setThreadStatus(
+  env: Env,
+  sub: string,
+  threadID: string,
+  next: 'open' | 'resolved',
+): Promise<Response> {
+  const result = await env.DB.prepare(
+    'UPDATE threads SET status = ?, updated = ? WHERE id = ? AND sub = ?',
+  )
+    .bind(next, now(), threadID, sub)
+    .run();
+  if (!result.meta.changes) return json({ error: 'thread not found' }, 404);
+  return json({ id: threadID, status: next });
 }
 
 // signatureOf reads the dedupe key a pushing client stamps on a row. It is an

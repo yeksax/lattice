@@ -50,6 +50,9 @@ DNS.
 - `POST /threads/{id}/comments` - reply after Google authentication
 - `PATCH /threads/{id}/comments/{comment}` - edit your own comment
 - `DELETE /threads/{id}/comments/{comment}` - soft-delete your own comment
+- `POST /threads/{id}/comments/{comment}/reactions` - toggle a reaction
+- `POST /threads/{id}/resolve` - mark a thread resolved
+- `POST /threads/{id}/reopen` - reopen a resolved thread
 - `GET /state` - this reader's window on the page's persisted state
 - `POST /state` - apply state operations (`document` scope is shared, `user` is
   per reader: the Google actor when signed in, the browser's own id otherwise)
