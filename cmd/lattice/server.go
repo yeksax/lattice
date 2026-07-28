@@ -176,6 +176,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("DELETE /api/shares/{slug}", s.deleteShare)
 	mux.HandleFunc("GET /api/shares/{slug}/versions", s.listShareVersions)
 	mux.HandleFunc("GET /api/shares/{slug}/versions/{version}", s.getShareVersion)
+	mux.HandleFunc("GET /api/favicon", s.getFavicon)
 	mux.HandleFunc("GET /api/polls/{slug}", s.listPoll)
 	mux.HandleFunc("GET /api/polls/{slug}/results", s.pollResults)
 	mux.HandleFunc("POST /api/polls/{slug}/submit", s.submitPoll)
