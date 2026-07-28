@@ -33,6 +33,7 @@ type server struct {
 	poll    []byte           // poll.js bridge
 	comment []byte           // comment.js bridge
 	state   []byte           // state.js bridge
+	outline []byte           // outline.js bridge
 	devDir  string           // LATTICE_DEV: serve dashboard from disk (live reload)
 	bootID  string           // per-process id; moves the dev-reload digest on restart
 }
@@ -78,6 +79,11 @@ func newServer(ix *Index) *server {
 		log.Fatal("embedded state.js missing")
 	}
 	s.state = st
+	ol, err := dashboardFS.ReadFile("dashboard/outline.js")
+	if err != nil {
+		log.Fatal("embedded outline.js missing")
+	}
+	s.outline = ol
 	if dir := devDashboardDir(); dir != "" {
 		s.devDir = dir
 		log.Printf("dev mode: serving dashboard from %s (live reload on)", dir)
@@ -155,6 +161,15 @@ func (s *server) stateJS() []byte {
 		}
 	}
 	return s.state
+}
+
+func (s *server) outlineJS() []byte {
+	if s.devDir != "" {
+		if b, err := s.readDash("outline.js"); err == nil {
+			return b
+		}
+	}
+	return s.outline
 }
 
 func (s *server) handler() http.Handler {
@@ -299,7 +314,7 @@ func (s *server) watchDashboard(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) dashDigest() string {
 	h := sha256.New()
-	for _, name := range []string{"index.html", "style.css", "i18n.js", "app.js", "poll.js", "comment.js", "state.js", "reload.js"} {
+	for _, name := range []string{"index.html", "style.css", "i18n.js", "app.js", "poll.js", "comment.js", "state.js", "outline.js", "reload.js"} {
 		if fi, err := os.Stat(filepath.Join(s.devDir, name)); err == nil {
 			fmt.Fprintf(h, "%s:%d:%d;", name, fi.ModTime().UnixNano(), fi.Size())
 		} else {
@@ -387,6 +402,9 @@ func (s *server) serveSummary(w http.ResponseWriter, r *http.Request) {
 	tags := `<script id="lattice-state" data-endpoint="/api/state/` + slug + `" data-poll="` + poll + `">` + string(s.stateJS()) + `</script>` +
 		`<script id="lattice-poll" data-endpoint="/api/polls/` + slug + `/submit" data-results="/api/polls/` + slug + `/results">` + string(s.pollJS()) + `</script>` +
 		`<script id="lattice-comments" data-endpoint="/api/comments/` + slug + `/threads">` + string(s.commentJS()) + `</script>` +
+		// After the comment bridge on purpose: the rail reads its threads through
+		// window.lattice.comments and would come up empty if it ran first.
+		`<script id="lattice-outline">` + string(s.outlineJS()) + `</script>` +
 		`<script id="lattice-reload" data-slug="` + slug + `">` + string(s.reloadJS()) + `</script>`
 	w.Write(injectNoindex(injectScript(b, tags)))
 }
