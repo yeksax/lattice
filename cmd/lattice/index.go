@@ -20,15 +20,19 @@ import (
 // Doc is one indexed summary. Exported fields marshal to the API; the
 // lowercase search caches stay private.
 type Doc struct {
-	Slug        string    `json:"slug"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Tags        []string  `json:"tags,omitempty"`
-	Source      string    `json:"source"`
-	Size        int64     `json:"size"`
-	Created     time.Time `json:"created"`
-	Modified    time.Time `json:"modified"`
-	Missing     bool      `json:"missing"`
+	Slug        string `json:"slug"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	// Excerpt is the document's own opening paragraph, used where a summary
+	// needs describing and the file carries no meta description - which is
+	// nearly always, since the skill writes prose, not meta tags.
+	Excerpt  string    `json:"excerpt,omitempty"`
+	Tags     []string  `json:"tags,omitempty"`
+	Source   string    `json:"source"`
+	Size     int64     `json:"size"`
+	Created  time.Time `json:"created"`
+	Modified time.Time `json:"modified"`
+	Missing  bool      `json:"missing"`
 
 	text     string // display text (for snippets)
 	lowText  string
@@ -130,6 +134,7 @@ func buildDoc(slug string) *Doc {
 			if ex.Description != "" {
 				d.Description = ex.Description
 			}
+			d.Excerpt = ex.Lede
 			d.text = ex.Text
 			d.lowText = strings.ToLower(ex.Text)
 		}
