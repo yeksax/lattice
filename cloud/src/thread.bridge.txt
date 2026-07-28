@@ -18,6 +18,7 @@
   let deletingCommentID = '';
   let openReactionPickerID = '';
   let commentActionError;
+  let reactionError; // a toggle that bounced, shown under the chips it undid
 
   const pageStyle = document.createElement('style');
   pageStyle.id = 'lattice-comment-page-style';
@@ -65,7 +66,7 @@
     .thread-resolve{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border:0;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);cursor:pointer;font-size:10.5px}.thread-resolve:hover{background:var(--sub);color:var(--ink)}.thread-resolve:active{scale:.96}.thread-resolve.is-resolved{background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px var(--blue);color:var(--ink)}
     .thread.is-resolved .comment p,.thread.is-resolved .comment-head b{opacity:.62}
     .reactions{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:7px}.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:0;border-radius:999px;background:var(--sub);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink-2);cursor:pointer;font-size:11.5px;line-height:1;transition:background-color 120ms cubic-bezier(.2,0,0,1),box-shadow 120ms cubic-bezier(.2,0,0,1)}
-    .chip:hover{background:var(--paper);box-shadow:inset 0 0 0 1px var(--muted)}.chip:active{scale:.96}.chip.is-mine{background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px var(--blue);color:var(--ink)}.chip-emoji{font-size:12.5px}.chip-count{font-variant-numeric:tabular-nums}
+    .chip:hover{background:var(--paper);box-shadow:inset 0 0 0 1px var(--muted)}.chip:active{scale:.96}.chip.is-mine{background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px var(--blue);color:var(--ink)}.chip-emoji{font-size:12.5px}.chip-count{font-variant-numeric:tabular-nums}.reactions .action-error{flex:0 0 100%;margin-top:3px}
     .add-reaction{padding:0;justify-content:center;width:24px;background:transparent;box-shadow:none;color:var(--muted);font-size:14px;opacity:.55}.add-reaction:hover{background:var(--sub);box-shadow:none;color:var(--ink);opacity:1}.reaction-add{position:relative;display:inline-flex}
     .reaction-picker{position:absolute;z-index:5;bottom:-4px;left:28px;display:grid;grid-template-columns:repeat(4,28px);gap:2px;padding:5px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #0002,0 14px 34px #0001}.reaction-picker button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;cursor:pointer;font-size:15px;line-height:1}.reaction-picker button:hover{background:var(--sub)}.reaction-picker button:active{scale:.92}
     .composer{display:grid;grid-template-columns:24px 1fr;gap:10px;margin-top:16px}.composer.is-reply{margin-left:26px}.composer.is-new-thread{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}.composer-box{position:relative}.composer textarea{display:block;width:100%;height:44px;min-height:44px;max-height:120px;resize:none;overflow-y:auto;padding:11px 44px 10px 12px;border:0;border-radius:12px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px transparent;transition:box-shadow 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}.composer textarea:focus{background:var(--paper);box-shadow:inset 0 0 0 1px var(--blue)}.send{position:absolute;right:6px;bottom:6px;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);cursor:pointer}.send:disabled{opacity:.24;cursor:default}.send:not(:disabled):active{scale:.96}.error{grid-column:2;color:#c43b3b;font-size:11px}
@@ -355,12 +356,50 @@
     deletingCommentID = '';
     openReactionPickerID = '';
     commentActionError = undefined;
+    reactionError = undefined;
   };
 
   const commentMutationURL = (thread, comment) =>
     `${endpoint}/${encodeURIComponent(thread.id)}/comments/${encodeURIComponent(comment.id)}`;
 
   const REACTIONS = ['👍', '👎', '❤️', '🎉', '👀', '🚀', '😄', '✅'];
+
+  // A reaction is one bit of state and the reader already knows which way they
+  // flipped it, so the chip moves on click and the request rides behind it.
+  // Toggles still in the air stay in this list: the refresh that lands after
+  // one of them answers replays the rest on top of the server's rows, so a
+  // fast second click never watches the first one snap back.
+  const pendingReactions = [];
+
+  const flipReaction = (comment, emoji) => {
+    const rows = comment.reactions || [];
+    const row = rows.find((reaction) => reaction.emoji === emoji);
+    if (!row) {
+      comment.reactions = rows.concat({ emoji, count: 1, mine: true });
+      return;
+    }
+    row.count += row.mine ? -1 : 1;
+    row.mine = !row.mine;
+    comment.reactions = rows.filter((reaction) => reaction.count > 0);
+  };
+
+  const findComment = (threadID, commentID) => {
+    for (const thread of threads) {
+      if (thread.id !== threadID) continue;
+      const found = (thread.comments || []).find((comment) => comment.id === commentID);
+      if (found) return found;
+    }
+    return undefined;
+  };
+
+  // Refresh replaces every row with the server's, which is also the answer to
+  // requests that have not come back yet. Put the outstanding flips back.
+  const replayPendingReactions = () => {
+    pendingReactions.forEach((pending) => {
+      const comment = findComment(pending.thread, pending.comment);
+      if (comment) flipReaction(comment, pending.emoji);
+    });
+  };
 
   // The reaction strip under a comment: the emoji already on it, and the button
   // that adds one. Chips are toggles - clicking one you are already in takes
@@ -369,17 +408,33 @@
     const strip = document.createElement('div');
     strip.className = 'reactions';
     const toggle = async (emoji) => {
+      const pending = { thread: thread.id, comment: comment.id, emoji };
+      pendingReactions.push(pending);
+      flipReaction(comment, emoji);
+      openReactionPickerID = '';
+      reactionError = undefined;
+      render();
+      let failure;
       try {
         await request(commentMutationURL(thread, comment) + '/reactions', {
           method: 'POST',
           body: JSON.stringify({ emoji }),
         });
-        openReactionPickerID = '';
-        await refresh();
       } catch (cause) {
-        commentActionError = { id: comment.id, message: cause.message || 'Could not react' };
+        failure = cause;
+      }
+      const at = pendingReactions.indexOf(pending);
+      if (at >= 0) pendingReactions.splice(at, 1);
+      if (failure) {
+        reactionError = { id: comment.id, message: failure.message || 'Could not react' };
+        // Undo it here too: if the refresh below also fails, the chip is still
+        // claiming something the server never accepted.
+        const current = findComment(thread.id, comment.id);
+        if (current) flipReaction(current, emoji);
         render();
       }
+      // Reconcile either way - the counts include other readers' reactions.
+      await refresh().catch(() => {});
     };
     (comment.reactions || []).forEach((reaction) => {
       const chip = document.createElement('button');
@@ -428,6 +483,14 @@
       wrap.append(picker);
     }
     strip.append(wrap);
+    // An optimistic chip that gets rolled back has to say why, or it just
+    // flickers and lies.
+    if (reactionError?.id === comment.id) {
+      const error = document.createElement('div');
+      error.className = 'action-error';
+      error.textContent = reactionError.message;
+      strip.append(error);
+    }
     return strip;
   };
 
@@ -899,10 +962,16 @@
     else document.dispatchEvent(new CustomEvent('lattice:comment-mode-state', { detail: { active: commentMode } }));
   };
 
+  // Clicking two chips in a row puts two fetches in flight, and they do not
+  // have to come back in order. Only the newest answer is allowed to land.
+  let refreshTicket = 0;
+
   const refresh = async () => {
+    const ticket = ++refreshTicket;
     const out = await request(endpoint);
-    if (!out) return;
+    if (!out || ticket !== refreshTicket) return;
     threads = Array.isArray(out) ? out : (out.threads || []);
+    replayPendingReactions();
     render();
     if (isEmbedded) {
       window.parent.postMessage({ type: 'lattice:comment-count', count: threads.length }, location.origin);
