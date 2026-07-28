@@ -55,6 +55,16 @@ on `.go` changes. It runs on `:4601` so it never fights an installed daemon on
   `index.html` / `style.css` / `app.js`, embedded into the binary.
 - **JS packages**: one pnpm workspace, `pnpm install` from the repository root.
   Never create package-level npm lockfiles.
+- **No tracked caps, anywhere.** `text-transform: uppercase` together with a
+  custom `letter-spacing` is banned across every surface we ship: the dashboard
+  and reader chrome, the marketing site, the cloud pages, and the summaries the
+  skill produces. The spaced-out-caps eyebrow is the clearest AI-slop tell in
+  the whole visual language. Labels are sentence case at a small size in
+  `--muted`; that is enough to make them read as labels. The skill states the
+  same rule for generated summaries (`cmd/lattice/skill/SKILL.md`, "Tracked
+  caps"); this line extends it to our own UI code, which is not covered by it.
+  Uppercase alone is still fine where it is doing work, such as a one-letter
+  avatar initial.
 - **Commits**: Conventional Commits. Separate commits by concern.
 - **Trust boundary**: the daemon binds to loopback, the local filesystem stays
   the source of truth, and sharing uploads one selected snapshot — never the
