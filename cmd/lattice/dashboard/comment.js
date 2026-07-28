@@ -64,7 +64,8 @@
     .comment.is-reply{margin-left:26px}
     .replies-toggle{display:inline-flex;align-items:center;gap:6px;margin:0 0 16px 26px;padding:0;border:0;background:none;color:var(--muted);cursor:pointer;font-size:11.5px}.replies-toggle:hover{color:var(--ink)}.replies-toggle::before{content:"";width:18px;height:1px;background:currentColor;opacity:.45}
     .thread-meta .label{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .thread-resolve{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border:0;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);cursor:pointer;font-size:10.5px}.thread-resolve:hover{background:var(--sub);color:var(--ink)}.thread-resolve:active{scale:.96}.thread-resolve.is-resolved{background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px var(--blue);color:var(--ink)}
+    .thread-resolve{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border:0;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);cursor:pointer;font-size:10.5px}.thread-resolve:hover{background:var(--sub);color:var(--ink)}.thread-resolve:active{scale:.96}.thread-resolve.is-resolved{background:rgba(22,131,255,.12);box-shadow:none;color:var(--blue)}.thread-resolve.is-resolved:hover{background:rgba(22,131,255,.18);color:var(--blue)}
+    .thread-replies-caret{flex:0 0 auto;display:inline-grid;place-items:center;width:22px;height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer}.thread-replies-caret:hover{background:var(--sub);color:var(--ink)}.thread-replies-caret:active{scale:.96}.thread-replies-caret svg{display:block;width:14px;height:14px}
     .thread.is-resolved .comment p,.thread.is-resolved .comment-head b{opacity:.62}
     .reactions{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:7px}.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:0;border-radius:999px;background:var(--sub);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink-2);cursor:pointer;font-size:11.5px;line-height:1;transition:background-color 120ms cubic-bezier(.2,0,0,1),box-shadow 120ms cubic-bezier(.2,0,0,1)}
     .chip:hover{background:var(--paper);box-shadow:inset 0 0 0 1px var(--muted)}.chip:active{scale:.96}.chip.is-mine{background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px var(--blue);color:var(--ink)}.chip-emoji{font-size:12.5px}.chip-count{font-variant-numeric:tabular-nums}.reactions .action-error{flex:0 0 100%;margin-top:3px}
@@ -895,6 +896,31 @@
         });
       });
       meta.append(label, resolve);
+
+      // The opening comment sits at the root and is the whole thread until you
+      // ask for the rest: a popover that unrolls every answer to every thread
+      // buries the one you came to read. Replies are indented, never boxed in.
+      const comments = thread.comments || [];
+      const [first, ...replies] = comments;
+      const expanded = expandedThreads.has(thread.id);
+      if (resolved && replies.length) {
+        // Resolved threads drop the "n replies" link; the caret beside the
+        // badge is the only expand control, so a closed thread stays quiet.
+        const caret = document.createElement('button');
+        caret.className = 'thread-replies-caret';
+        caret.type = 'button';
+        caret.title = expanded ? 'Hide replies' : 'Show replies';
+        caret.setAttribute('aria-label', expanded ? 'Hide replies' : 'Show replies');
+        caret.setAttribute('aria-expanded', String(expanded));
+        caret.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
+        caret.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (expanded) expandedThreads.delete(thread.id);
+          else expandedThreads.add(thread.id);
+          render();
+        });
+        meta.append(caret);
+      }
       section.append(meta);
       if (commentActionError?.id === thread.id) {
         const error = document.createElement('div');
@@ -903,28 +929,24 @@
         section.append(error);
       }
 
-      // The opening comment sits at the root and is the whole thread until you
-      // ask for the rest: a popover that unrolls every answer to every thread
-      // buries the one you came to read. Replies are indented, never boxed in.
-      const comments = thread.comments || [];
-      const [first, ...replies] = comments;
       if (first) section.append(commentRow(thread, first, false));
       if (replies.length) {
-        const expanded = expandedThreads.has(thread.id);
-        const toggle = document.createElement('button');
-        toggle.className = 'replies-toggle';
-        toggle.type = 'button';
-        toggle.setAttribute('aria-expanded', String(expanded));
-        toggle.textContent = expanded
-          ? 'Hide replies'
-          : `${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}`;
-        toggle.addEventListener('click', (event) => {
-          event.stopPropagation();
-          if (expanded) expandedThreads.delete(thread.id);
-          else expandedThreads.add(thread.id);
-          render();
-        });
-        section.append(toggle);
+        if (!resolved) {
+          const toggle = document.createElement('button');
+          toggle.className = 'replies-toggle';
+          toggle.type = 'button';
+          toggle.setAttribute('aria-expanded', String(expanded));
+          toggle.textContent = expanded
+            ? 'Hide replies'
+            : `${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}`;
+          toggle.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (expanded) expandedThreads.delete(thread.id);
+            else expandedThreads.add(thread.id);
+            render();
+          });
+          section.append(toggle);
+        }
         if (expanded) replies.forEach((comment) => section.append(commentRow(thread, comment, true)));
       }
       if (replyingThreadID === thread.id) {
