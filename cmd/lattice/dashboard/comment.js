@@ -9,8 +9,9 @@
   const markerHosts = new Map();
   let threads = [];
   let commentMode = false;
-  let openSelector = '';
-  let composingSelector = '';
+  let openSelector = '';      // an anchor's existing threads are on screen
+  let composingSelector = ''; // ...with a composer for one more, inside it
+  let newThreadSelector = ''; // a first thread is being written at the cursor
   let openCommentMenuID = '';
   let editingCommentID = '';
   let deletingCommentID = '';
@@ -41,18 +42,7 @@
     body[data-lattice-comment-mode="true"] [data-lattice-comment-target].is-lattice-cursor-target::after{
       opacity:1
     }
-    .lattice-comment-marker.is-empty{
-      opacity:0;
-      visibility:hidden;
-      pointer-events:none;
-      transition:opacity 140ms cubic-bezier(.2,0,0,1),visibility 140ms
-    }
-    .lattice-comment-marker.is-empty.is-hovered,
-    .lattice-comment-marker.is-empty.is-open{
-      opacity:1;
-      visibility:visible;
-      pointer-events:none
-    }
+    .lattice-comment-marker.is-cursor{pointer-events:none}
   `;
   document.head.append(pageStyle);
 
@@ -97,14 +87,19 @@
     const heading = element.matches('h1,h2,h3,h4,h5,h6')
       ? element
       : element.querySelector('h1,h2,h3,h4,h5,h6');
-    const localLabel = element.querySelector('figcaption,caption,.lbl,.k');
-    return (
+    const localLabel = element.querySelector('figcaption,caption,.lbl,.k,.ttl,.t');
+    const named = (
       element.getAttribute('data-lattice-comment-label') ||
       (heading && heading.textContent) ||
       element.getAttribute('aria-label') ||
       (localLabel && localLabel.textContent) ||
       ''
-    ).trim().slice(0, 500);
+    ).replace(/\s+/g, ' ').trim();
+    if (named) return named.slice(0, 500);
+    // Nothing named it. A checklist row has no heading and no label, and
+    // "[data-lattice-comment-anchor=…]" is not a thing anyone recognises in a
+    // popover title - its own first words are.
+    return (element.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120);
   };
 
   const formatTime = (seconds) => {
@@ -158,6 +153,37 @@
     'details',
   ].join(',');
 
+  // Rows a reader can act on - a checklist item, a toggle, anything the state
+  // bridge persists - are the finest thing worth a thread, and the ones a
+  // reviewer actually argues about. They are found by their control rather
+  // than by a class name: the design system has no row class, and a summary
+  // free to invent its own markup should not have to know ours.
+  const actionableRows = () => {
+    const rows = new Set();
+    document
+      .querySelectorAll('input[type="checkbox"],input[type="radio"],[data-lattice-state]')
+      .forEach((control) => {
+        const row = control.closest('label,li,tr,.act,.row,.item') || control.parentElement;
+        if (row && row !== document.body && row !== document.documentElement) rows.add(row);
+      });
+    return rows;
+  };
+
+  // A generated anchor key has to survive the next revision of the summary, or
+  // every thread hanging off one slides down when a row is inserted above it.
+  // Prefer whatever the author already named the row - its data-id, the state
+  // key of its control - and fall back to counting only when there is nothing
+  // stable to hold on to.
+  const stableKey = (element) => {
+    const own = (element.getAttribute('data-id') || '').trim();
+    if (own) return 'id-' + own;
+    const stateful = element.matches('[data-lattice-state]')
+      ? element
+      : element.querySelector('[data-lattice-state]');
+    const key = stateful && (stateful.getAttribute('data-lattice-state') || '').trim();
+    return key ? 'state-' + key : '';
+  };
+
   const anchorKind = (element) => {
     if (element.matches('.card')) return 'card';
     if (element.matches('.metric')) return 'metric';
@@ -172,6 +198,7 @@
     if (element.matches('pre')) return 'code';
     if (element.matches('blockquote')) return 'quote';
     if (element.matches('.disclose,details')) return 'detail';
+    if (element.matches('label,li,tr')) return 'row';
     return element.tagName.toLowerCase();
   };
 
@@ -189,14 +216,17 @@
       'section[id], [data-lattice-section], [data-lattice-comment]',
     ));
     const counters = new Map();
-    document.querySelectorAll(autoAnchorSelector).forEach((element) => {
+    const rows = actionableRows();
+    new Set([...document.querySelectorAll(autoAnchorSelector), ...rows]).forEach((element) => {
       if (element.matches('[data-lattice-comment]')) return;
-      if (element.parentElement?.closest('[data-lattice-comment]')) return;
+      // An explicitly marked container owns its decoration, not its rows. The
+      // whole point of anchoring a checklist item is to argue about that line,
+      // and "the group" is rarely what the argument is about.
+      if (!rows.has(element) && element.parentElement?.closest('[data-lattice-comment]')) return;
       if (element.matches('table') && element.closest('.tblwrap')) return;
 
       const base = sectionKeyFor(element);
-      const kind = anchorKind(element);
-      const counterKey = `${base}/${kind}`;
+      const counterKey = `${base}/${stableKey(element) || anchorKind(element)}`;
       const order = (counters.get(counterKey) || 0) + 1;
       counters.set(counterKey, order);
       element.setAttribute('data-lattice-comment-anchor', `${counterKey}-${order}`);
@@ -244,27 +274,39 @@
     element.setAttribute('data-lattice-comment-positioned', '');
   };
 
-  const placeHost = (host, element, hasThreads) => {
-    if (hasThreads) {
-      ensurePositioned(element);
-      if (host.parentElement !== element) element.append(host);
-      host.style.cssText = 'position:absolute;right:-8px;top:12px;left:auto;transform:none;z-index:2147483000';
-      host.classList.remove('is-hovered');
-      return;
-    }
+  const placeHost = (host, element) => {
+    ensurePositioned(element);
+    if (host.parentElement !== element) element.append(host);
+    host.style.cssText = 'position:absolute;right:-8px;top:12px;left:auto;transform:none;z-index:2147483000';
+  };
 
-    if (host.parentElement !== document.body) document.body.append(host);
-    if (!host.dataset.cursorPosition) host.dataset.cursorPosition = '-100px,-100px';
-    const [x, y] = host.dataset.cursorPosition.split(',');
-    host.style.display = 'block';
-    host.style.width = '28px';
-    host.style.height = '28px';
-    host.style.position = 'fixed';
-    host.style.left = '0';
-    host.style.top = '0';
-    host.style.right = 'auto';
-    host.style.transform = `translate3d(${x},${y},0) translate(-50%,-50%)`;
-    host.style.zIndex = '2147483000';
+  // The cursor marker is one host for the whole page, not one per anchor. It
+  // used to be the anchor's own marker doing double duty, which meant an
+  // element that already had a thread had nothing left to follow the pointer
+  // with - hover a commented section and the tool simply vanished. Separating
+  // them lets the count stay pinned to its anchor while the "+" tracks the
+  // cursor everywhere, over commented and uncommented things alike.
+  let cursorHost;
+  const ensureCursorHost = () => {
+    if (cursorHost) return cursorHost;
+    cursorHost = document.createElement('span');
+    cursorHost.className = 'lattice-comment-marker is-cursor';
+    const root = cursorHost.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = css;
+    const wrap = document.createElement('span');
+    wrap.className = 'marker-wrap';
+    root.append(style, wrap);
+    cursorHost.style.cssText =
+      'position:fixed;left:0;top:0;display:none;width:28px;height:28px;z-index:2147483000';
+    document.body.append(cursorHost);
+    moveCursorHost(-100, -100);
+    return cursorHost;
+  };
+
+  const moveCursorHost = (x, y) => {
+    if (!cursorHost) return;
+    cursorHost.style.transform = `translate3d(${x}px,${y}px,0) translate(-50%,-50%)`;
   };
 
   const preview = (items) => {
@@ -520,6 +562,7 @@
         await submit(body);
         area.value = '';
         composingSelector = '';
+        newThreadSelector = '';
         exitCommentMode(false);
         await refresh();
       } catch (cause) {
@@ -532,10 +575,10 @@
     return { form, area };
   };
 
-  const popover = (selector, items, isComposing) => {
+  const popover = (selector, items, isComposing, visible) => {
     const box = document.createElement('div');
     box.className = 'popover';
-    box.hidden = openSelector !== selector;
+    box.hidden = !visible;
     const head = document.createElement('div');
     head.className = 'pop-head';
     const title = document.createElement('strong');
@@ -549,9 +592,7 @@
     close.textContent = '×';
     close.addEventListener('click', (event) => {
       event.stopPropagation();
-      openSelector = '';
-      composingSelector = '';
-      resetCommentActions();
+      closePopovers();
       render();
     });
     const actions = document.createElement('div');
@@ -614,32 +655,67 @@
     return box;
   };
 
+  // An anchor's own marker: the count, pinned to the element, and the popover
+  // listing what is already there. It exists only while the anchor has threads.
   const renderMarker = (selector, element, items) => {
     const host = markerHosts.get(selector) || makeHost(selector, element);
-    placeHost(host, element, items.length > 0);
-    host.classList.toggle('is-empty', !items.length);
+    placeHost(host, element);
     host.classList.toggle('is-open', openSelector === selector);
     const wrap = host.shadowRoot.querySelector('.marker-wrap');
     wrap.replaceChildren();
     const button = document.createElement('button');
-    button.className = 'marker' + (items.length ? '' : ' is-new');
+    button.className = 'marker';
     button.type = 'button';
-    button.textContent = items.length ? String(items.length) : '+';
-    button.setAttribute('aria-label', items.length ? `${items.length} discussion threads` : 'Add comment');
+    button.textContent = String(items.length);
+    button.setAttribute('aria-label', `${items.length} discussion threads`);
     button.addEventListener('click', (event) => {
       event.stopPropagation();
-      openSelector = openSelector === selector ? '' : selector;
-      composingSelector = items.length ? '' : selector;
-      resetCommentActions();
+      const open = openSelector === selector;
+      closePopovers();
+      openSelector = open ? '' : selector;
       render();
     });
-    wrap.append(button, preview(items), popover(selector, items, composingSelector === selector));
+    wrap.append(
+      button,
+      preview(items),
+      popover(selector, items, composingSelector === selector, openSelector === selector),
+    );
+  };
+
+  // The cursor marker: the "+" that follows the pointer, and the composer for a
+  // brand-new thread, frozen wherever you clicked.
+  const renderCursorMarker = () => {
+    const host = ensureCursorHost();
+    const composing = Boolean(newThreadSelector);
+    const visible = commentMode && (Boolean(cursorTarget) || composing);
+    host.style.display = visible ? 'block' : 'none';
+    const wrap = host.shadowRoot.querySelector('.marker-wrap');
+    wrap.replaceChildren();
+    if (!visible) return;
+    const button = document.createElement('button');
+    button.className = 'marker is-new';
+    button.type = 'button';
+    button.tabIndex = -1;
+    button.textContent = '+';
+    button.setAttribute('aria-hidden', 'true');
+    wrap.append(button);
+    if (composing) wrap.append(popover(newThreadSelector, [], true, true));
+  };
+
+  const closePopovers = () => {
+    openSelector = '';
+    composingSelector = '';
+    newThreadSelector = '';
+    resetCommentActions();
   };
 
   const render = () => {
     // The comment-mode cursor is hidden because the marker replaces it. With a
     // popover open the marker is parked, so the real cursor has to come back.
-    document.body.toggleAttribute('data-lattice-comment-open', Boolean(openSelector));
+    document.body.toggleAttribute(
+      'data-lattice-comment-open',
+      Boolean(openSelector || newThreadSelector),
+    );
     const anchors = eligibleAnchors();
     threads.forEach((thread) => {
       try {
@@ -647,17 +723,24 @@
         if (element) anchors.add(element);
       } catch {}
     });
+    const anchored = new Set();
     anchors.forEach((element) => {
       const selector = selectorFor(element);
       if (!selector) return;
       element.toggleAttribute('data-lattice-comment-target', commentMode);
       const items = threadsFor(selector);
-      if (items.length || commentMode || markerHosts.has(selector)) {
-        renderMarker(selector, element, items);
-        const host = markerHosts.get(selector);
-        host.hidden = !items.length && !commentMode && openSelector !== selector;
-      }
+      if (!items.length) return;
+      anchored.add(selector);
+      renderMarker(selector, element, items);
     });
+    // A thread that was deleted, or an anchor the page no longer has, leaves a
+    // marker behind pointing at nothing.
+    markerHosts.forEach((host, selector) => {
+      if (anchored.has(selector)) return;
+      host.remove();
+      markerHosts.delete(selector);
+    });
+    renderCursorMarker();
     reportTheme();
   };
 
@@ -676,7 +759,8 @@
       element.removeAttribute('data-lattice-comment-target');
       element.classList.remove('is-lattice-cursor-target');
     });
-    markerHosts.forEach((host) => host.classList.remove('is-hovered'));
+    cursorTarget = null;
+    if (cursorHost) cursorHost.style.display = 'none';
     if (renderNow) render();
     notifyMode();
   };
@@ -710,7 +794,8 @@
       '--muted': value('--muted', bodyStyle.color),
       '--line': value('--line', bodyStyle.color),
     };
-    markerHosts.forEach((host) => {
+    [...markerHosts.values(), cursorHost].forEach((host) => {
+      if (!host) return;
       Object.entries(theme).forEach(([name, color]) => host.style.setProperty(name, color));
       host.style.colorScheme = rootStyle.colorScheme;
     });
@@ -727,17 +812,15 @@
   const clearCursorTarget = () => {
     if (!cursorTarget) return;
     cursorTarget.classList.remove('is-lattice-cursor-target');
-    const selector = selectorFor(cursorTarget);
-    const host = selector && markerHosts.get(selector);
-    if (host) host.classList.remove('is-hovered');
     cursorTarget = null;
+    if (cursorHost) cursorHost.style.display = 'none';
   };
 
   // An open popover freezes the cursor tracking. The marker under the pointer
   // has become the thread you are writing in: moving it (or re-targeting the
   // highlight) while you type pulls the composer out from under the caret.
   document.addEventListener('pointermove', (event) => {
-    if (!commentMode || openSelector) return;
+    if (!commentMode || openSelector || newThreadSelector) return;
     const insideMarker = event.composedPath().some((node) =>
       node.classList && node.classList.contains('lattice-comment-marker'));
     if (insideMarker) return;
@@ -752,14 +835,9 @@
       clearCursorTarget();
       cursorTarget = target;
       target.classList.add('is-lattice-cursor-target');
+      renderCursorMarker();
     }
-
-    const selector = selectorFor(target);
-    const host = selector && markerHosts.get(selector);
-    if (!host || !host.classList.contains('is-empty')) return;
-    host.dataset.cursorPosition = `${event.clientX}px,${event.clientY}px`;
-    host.style.transform = `translate3d(${event.clientX}px,${event.clientY}px,0) translate(-50%,-50%)`;
-    host.classList.add('is-hovered');
+    moveCursorHost(event.clientX, event.clientY);
   }, true);
 
   document.addEventListener('pointerout', (event) => {
@@ -774,19 +852,19 @@
         event.stopPropagation();
         const selector = selectorFor(target);
         const items = threadsFor(selector);
-        openSelector = selector;
-        composingSelector = items.length ? '' : selector;
-        resetCommentActions();
+        closePopovers();
+        // Something already said here: show it, and let the popover's own "+"
+        // start another. Nothing yet: write the first one where you clicked.
+        if (items.length) openSelector = selector;
+        else newThreadSelector = selector;
         render();
         return;
       }
     }
     const insideMarker = event.composedPath().some((node) =>
       node.classList && node.classList.contains('lattice-comment-marker'));
-    if (!insideMarker && openSelector) {
-      openSelector = '';
-      composingSelector = '';
-      resetCommentActions();
+    if (!insideMarker && (openSelector || newThreadSelector)) {
+      closePopovers();
       render();
     }
   }, true);
@@ -796,9 +874,8 @@
     if (openCommentMenuID || editingCommentID || deletingCommentID) {
       resetCommentActions();
       render();
-    } else if (openSelector) {
-      openSelector = '';
-      composingSelector = '';
+    } else if (openSelector || newThreadSelector) {
+      closePopovers();
       render();
     } else if (commentMode) {
       exitCommentMode();
