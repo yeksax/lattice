@@ -45,9 +45,9 @@
     .card-head{flex:0 0 auto;width:100%;padding:12px 14px 10px;border:0;border-radius:12px 12px 0 0;background:none;text-align:left;cursor:pointer}
     .card-head:hover,.card-head:focus-visible{background:var(--sub);outline:none}
     .card-head:active{scale:.995}
-    .kicker{display:flex;align-items:center;gap:6px;margin-bottom:3px;color:var(--muted);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+    .kicker{display:flex;align-items:center;gap:6px;margin-bottom:3px;color:var(--muted);font-size:11px}
     .kicker .label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .count{flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:10px;letter-spacing:0;font-variant-numeric:tabular-nums}
+    .count{flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:10px;font-variant-numeric:tabular-nums}
     .title{margin:0;font-size:13px;font-weight:600;line-height:1.35;color:var(--ink)}
     .body{display:-webkit-box;overflow:hidden;margin:5px 0 0;color:var(--ink-2);font-size:12px;line-height:1.5;-webkit-box-orient:vertical;-webkit-line-clamp:4}
     .threads{flex:1 1 auto;min-height:0;overflow:auto;padding:6px;border-top:1px solid var(--line)}
