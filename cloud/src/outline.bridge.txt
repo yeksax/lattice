@@ -18,20 +18,24 @@
   let closeTimer = 0;
 
   const css = `
-    :host{all:initial;color-scheme:light;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--paper:#fff;--sub:#f5f5f4;--line:#e6e6e3;--blue:#1683ff;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+    :host{all:initial;color-scheme:light;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--paper:#fff;--sub:#f5f5f4;--line:#e6e6e3;--accent:var(--ink);--accent-hover:color-mix(in srgb,var(--accent) 82%,#000);--accent-soft:color-mix(in srgb,var(--accent) 12%,transparent);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
     *{box-sizing:border-box}button{font:inherit;color:inherit}
-    .layer{position:fixed;inset:0;z-index:14;pointer-events:none}
+    /* Host owns the stacking context (z-index:18); layer just fills the viewport. */
+    .layer{position:absolute;inset:0;pointer-events:none}
     .rail{position:absolute;left:6px;top:50%;translate:0 -50%;display:flex;flex-direction:column;align-items:flex-start;gap:5px;max-height:78vh;padding:10px 14px 10px 10px;overflow:hidden auto;scrollbar-width:none;pointer-events:auto}
     .rail::-webkit-scrollbar{display:none}
-    .tick{position:relative;display:flex;align-items:center;gap:5px;height:9px;padding:0;border:0;background:none;cursor:pointer;opacity:.42;transition:opacity 160ms cubic-bezier(.2,0,0,1)}
+    .tick{position:relative;display:flex;align-items:center;gap:0;height:9px;padding:0;border:0;background:none;cursor:pointer}
     .tick::before{content:"";position:absolute;inset:-3px -8px}
-    .rail:hover .tick,.rail:focus-within .tick{opacity:.72}
-    .tick:hover,.tick:focus-visible,.tick.is-peeked{opacity:1;outline:none}
-    .tick.is-active{opacity:1}
-    .bar{display:block;width:10px;height:2px;border-radius:1px;background:var(--muted);transition:background-color 160ms cubic-bezier(.2,0,0,1),width 130ms cubic-bezier(.2,0,0,1)}
-    .tick.is-active .bar,.tick:hover .bar,.tick.is-peeked .bar,.tick:focus-visible .bar{background:var(--ink)}
-    .dot{display:block;flex:0 0 auto;width:4px;height:4px;border-radius:50%;background:var(--blue)}
-    .card{position:absolute;left:78px;display:flex;flex-direction:column;width:min(310px,calc(100vw - 100px));max-height:min(420px,calc(100vh - 24px));padding:0;border-radius:12px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 18px 48px #0002;opacity:0;visibility:hidden;pointer-events:none;transform:translateX(-4px) scale(.985);transform-origin:left center;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1),visibility 160ms}
+    .bar{display:block;width:10px;height:2px;border-radius:1px;background:var(--muted);opacity:.42;transition:background-color 160ms cubic-bezier(.2,0,0,1),width 130ms cubic-bezier(.2,0,0,1),opacity 160ms cubic-bezier(.2,0,0,1)}
+    .rail:hover .bar,.rail:focus-within .bar{opacity:.72}
+    .tick:hover,.tick:focus-visible,.tick.is-peeked{outline:none}
+    .tick.is-active .bar,.tick:hover .bar,.tick.is-peeked .bar,.tick:focus-visible .bar{opacity:1;background:var(--ink)}
+    /* In-screen section with comments: the accent lives on the bar. */
+    .tick.has-comments.is-active .bar{background:var(--accent)}
+    .dot{display:block;flex:0 0 auto;width:4px;height:4px;margin-left:5px;border-radius:50%;background:var(--accent);transform:translateX(0) scale(1);transform-origin:center;opacity:1;pointer-events:none;transition:transform 240ms cubic-bezier(.2,.8,.2,1),opacity 200ms cubic-bezier(.2,0,0,1),margin-left 240ms cubic-bezier(.2,.8,.2,1)}
+    /* Keep the box; slide + shrink into the bar tip so it reads as absorbed. */
+    .tick.has-comments.is-active .dot{margin-left:0;opacity:0;transform:translateX(-9px) scale(0)}
+    .card{position:absolute;left:78px;z-index:1;display:flex;flex-direction:column;width:min(310px,calc(100vw - 100px));max-height:min(420px,calc(100vh - 24px));padding:0;border-radius:12px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 18px 48px #0002;opacity:0;visibility:hidden;pointer-events:none;transform:translateX(-4px) scale(.985);transform-origin:left center;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1),visibility 160ms}
     .card.is-open{opacity:1;visibility:visible;pointer-events:auto;transform:none}
     /* The pointer travels diagonally from a 2px tick to the card; without this
        bridge over the gap the card closes halfway there. It stops short of the
@@ -43,7 +47,7 @@
     .card-head:active{scale:.995}
     .kicker{display:flex;align-items:center;gap:6px;margin-bottom:3px;color:var(--muted);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
     .kicker .label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .count{flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 6px;border-radius:999px;background:rgba(22,131,255,.12);color:var(--blue);font-size:10px;letter-spacing:0;font-variant-numeric:tabular-nums}
+    .count{flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:10px;letter-spacing:0;font-variant-numeric:tabular-nums}
     .title{margin:0;font-size:13px;font-weight:600;line-height:1.35;color:var(--ink)}
     .body{display:-webkit-box;overflow:hidden;margin:5px 0 0;color:var(--ink-2);font-size:12px;line-height:1.5;-webkit-box-orient:vertical;-webkit-line-clamp:4}
     .threads{flex:1 1 auto;min-height:0;overflow:auto;padding:6px;border-top:1px solid var(--line)}
@@ -58,12 +62,15 @@
     .thread p{display:-webkit-box;overflow:hidden;margin:1px 0 0;color:var(--ink-2);font-size:11.5px;line-height:1.4;-webkit-box-orient:vertical;-webkit-line-clamp:2}
     .thread.is-resolved .avatar{background:var(--muted)}
     .thread.is-resolved p,.thread.is-resolved .thread-head b{opacity:.6}
-    @media(prefers-color-scheme:dark){:host{color-scheme:dark;--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#777;--paper:#171717;--sub:#242424;--line:#303030}}
+    @media(prefers-color-scheme:dark){:host{color-scheme:dark;--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#777;--paper:#171717;--sub:#242424;--line:#303030;--accent-hover:color-mix(in srgb,var(--accent) 78%,#fff);--accent-soft:color-mix(in srgb,var(--accent) 22%,transparent)}}
     @media(prefers-reduced-motion:reduce){*{transition:none!important}}
   `;
 
   const host = document.createElement('div');
   host.className = 'lattice-outline';
+  // Own stacking context so the peek clears comment anchors (z-index:15)
+  // without fighting sticky master headers (z-index:20).
+  host.style.cssText = 'position:fixed;inset:0;z-index:18;pointer-events:none';
   const root = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
   style.textContent = css;
@@ -332,6 +339,7 @@
     if (index === peekIndex && card.classList.contains('is-open')) return;
     peekIndex = index;
     collectThreads();
+    paintCommentMarks();
     renderCard(index);
     card.classList.add('is-open');
     const tick = rail.children[index];
@@ -356,6 +364,11 @@
   // you are about to hit is the one that is easiest to hit.
   const REST = 10;
   const PEAK = 30;
+  // At rest the current section still swells, and its immediate neighbours lean
+  // into it - a small hill instead of a lone spike, so the rail reads as a place
+  // in a sequence rather than one marked tick among identical ones.
+  const SETTLED = 18;
+  const SETTLED_SPREAD = 1.1;
   let pointerY = null;
 
   // Exponential decay, not a bell: the peak stays sharp on the tick under the
@@ -384,8 +397,13 @@
       }
       // The section being read keeps a length of its own, so the rail still
       // says where you are once the pointer leaves - and so does the one whose
-      // card is open, which the pointer has by then walked away from.
-      if (i === activeIndex || i === peekIndex) width = Math.max(width, 18);
+      // card is open, which the pointer has by then walked away from. The hill
+      // is measured in ticks, not pixels, so it survives an uneven rail.
+      [activeIndex, peekIndex].forEach((center) => {
+        if (center === null || center < 0) return;
+        const settled = REST + (SETTLED - REST) * Math.exp(-Math.abs(i - center) / SETTLED_SPREAD);
+        width = Math.max(width, settled);
+      });
       bar.style.width = Math.round(width) + 'px';
     });
   };
@@ -396,6 +414,23 @@
       tick.classList.toggle('is-peeked', i === peekIndex);
     });
     paintWidths();
+  };
+
+  // Dots are derived from buckets; keep existing ticks in sync when threads
+  // arrive after the rail was first drawn (comments load async).
+  const paintCommentMarks = () => {
+    [...rail.children].forEach((tick, i) => {
+      const has = (buckets[i] || []).length > 0;
+      tick.classList.toggle('has-comments', has);
+      const dot = tick.querySelector('.dot');
+      if (has && !dot) {
+        const node = document.createElement('span');
+        node.className = 'dot';
+        tick.append(node);
+      } else if (!has && dot) {
+        dot.remove();
+      }
+    });
   };
 
   const renderRail = () => {
@@ -409,6 +444,7 @@
       bar.className = 'bar';
       tick.append(bar);
       if ((buckets[index] || []).length) {
+        tick.classList.add('has-comments');
         const dot = document.createElement('span');
         dot.className = 'dot';
         tick.append(dot);
@@ -515,6 +551,13 @@
     return luminance < 0.45 ? 'dark' : 'light';
   };
 
+  const HEX_ACCENT = /^#[0-9a-f]{6}$/i;
+  const parseAccent = (raw) => {
+    const value = String(raw || '').trim();
+    return HEX_ACCENT.test(value) ? value.toLowerCase() : '';
+  };
+  const configAccent = () => parseAccent(script && script.dataset.accent);
+
   const reportTheme = () => {
     const rootStyle = getComputedStyle(document.documentElement);
     const bodyStyle = getComputedStyle(document.body);
@@ -527,6 +570,7 @@
       '--muted': value('--muted', bodyStyle.color),
       '--line': value('--line', bodyStyle.color),
     };
+    theme['--accent'] = parseAccent(value('--accent', '')) || configAccent() || theme['--ink'];
     Object.entries(theme).forEach(([name, color]) => host.style.setProperty(name, color));
     host.style.colorScheme = schemeFor(theme['--paper'], rootStyle.colorScheme);
   };
@@ -559,12 +603,12 @@
 
   document.addEventListener('lattice:comment-count', () => {
     collectThreads();
-    renderRail();
+    paintCommentMarks();
     if (peekIndex >= 0) renderCard(peekIndex);
   });
   document.addEventListener('lattice:comments-ready', () => {
     collectThreads();
-    renderRail();
+    paintCommentMarks();
   });
   // A thread being written is a popover of its own; two floating surfaces over
   // the same anchor is one too many.
