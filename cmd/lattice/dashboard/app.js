@@ -209,14 +209,16 @@
     commentCount.setAttribute('aria-expanded', 'true');
   };
 
-  commentBtn.addEventListener('click', () => {
+  function toggleCommentMode() {
     if (!readerSlug || !frame.contentWindow) return;
     closeCommentPop();
     frame.contentWindow.postMessage({
       type: 'lattice:comment-mode',
       active: !readerCommentMode,
     }, location.origin);
-  });
+  }
+
+  commentBtn.addEventListener('click', () => toggleCommentMode());
 
   commentCount.addEventListener('click', toggleCommentPop);
 
@@ -246,6 +248,10 @@
       } else if (color) {
         shell.style.setProperty('--comment', color);
       }
+      return;
+    }
+    if (event.data?.type === 'lattice:shortcut') {
+      readerShortcut(event.data.action);
     }
   });
 
@@ -2191,8 +2197,7 @@
     );
   }
 
-  shareBtn.addEventListener('click', async (e) => {
-    e.stopPropagation();
+  async function toggleShare() {
     if (!sharePop.hidden) { closeShare(); return; }
     if (!readerSlug) return;
     sharePop.hidden = false; shareBtn.setAttribute('aria-expanded', 'true');
@@ -2200,6 +2205,28 @@
     const sh = await shareState(readerSlug);
     if (sharePop.hidden) return; // closed while loading
     sh ? shareShared(sh) : shareUnshared(readerSlug);
+  }
+
+  async function downloadSummary() {
+    if (!readerSlug) return;
+    try {
+      const res = await fetch('/s/' + encodeURIComponent(readerSlug) + '?raw=1');
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = readerSlug + '.html';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (_) {}
+  }
+
+  shareBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await toggleShare();
   });
   sharePop.addEventListener('click', (e) => e.stopPropagation());
   addEventListener('click', () => { if (!sharePop.hidden) closeShare(); });
@@ -2322,13 +2349,28 @@
 
   addEventListener('hashchange', route);
 
+  function readerShortcut(action) {
+    if (currentView !== 'read' || !readerSlug) return false;
+    if (action === 'comment') { toggleCommentMode(); return true; }
+    if (action === 'share') { toggleShare(); return true; }
+    if (action === 'download') { downloadSummary(); return true; }
+    return false;
+  }
+
   addEventListener('keydown', (e) => {
     const tag = document.activeElement?.tagName;
     const typing = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
-    if (e.key === '/' && document.activeElement !== q && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const bare = !e.metaKey && !e.ctrlKey && !e.altKey;
+    if (e.key === '/' && document.activeElement !== q && !typing && bare && !e.shiftKey) {
       e.preventDefault();
       q.focus();
       q.select();
+    } else if (!typing && bare && e.code === 'KeyC' && !e.shiftKey && readerShortcut('comment')) {
+      e.preventDefault();
+    } else if (!typing && bare && e.code === 'KeyS' && e.shiftKey && readerShortcut('share')) {
+      e.preventDefault();
+    } else if (!typing && bare && e.code === 'KeyD' && e.shiftKey && readerShortcut('download')) {
+      e.preventDefault();
     } else if (e.key === 'Escape') {
       if (!commentPop.hidden) {
         e.preventDefault();

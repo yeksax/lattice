@@ -1592,16 +1592,33 @@
   }, true);
 
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    if (openCommentMenuID || editingCommentID || deletingCommentID) {
-      resetCommentActions();
-      render();
-    } else if (openSelector || newThreadSelector) {
-      closePopovers();
-      render();
-    } else if (commentMode) {
-      exitCommentMode();
+    if (event.key === 'Escape') {
+      if (openCommentMenuID || editingCommentID || deletingCommentID) {
+        resetCommentActions();
+        render();
+      } else if (openSelector || newThreadSelector) {
+        closePopovers();
+        render();
+      } else if (commentMode) {
+        exitCommentMode();
+      }
+      return;
     }
+
+    // Dashboard reader shortcuts: focus lives in this iframe while reading, so
+    // forward letter keys to the parent chrome (Comment / Share / Download).
+    // Hosted pages own their own shortcuts in the chrome bridge instead.
+    if (window.parent === window || window.latticeChrome) return;
+    const tag = document.activeElement?.tagName;
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+    if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+    let action = '';
+    if (event.code === 'KeyC' && !event.shiftKey) action = 'comment';
+    else if (event.code === 'KeyS' && event.shiftKey) action = 'share';
+    else if (event.code === 'KeyD' && event.shiftKey) action = 'download';
+    if (!action) return;
+    event.preventDefault();
+    window.parent.postMessage({ type: 'lattice:shortcut', action }, location.origin);
   });
 
   // Capture so nested scroll containers inside the summary still re-pin.
