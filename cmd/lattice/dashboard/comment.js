@@ -364,12 +364,29 @@
 
   const REACTIONS = ['👍', '👎', '❤️', '🎉', '👀', '🚀', '😄', '✅'];
 
-  // A reaction is one bit of state and the reader already knows which way they
-  // flipped it, so the chip moves on click and the request rides behind it.
-  // Toggles still in the air stay in this list: the refresh that lands after
-  // one of them answers replays the rest on top of the server's rows, so a
-  // fast second click never watches the first one snap back.
+  // Every write paints first and talks to the server second. Outstanding work
+  // lives in these lists so a refresh that lands mid-flight can put the
+  // optimistic rows back on top of the server's answer instead of snapping.
   const pendingReactions = [];
+  const pendingStatuses = new Map(); // thread id → status
+  const pendingEdits = new Map(); // comment id → body
+  const pendingDeletes = new Set(); // comment id
+  const pendingCreates = []; // { type, tempId, threadId?, thread?, comment? }
+
+  const nowSecs = () => Math.floor(Date.now() / 1000);
+  const tempID = (prefix) =>
+    prefix + '_' + Math.random().toString(36).slice(2, 10) + nowSecs().toString(36);
+
+  const findThread = (threadID) =>
+    threads.find((thread) => thread.id === threadID || thread.hosted_id === threadID);
+
+  const findComment = (threadID, commentID) => {
+    const thread = findThread(threadID);
+    if (!thread) return undefined;
+    return (thread.comments || []).find(
+      (comment) => comment.id === commentID || comment.hosted_id === commentID,
+    );
+  };
 
   const flipReaction = (comment, emoji) => {
     const rows = comment.reactions || [];
@@ -383,21 +400,54 @@
     comment.reactions = rows.filter((reaction) => reaction.count > 0);
   };
 
-  const findComment = (threadID, commentID) => {
-    for (const thread of threads) {
-      if (thread.id !== threadID) continue;
-      const found = (thread.comments || []).find((comment) => comment.id === commentID);
-      if (found) return found;
+  const dropPendingCreate = (op) => {
+    const at = pendingCreates.indexOf(op);
+    if (at >= 0) pendingCreates.splice(at, 1);
+  };
+
+  const notifyCount = () => {
+    if (isEmbedded) {
+      window.parent.postMessage({ type: 'lattice:comment-count', count: threads.length }, location.origin);
+    } else {
+      document.dispatchEvent(new CustomEvent('lattice:comment-count', { detail: { count: threads.length } }));
     }
-    return undefined;
   };
 
   // Refresh replaces every row with the server's, which is also the answer to
-  // requests that have not come back yet. Put the outstanding flips back.
-  const replayPendingReactions = () => {
+  // requests that have not come back yet. Put the outstanding writes back.
+  const replayPending = () => {
     pendingReactions.forEach((pending) => {
       const comment = findComment(pending.thread, pending.comment);
       if (comment) flipReaction(comment, pending.emoji);
+    });
+    pendingStatuses.forEach((status, id) => {
+      const thread = findThread(id);
+      if (thread) thread.status = status;
+    });
+    pendingEdits.forEach((body, id) => {
+      for (const thread of threads) {
+        const comment = (thread.comments || []).find((row) => row.id === id || row.hosted_id === id);
+        if (!comment) continue;
+        comment.body = body;
+        comment.edited = true;
+        break;
+      }
+    });
+    pendingDeletes.forEach((id) => {
+      for (const thread of threads) {
+        const comment = (thread.comments || []).find((row) => row.id === id || row.hosted_id === id);
+        if (comment) comment.deleted = true;
+      }
+    });
+    pendingCreates.forEach((op) => {
+      if (op.type === 'thread') {
+        if (!threads.some((thread) => thread.id === op.tempId)) threads.push(op.thread);
+        return;
+      }
+      const thread = findThread(op.threadId);
+      if (!thread) return;
+      if ((thread.comments || []).some((comment) => comment.id === op.tempId)) return;
+      thread.comments = (thread.comments || []).concat(op.comment);
     });
   };
 
@@ -547,18 +597,36 @@
         event.stopPropagation();
         const text = area.value.trim();
         if (!text || text === comment.body) return;
-        save.disabled = true;
+        const previous = {
+          body: comment.body,
+          edited: comment.edited,
+          updated: comment.updated,
+        };
+        comment.body = text;
+        comment.edited = true;
+        comment.updated = nowSecs();
+        pendingEdits.set(comment.id, text);
+        editingCommentID = '';
+        openCommentMenuID = '';
         commentActionError = undefined;
+        render();
         try {
           await request(commentMutationURL(thread, comment), {
             method: 'PATCH',
             body: JSON.stringify({ body: text }),
           });
-          resetCommentActions();
+          pendingEdits.delete(comment.id);
           await refresh();
         } catch (cause) {
+          pendingEdits.delete(comment.id);
+          const current = findComment(thread.id, comment.id);
+          if (current) {
+            current.body = previous.body;
+            current.edited = previous.edited;
+            current.updated = previous.updated;
+          }
+          editingCommentID = comment.id;
           commentActionError = { id: comment.id, message: cause.message || 'Could not edit comment' };
-          save.disabled = false;
           render();
         }
       });
@@ -625,15 +693,29 @@
           remove.textContent = 'Delete';
           remove.addEventListener('click', async (event) => {
             event.stopPropagation();
-            remove.disabled = true;
+            const previous = {
+              deleted: comment.deleted,
+              body: comment.body,
+            };
+            comment.deleted = true;
+            pendingDeletes.add(comment.id);
+            resetCommentActions();
             commentActionError = undefined;
+            render();
             try {
               await request(commentMutationURL(thread, comment), { method: 'DELETE' });
-              resetCommentActions();
+              pendingDeletes.delete(comment.id);
               await refresh();
             } catch (cause) {
+              pendingDeletes.delete(comment.id);
+              const current = findComment(thread.id, comment.id);
+              if (current) {
+                current.deleted = previous.deleted;
+                current.body = previous.body;
+              }
+              deletingCommentID = comment.id;
+              openCommentMenuID = comment.id;
               commentActionError = { id: comment.id, message: cause.message || 'Could not delete comment' };
-              remove.disabled = false;
               render();
             }
           });
@@ -706,15 +788,17 @@
       send.disabled = true;
       error.textContent = '';
       try {
+        // Submit paints optimistically and waits on the server behind the
+        // scenes; on success the composer is usually already gone.
         await submit(body);
-        area.value = '';
         composingSelector = '';
         newThreadSelector = '';
-        exitCommentMode(false);
-        await refresh();
+        exitCommentMode(true);
       } catch (cause) {
-        error.textContent = cause.message || 'Could not save comment';
-        send.disabled = false;
+        if (form.isConnected) {
+          error.textContent = cause.message || 'Could not save comment';
+          send.disabled = false;
+        }
       }
     });
     box.append(area, send);
@@ -765,22 +849,35 @@
       resolve.type = 'button';
       resolve.textContent = resolved ? '✓ Resolved' : '✓ Resolve';
       resolve.title = resolved ? 'Reopen this thread' : 'Mark this thread resolved';
-      resolve.addEventListener('click', async (event) => {
+      resolve.addEventListener('click', (event) => {
         event.stopPropagation();
-        resolve.disabled = true;
-        try {
-          await request(`${endpoint}/${encodeURIComponent(thread.id)}/${resolved ? 'reopen' : 'resolve'}`, {
-            method: 'POST',
-          });
+        const next = resolved ? 'open' : 'resolved';
+        const previous = thread.status;
+        pendingStatuses.set(thread.id, next);
+        thread.status = next;
+        commentActionError = undefined;
+        render();
+        request(`${endpoint}/${encodeURIComponent(thread.id)}/${resolved ? 'reopen' : 'resolve'}`, {
+          method: 'POST',
+        }).then(async () => {
+          pendingStatuses.delete(thread.id);
           await refresh();
-        } catch (cause) {
+        }).catch((cause) => {
+          pendingStatuses.delete(thread.id);
+          const current = findThread(thread.id);
+          if (current) current.status = previous;
           commentActionError = { id: thread.id, message: cause.message || 'Could not change status' };
-          resolve.disabled = false;
           render();
-        }
+        });
       });
       meta.append(label, resolve);
       section.append(meta);
+      if (commentActionError?.id === thread.id) {
+        const error = document.createElement('div');
+        error.className = 'action-error';
+        error.textContent = commentActionError.message;
+        section.append(error);
+      }
 
       // The opening comment sits at the root and is the whole thread until you
       // ask for the rest: a popover that unrolls every answer to every thread
@@ -807,13 +904,43 @@
         if (expanded) replies.forEach((comment) => section.append(commentRow(thread, comment, true)));
       }
       const reply = composer('Reply', async (message) => {
-        await request(`${endpoint}/${encodeURIComponent(thread.id)}/comments`, {
-          method: 'POST',
-          body: JSON.stringify({ body: message, author: 'You', author_kind: 'human' }),
-        });
+        const tempId = tempID('c');
+        const created = nowSecs();
+        const comment = {
+          id: tempId,
+          author: 'You',
+          author_kind: 'human',
+          body: message,
+          created,
+          updated: created,
+          can_edit: true,
+          reactions: [],
+        };
+        const op = { type: 'reply', tempId, threadId: thread.id, comment };
+        pendingCreates.push(op);
+        const current = findThread(thread.id) || thread;
+        current.comments = (current.comments || []).concat(comment);
+        current.updated = created;
         // Answering a thread is asking to see it: never file your own reply
         // away behind the toggle you just wrote past.
         expandedThreads.add(thread.id);
+        commentActionError = undefined;
+        render();
+        try {
+          await request(`${endpoint}/${encodeURIComponent(thread.id)}/comments`, {
+            method: 'POST',
+            body: JSON.stringify({ body: message, author: 'You', author_kind: 'human' }),
+          });
+          dropPendingCreate(op);
+          await refresh();
+        } catch (cause) {
+          dropPendingCreate(op);
+          const live = findThread(thread.id);
+          if (live) live.comments = (live.comments || []).filter((row) => row.id !== tempId);
+          commentActionError = { id: thread.id, message: cause.message || 'Could not reply' };
+          render();
+          throw cause;
+        }
       });
       reply.form.classList.add('is-reply');
       section.append(reply.form);
@@ -821,20 +948,71 @@
     });
     // Starting another thread here is not a mode you have to find a button for:
     // the box is simply there, under whatever is already being discussed.
-    const fresh = composer(items.length ? 'Start another thread' : 'Add a comment', (message) =>
-      request(endpoint, {
-        method: 'POST',
-        body: JSON.stringify({
-          selector,
-          anchor_text: element ? anchorText(element) : '',
-          body: message,
-          author: 'You',
-          author_kind: 'human',
-        }),
-      }),
-    );
+    const fresh = composer(items.length ? 'Start another thread' : 'Add a comment', async (message) => {
+      const tempId = tempID('t');
+      const created = nowSecs();
+      const comment = {
+        id: tempID('c'),
+        author: 'You',
+        author_kind: 'human',
+        body: message,
+        created,
+        updated: created,
+        can_edit: true,
+        reactions: [],
+      };
+      const thread = {
+        id: tempId,
+        selector,
+        anchor_text: element ? anchorText(element) : '',
+        status: 'open',
+        created,
+        updated: created,
+        comments: [comment],
+      };
+      const op = { type: 'thread', tempId, thread };
+      pendingCreates.push(op);
+      threads = threads.concat(thread);
+      openSelector = selector;
+      newThreadSelector = '';
+      composingSelector = '';
+      commentActionError = undefined;
+      notifyCount();
+      render();
+      try {
+        await request(endpoint, {
+          method: 'POST',
+          body: JSON.stringify({
+            selector,
+            anchor_text: element ? anchorText(element) : '',
+            body: message,
+            author: 'You',
+            author_kind: 'human',
+          }),
+        });
+        dropPendingCreate(op);
+        await refresh();
+      } catch (cause) {
+        dropPendingCreate(op);
+        threads = threads.filter((row) => row.id !== tempId);
+        notifyCount();
+        commentActionError = { id: selector, message: cause.message || 'Could not save comment' };
+        if (!items.length) {
+          openSelector = '';
+          newThreadSelector = selector;
+        }
+        render();
+        throw cause;
+      }
+    });
     if (items.length) fresh.form.classList.add('is-new-thread');
     body.append(fresh.form);
+    if (commentActionError?.id === selector) {
+      const error = document.createElement('div');
+      error.className = 'action-error';
+      error.textContent = commentActionError.message;
+      body.append(error);
+    }
     if (isComposing || !items.length) queueMicrotask(() => fresh.area.focus());
     box.append(head, body);
     return box;
@@ -971,13 +1149,9 @@
     const out = await request(endpoint);
     if (!out || ticket !== refreshTicket) return;
     threads = Array.isArray(out) ? out : (out.threads || []);
-    replayPendingReactions();
+    replayPending();
     render();
-    if (isEmbedded) {
-      window.parent.postMessage({ type: 'lattice:comment-count', count: threads.length }, location.origin);
-    } else {
-      document.dispatchEvent(new CustomEvent('lattice:comment-count', { detail: { count: threads.length } }));
-    }
+    notifyCount();
   };
 
   const reportTheme = () => {
