@@ -225,6 +225,25 @@ phone the row is what the thumb actually hits. A loose file forgets on reload �
 say so in one line if it matters, and never fake saved progress or build an
 export-your-ticks flow.
 
+## The section index builds itself
+
+When lattice serves a summary it hangs an index off the left edge: one tick per
+`h1`–`h3`, a blue dot on the sections that carry discussion, and a hover card
+with the heading, the prose under it, and the threads anchored inside it — all
+clickable. Nothing has to be declared for it to work; write real headings and
+the index is correct. It stands down on its own when the page leaves no margin
+for it.
+
+Two escape hatches, both rarely needed:
+
+```html
+<h2 data-lattice-outline-label="Cost, in one line">…</h2>
+<section data-lattice-outline="skip">…</section>
+```
+
+The eyebrow above a heading (`<p class="eyebrow">02 — the fleet</p>`) becomes
+the card's kicker, which is one more reason to keep writing them.
+
 ## One file per step — never overwrite a previous summary
 
 Each summary is **a snapshot of one moment**: what was known, decided, or done

@@ -10,7 +10,9 @@
   const breadcrumb = $('breadcrumb');
   const readerActions = $('reader-actions');
   const commentBtn = $('r-comment');
+  const commentShell = $('r-comment-shell');
   const commentCount = $('r-comment-count');
+  const commentPop = $('comment-pop');
   const settingsSave = $('settings-save');
   const sharingSave = $('sharing-save');
 
@@ -21,6 +23,7 @@
   let currentView = 'home';
   let readerSlug = null;
   let readerCommentMode = false;
+  let readerThreads = [];
 
   const views = {
     home: $('view-home'),
@@ -83,17 +86,139 @@
 
   const paintCommentMode = (active) => {
     readerCommentMode = active;
+    commentShell.classList.toggle('is-active', active);
     commentBtn.classList.toggle('is-active', active);
     commentBtn.setAttribute('aria-pressed', String(active));
   };
 
+  const REPLY_ICON =
+    '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M85.66,146.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,61.66L43.31,104ZM128,96H99.31l34.35-34.34a8,8,0,0,0-11.32-11.32l-48,48a8,8,0,0,0,0,11.32l48,48a8,8,0,0,0,11.32-11.32L99.31,112H128a88.1,88.1,0,0,1,88,88,8,8,0,0,0,16,0A104.11,104.11,0,0,0,128,96Z"/></svg>';
+
+  const commentRelativeTime = (seconds) => {
+    const created = Number(seconds) || 0;
+    if (!created) return '';
+    const delta = Math.max(0, Date.now() - created * 1000);
+    if (delta < 60_000) return t('reader.comment.threads.now');
+    if (delta < 3_600_000) return Math.floor(delta / 60_000) + 'm';
+    if (delta < 86_400_000) return Math.floor(delta / 3_600_000) + 'h';
+    return new Date(created * 1000).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const commentInitials = (name) => (name || '?').trim().slice(0, 1).toUpperCase();
+
+  const closeCommentPop = () => {
+    commentPop.hidden = true;
+    commentCount.setAttribute('aria-expanded', 'false');
+  };
+
+  const openThreadInReader = (thread) => {
+    if (!readerSlug || !frame.contentWindow || !thread?.selector) return;
+    closeCommentPop();
+    frame.contentWindow.postMessage({
+      type: 'lattice:comment-open',
+      selector: thread.selector,
+      thread: thread.id,
+    }, location.origin);
+  };
+
+  const paintCommentPop = () => {
+    commentPop.replaceChildren();
+    if (!readerThreads.length) {
+      commentPop.append(el('p', { class: 'comment-pop-empty' }, t('reader.comment.threads.empty')));
+      return;
+    }
+    readerThreads.forEach((thread) => {
+      const author = thread.author || t('reader.comment.threads.someone');
+      const row = el('button', {
+        class: 'comment-thread' + (thread.status === 'resolved' ? ' is-resolved' : ''),
+        type: 'button',
+      });
+
+      const avatar = el('span', { class: 'comment-thread-avatar', 'aria-hidden': 'true' }, commentInitials(author));
+      const main = el('span', { class: 'comment-thread-main' });
+
+      const head = el('span', { class: 'comment-thread-head' });
+      head.append(el('b', { class: 'comment-thread-author' }, author));
+      const when = commentRelativeTime(thread.created);
+      if (when) head.append(el('time', {}, when));
+      if (thread.edited) {
+        head.append(el('span', { class: 'comment-thread-edited' }, t('reader.comment.threads.edited')));
+      }
+      main.append(head);
+
+      if (thread.body) {
+        main.append(el('p', { class: 'comment-thread-body' }, thread.body));
+      }
+
+      const reactionRows = Array.isArray(thread.reactions) ? thread.reactions : [];
+      const hasReplies = thread.replies > 0;
+      const hasReactions = reactionRows.length > 0;
+      if (hasReplies || hasReactions) {
+        const foot = el('span', { class: 'comment-thread-foot' });
+        const replies = el('span', {
+          class: 'comment-thread-replies',
+          title: hasReplies ? t('reader.comment.threads.replies', { n: thread.replies }) : '',
+        });
+        if (hasReplies) {
+          replies.innerHTML = REPLY_ICON;
+          replies.append(document.createTextNode(
+            t('reader.comment.threads.replies', { n: thread.replies }),
+          ));
+        } else {
+          replies.hidden = true;
+        }
+        const reactions = el('span', { class: 'comment-thread-reactions' });
+        if (hasReactions) {
+          reactionRows.slice(0, 6).forEach((reaction) => {
+            const chip = el('span', { class: 'comment-thread-chip' });
+            chip.append(
+              el('span', { class: 'comment-thread-chip-emoji' }, reaction.emoji),
+              el('span', { class: 'comment-thread-chip-count' }, String(reaction.count || 1)),
+            );
+            reactions.append(chip);
+          });
+        } else {
+          reactions.hidden = true;
+        }
+        foot.append(replies, reactions);
+        main.append(foot);
+      }
+
+      row.append(avatar, main);
+      row.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openThreadInReader(thread);
+      });
+      commentPop.append(row);
+    });
+  };
+
+  const toggleCommentPop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (commentCount.hidden) return;
+    if (!commentPop.hidden) {
+      closeCommentPop();
+      return;
+    }
+    paintCommentPop();
+    commentPop.hidden = false;
+    commentCount.setAttribute('aria-expanded', 'true');
+  };
+
   commentBtn.addEventListener('click', () => {
     if (!readerSlug || !frame.contentWindow) return;
+    closeCommentPop();
     frame.contentWindow.postMessage({
       type: 'lattice:comment-mode',
       active: !readerCommentMode,
     }, location.origin);
   });
+
+  commentCount.addEventListener('click', toggleCommentPop);
 
   addEventListener('message', (event) => {
     if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
@@ -103,21 +228,38 @@
     }
     if (event.data?.type === 'lattice:comment-count') {
       const n = Number(event.data.count) || 0;
+      readerThreads = Array.isArray(event.data.threads) ? event.data.threads : [];
       commentCount.textContent = String(n);
       commentCount.hidden = n === 0;
+      if (n === 0) closeCommentPop();
+      else if (!commentPop.hidden) paintCommentPop();
       return;
     }
     if (event.data?.type === 'lattice:document-theme') {
       const background = String(event.data.background || '');
       const color = String(event.data.color || '');
+      const accent = String(event.data.accent || '');
       if (background) shell.style.setProperty('--reader-bg', background);
       if (color) shell.style.setProperty('--reader-ink', color);
+      if (/^#[0-9a-f]{6}$/i.test(accent)) {
+        shell.style.setProperty('--comment', accent);
+      } else if (color) {
+        shell.style.setProperty('--comment', color);
+      }
     }
   });
 
   frame.addEventListener('load', () => {
     paintCommentMode(false);
+    readerThreads = [];
     commentCount.hidden = true;
+    closeCommentPop();
+  });
+
+  addEventListener('click', (event) => {
+    if (commentPop.hidden) return;
+    if (commentPop.contains(event.target) || commentCount.contains(event.target)) return;
+    closeCommentPop();
   });
 
   const esc = (s) => s.replace(/[&<>"']/g, (c) =>
@@ -1753,6 +1895,10 @@
       $('setting-modules').value = theme.modules === 'mixed' ? '' : (theme.modules || '');
       $('setting-accent').value = theme.accent || '';
       $('setting-accent-color').value = /^#[0-9a-f]{6}$/i.test(theme.accent || '') ? theme.accent : '#6f8cff';
+    document.documentElement.style.setProperty(
+      '--comment',
+      /^#[0-9a-f]{6}$/i.test(theme.accent || '') ? theme.accent : 'var(--ink)',
+    );
     const hosted = cfg.hosted || {};
     $('setting-api').value = hosted.apiBase || '';
     $('setting-token').value = hosted.token || '';
@@ -2083,11 +2229,9 @@
     shell.style.removeProperty('--reader-bg');
     shell.style.removeProperty('--reader-ink');
     paintCommentMode(false);
+    readerThreads = [];
     commentCount.hidden = true;
-    $('r-raw').href = `/s/${slug}?raw=1`;
-    const dl = $('r-dl');
-    dl.href = `/s/${slug}?raw=1`;
-    dl.download = slug + '.html';
+    closeCommentPop();
     paintBreadcrumb('read', slug);
   }
 
@@ -2148,6 +2292,7 @@
   // hash routing: home / shared / sharing / settings + reader (same shell header)
   function route() {
     closeShare();
+    closeCommentPop();
     closeSearchMenu();
     const next = parseRoute();
 
@@ -2185,7 +2330,10 @@
       q.focus();
       q.select();
     } else if (e.key === 'Escape') {
-      if (readerCommentMode && readerSlug && frame.contentWindow) {
+      if (!commentPop.hidden) {
+        e.preventDefault();
+        closeCommentPop();
+      } else if (readerCommentMode && readerSlug && frame.contentWindow) {
         e.preventDefault();
         frame.contentWindow.postMessage({
           type: 'lattice:comment-mode',

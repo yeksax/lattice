@@ -60,11 +60,16 @@
 
       <div class="main-top-end">
         <div id="reader-actions" class="reader-actions" hidden>
-          <button id="r-comment" type="button" data-i18n-title="reader.comment.title" aria-pressed="false">
-            <span data-i18n="reader.comment">Comment</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/><path d="M8 10h8"/><path d="M12 6v8"/></svg>
-            <span id="r-comment-count" class="reader-comment-count" hidden></span>
-          </button>
+          <div class="comment-wrap">
+            <div class="reader-comment" id="r-comment-shell">
+              <button id="r-comment" type="button" data-i18n-title="reader.comment.title" aria-pressed="false">
+                <span data-i18n="reader.comment">Comment</span>
+                <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24A104,104,0,0,0,36.18,176.88L24.83,210.93a16,16,0,0,0,20.24,20.24l34.05-11.35A104,104,0,1,0,128,24Zm0,192a87.87,87.87,0,0,1-44.06-11.81,8,8,0,0,0-6.54-.67L40,216,52.47,178.6a8,8,0,0,0-.66-6.54A88,88,0,1,1,128,216Z"/></svg>
+              </button>
+              <button id="r-comment-count" type="button" class="reader-comment-count" hidden data-i18n-title="reader.comment.threads.title" aria-expanded="false" aria-haspopup="dialog"></button>
+            </div>
+            <div id="comment-pop" class="comment-pop" hidden role="dialog" data-i18n-aria-label="reader.comment.threads.aria"></div>
+          </div>
           <div class="share-wrap">
             <button id="r-share" type="button" data-i18n-title="reader.share.title" aria-expanded="false">
               <span data-i18n="reader.share">Share</span>
@@ -72,14 +77,6 @@
             </button>
             <div id="share-pop" class="share-pop" hidden></div>
           </div>
-          <a id="r-raw" target="_blank" rel="noopener" data-i18n-title="reader.raw.title">
-            <span data-i18n="reader.raw">Raw</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><polyline points="9 7 17 7 17 15"/></svg>
-          </a>
-          <a id="r-dl" data-i18n-title="reader.download.title">
-            <span data-i18n="reader.download">Download</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-          </a>
         </div>
         <button class="theme-toggle" id="theme-toggle" type="button" data-pref="system">
           <svg data-icon="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>

@@ -14,6 +14,7 @@ import pollBridge from './poll.bridge.txt';
 import threadBridge from './thread.bridge.txt';
 import chromeBridge from './chrome.bridge.txt';
 import stateBridge from './state.bridge.txt';
+import outlineBridge from './outline.bridge.txt';
 import { handleOwnerState, handlePublicState, stateDeleteStatement } from './state';
 import {
   configureShareAccess,
@@ -540,11 +541,17 @@ async function servePublic(req: Request, env: Env, sub: string, rest: string): P
   // Injected BEFORE the comment bridge so it can claim the launcher — the
   // Comment action belongs in the bar, not in a second floating button.
   const chromeTag = `<script id="lattice-chrome" data-base="${base}">` + chromeBridge + `</script>`;
+  // The section index. Last, and after the comment bridge: it reads its threads
+  // through window.lattice.comments and would come up empty if it ran first.
+  const outlineTag = `<script id="lattice-outline">` + outlineBridge + `</script>`;
   // stateTag first: poll.js fires the shared `lattice:ready`, so the state
   // bridge must already exist when a page's ready handler runs.
   const page = injectScript(
-    injectScript(injectScript(injectScript(html, stateTag), pollTag), chromeTag),
-    threadTag,
+    injectScript(
+      injectScript(injectScript(injectScript(html, stateTag), pollTag), chromeTag),
+      threadTag,
+    ),
+    outlineTag,
   );
   return new Response(injectNoindex(page), {
     headers: {

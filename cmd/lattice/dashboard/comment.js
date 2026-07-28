@@ -36,19 +36,26 @@
     body[data-lattice-comment-mode="true"]:not([data-lattice-comment-open]) [data-lattice-comment-target] *{
       cursor:none!important
     }
+    /* Hovered / open anchors rise above neighbouring page chrome, but stay
+       under sticky master headers (template + live bars use z-index:20). */
+    body[data-lattice-comment-mode="true"] [data-lattice-comment-target].is-lattice-cursor-target,
+    body[data-lattice-comment-mode="true"] [data-lattice-comment-target].is-lattice-comment-open{
+      z-index:15
+    }
     body[data-lattice-comment-mode="true"] [data-lattice-comment-target]::after{
       content:"";
       position:absolute;
-      inset:-12px;
+      inset:-4px;
       z-index:0;
       border-radius:8px;
-      background:rgba(22,131,255,.10);
-      box-shadow:inset 0 0 0 1px rgba(22,131,255,.72);
+      background:color-mix(in srgb,var(--lattice-accent,var(--ink,#111)) 10%,transparent);
+      box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--lattice-accent,var(--ink,#111)) 72%,transparent);
       opacity:0;
       pointer-events:none;
       transition:opacity 160ms cubic-bezier(.2,0,0,1)
     }
-    body[data-lattice-comment-mode="true"] [data-lattice-comment-target].is-lattice-cursor-target::after{
+    body[data-lattice-comment-mode="true"] [data-lattice-comment-target].is-lattice-cursor-target::after,
+    body[data-lattice-comment-mode="true"] [data-lattice-comment-target].is-lattice-comment-open::after{
       opacity:1
     }
     .lattice-comment-marker.is-cursor{pointer-events:none}
@@ -56,32 +63,43 @@
   document.head.append(pageStyle);
 
   const css = `
-    :host{all:initial;color-scheme:light;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--paper:#fff;--sub:#f5f5f4;--line:#e6e6e3;--blue:#1683ff;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
-    *{box-sizing:border-box}button,textarea{font:inherit}button{color:inherit}.marker{position:relative;display:grid;place-items:center;width:28px;height:28px;padding:0;border:2px solid var(--paper);border-radius:50%;border-bottom-left-radius:0;background:var(--blue);color:#fff;box-shadow:0 1px 3px #0002,0 4px 14px #0002;cursor:pointer;pointer-events:auto;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;transition:scale 160ms cubic-bezier(.2,0,0,1),box-shadow 160ms cubic-bezier(.2,0,0,1)}
-    .marker::before{content:"";position:absolute;inset:-6px;border-radius:50%;border-bottom-left-radius:0}.marker:hover,.marker:focus-visible{scale:1.06;box-shadow:0 2px 5px #0002,0 8px 20px #0002;outline:none}.marker:active{scale:.96}.marker.is-new{background:var(--blue);color:#fff;cursor:none;pointer-events:none;line-height:0}.marker.is-new svg{display:block;width:12px;height:12px}
-    .preview{position:absolute;right:38px;top:-3px;width:260px;padding:12px 14px;border-radius:12px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 14px 36px #0002;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(3px) scale(.98);transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1),visibility 160ms}
-    .marker-wrap:hover .preview,.marker:focus-visible+.preview{opacity:1;visibility:visible;transform:none}.preview[hidden]{display:none}.preview-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}.avatar{display:grid;place-items:center;flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:10px;text-transform:uppercase}.preview b{font-weight:600}.preview-time{color:var(--muted)}.preview-body{display:-webkit-box;overflow:hidden;color:var(--ink-2);-webkit-box-orient:vertical;-webkit-line-clamp:2}.preview-replies{margin-top:4px;color:var(--muted);font-size:11px}
-    .popover{position:absolute;z-index:2;right:38px;top:-8px;display:flex;flex-direction:column;width:min(340px,calc(100vw - 56px));max-height:min(420px,calc(100vh - 20px));overflow:hidden;border-radius:14px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 18px 48px #0002;opacity:1;pointer-events:auto;transform:none;transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1)}
-    .popover[hidden]{display:flex;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(4px) scale(.98)}.pop-head{display:flex;align-items:center;flex:0 0 auto;min-height:40px;padding:0 4px 0 14px;background:var(--paper);border-bottom:1px solid var(--line)}.pop-head strong{min-width:0;flex:1;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pop-actions{display:flex;align-items:center;flex:0 0 auto}.close,.new-thread{display:grid;place-items:center;width:32px;height:32px;border:0;background:none;border-radius:50%;cursor:pointer;color:var(--muted)}.close{font-size:18px}.new-thread{font-size:17px}.close:hover,.new-thread:hover{background:var(--sub);color:var(--ink)}.close:active,.new-thread:active{scale:.96}
-    .pop-body{display:block;flex:1 1 auto;min-height:0;overflow:auto;padding:12px 14px 14px}.thread{display:block}.thread+.thread{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.thread-meta{display:flex;align-items:center;gap:8px;margin-bottom:8px;color:var(--muted);font-size:10.5px}.comment{position:relative;display:grid;grid-template-columns:24px 1fr;gap:8px;margin-bottom:8px;padding-right:28px}.comment-main{min-width:0}.comment-head{display:flex;align-items:baseline;gap:6px;margin-bottom:2px}.comment-head b{font-weight:600}.comment-head time,.edited{color:var(--muted);font-size:10.5px}.comment p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-2)}.comment p.is-deleted{color:var(--muted);font-style:italic}
-    .comment-actions{position:absolute;z-index:3;top:-6px;right:-6px}.comment-menu-trigger{position:relative;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:10px;background:transparent;color:var(--muted);cursor:pointer;font-size:7px;letter-spacing:1.5px;opacity:.72}.comment-menu-trigger::before{content:"";position:absolute;inset:-4px;border-radius:13px}.comment-menu-trigger:hover,.comment-menu-trigger:focus-visible{background:var(--sub);color:var(--ink);opacity:1;outline:none}.comment-menu-trigger:active{scale:.96}.comment-menu{position:absolute;z-index:4;top:36px;right:0;width:132px;padding:5px;border-radius:10px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #0002,0 14px 34px #0001}.comment-menu button{display:flex;align-items:center;width:100%;min-height:38px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--ink);cursor:pointer;text-align:left}.comment-menu button:hover,.comment-menu button:focus-visible{background:var(--sub);outline:none}.comment-menu button:active{scale:.96}.comment-menu .danger{color:#c43b3b}.delete-confirm{padding:7px}.delete-confirm p{margin:0 0 8px;color:var(--ink);font-size:11.5px;line-height:1.35}.delete-confirm-actions{display:flex;gap:4px}.delete-confirm-actions button{justify-content:center;min-height:34px;padding:0 8px}.delete-confirm-actions .danger{background:#c43b3b;color:#fff}.delete-confirm-actions .danger:hover{background:#ad3030}
-    .inline-edit{margin-top:5px}.inline-edit textarea{display:block;width:100%;min-height:72px;max-height:160px;resize:vertical;padding:10px 11px;border:0;border-radius:10px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px var(--blue)}.inline-edit-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}.inline-edit-actions button{min-height:36px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--ink);cursor:pointer}.inline-edit-actions button:hover{background:var(--sub)}.inline-edit-actions button:active{scale:.96}.inline-edit-actions .save{background:var(--ink);color:var(--paper)}.inline-edit-actions .save:disabled{opacity:.3;cursor:default}.action-error{margin-top:7px;color:#c43b3b;font-size:11px}
-    .comment.is-reply{margin-left:26px}
-    .replies-toggle{display:inline-flex;align-items:center;gap:6px;margin:2px 0 8px 26px;padding:0;border:0;background:none;color:var(--muted);cursor:pointer;font-size:11.5px}.replies-toggle:hover{color:var(--ink)}.replies-toggle::before{content:"";width:18px;height:1px;background:currentColor;opacity:.45}
+    :host{all:initial;color-scheme:light;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--paper:#fff;--sub:#f5f5f4;--line:#e6e6e3;--accent:var(--ink);--accent-hover:color-mix(in srgb,var(--accent) 82%,#000);--accent-soft:color-mix(in srgb,var(--accent) 12%,transparent);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+    *{box-sizing:border-box}button,textarea{font:inherit}button{color:inherit}.marker{position:relative;display:grid;place-items:center;width:28px;height:28px;padding:0;border:2px solid var(--paper);border-radius:50%;border-bottom-left-radius:0;background:var(--accent);color:#fff;box-shadow:0 1px 3px #7373731f,0 4px 14px #7373731f;cursor:pointer;pointer-events:auto;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;transition:scale 160ms cubic-bezier(.2,0,0,1),box-shadow 160ms cubic-bezier(.2,0,0,1)}
+    .marker::before{content:"";position:absolute;inset:-6px;border-radius:50%;border-bottom-left-radius:0}.marker:hover,.marker:focus-visible{scale:1.06;background:var(--accent-hover);box-shadow:0 2px 5px #7373731f,0 8px 20px #7373731f;outline:none}.marker:active{scale:.96}.marker.is-new{background:var(--accent);color:#fff;cursor:none;pointer-events:none;line-height:0}.marker.is-new svg{display:block;width:12px;height:12px}
+    .preview{position:absolute;right:38px;top:-3px;width:260px;padding:12px 14px;border-radius:20px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #73737314,0 14px 36px #7373731f;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(3px) scale(.98);transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1),visibility 160ms}
+    .marker-wrap:hover .preview,.marker:focus-visible+.preview{opacity:1;visibility:visible;transform:none}.preview[hidden]{display:none}.preview-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}.avatar{display:grid;place-items:center;flex:0 0 auto;width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:11px;text-transform:uppercase}.preview b{font-weight:600}.preview-time{color:var(--muted)}.preview-body{display:-webkit-box;overflow:hidden;color:var(--ink-2);-webkit-box-orient:vertical;-webkit-line-clamp:2}.preview-replies{margin-top:4px;color:var(--muted);font-size:11px}
+    .popover{position:absolute;z-index:2;right:38px;top:-8px;display:flex;flex-direction:column;width:min(352px,calc(100vw - 56px));max-height:min(420px,calc(100vh - 20px));overflow:hidden;border-radius:24px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 8%,transparent),0 2px 6px #73737314,0 18px 48px #7373731f;opacity:1;pointer-events:auto;transform:none;transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1)}
+    .popover[hidden]{display:flex;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(4px) scale(.98)}.pop-head{display:flex;align-items:center;gap:10px;flex:0 0 auto;padding:14px 10px 14px 18px;background:var(--paper);box-shadow:inset 0 -1px 0 color-mix(in srgb,var(--ink) 7%,transparent)}.pop-head strong{min-width:0;flex:1;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-wrap:balance}.pop-actions{display:flex;align-items:center;flex:0 0 auto}.close,.new-thread{display:grid;place-items:center;width:32px;height:32px;border:0;background:none;border-radius:50%;cursor:pointer;color:var(--muted)}.close{font-size:18px;line-height:1}.new-thread{font-size:17px}.close:hover,.new-thread:hover{background:var(--sub);color:var(--ink)}.close:active,.new-thread:active{scale:.96}
+    .pop-body{display:block;flex:1 1 auto;min-height:0;overflow:auto;padding:16px}.pop-foot{flex:0 0 auto;padding:12px 16px 16px;background:var(--paper)}.pop-foot.has-threads{box-shadow:inset 0 1px 0 color-mix(in srgb,var(--ink) 7%,transparent)}.popover:not(:has(.pop-body)) .pop-foot{padding-top:16px}.thread{display:block}.thread+.thread{margin-top:14px;padding-top:14px;box-shadow:inset 0 1px 0 color-mix(in srgb,var(--ink) 7%,transparent)}.thread-meta{display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--muted);font-size:10.5px}.comment{position:relative;display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;margin-bottom:10px}.comment-main{min-width:0}.comment-head{display:flex;align-items:center;gap:6px;margin-bottom:3px}.comment-head b{font-weight:600}.comment-head time,.edited{color:var(--muted);font-size:10.5px}.comment p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-2);line-height:1.5;text-wrap:pretty}
+    .comment-actions{position:relative;z-index:3;flex:0 0 auto;margin-left:auto;opacity:0;transition:opacity 120ms cubic-bezier(.2,0,0,1)}.comment:hover .comment-actions,.comment:focus-within .comment-actions,.comment-actions.is-open{opacity:1}@media(hover:none){.comment-actions{opacity:1}}.comment-menu-trigger{position:relative;display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;font-size:6.5px;letter-spacing:1px}.comment-menu-trigger::before{content:"";position:absolute;inset:-4px;border-radius:10px}.comment-menu-trigger:hover,.comment-menu-trigger:focus-visible{background:var(--sub);color:var(--ink);outline:none}.comment-menu-trigger:active{scale:.96}.comment-menu{position:absolute;z-index:4;top:28px;right:0;width:124px;padding:5px;border-radius:16px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #7373731f,0 14px 34px #73737314}.comment-menu.is-confirm{width:188px;padding:10px;border-radius:18px}.comment-menu button{display:flex;align-items:center;width:100%;min-height:32px;padding:0 10px;border:0;border-radius:11px;background:transparent;color:var(--ink);cursor:pointer;text-align:left;font-size:12px}.comment-menu button:hover,.comment-menu button:focus-visible{background:var(--sub);outline:none}.comment-menu button:active{scale:.96}.comment-menu .danger{color:var(--accent)}.delete-confirm p{margin:0 0 10px;padding:0 2px;color:var(--ink);font-size:12px;line-height:1.35}.delete-confirm-actions{display:flex;gap:6px}.delete-confirm-actions button{flex:1;width:auto;justify-content:center;min-height:32px;padding:0 10px;border-radius:12px;font-size:12px}.delete-confirm-actions .danger{background:var(--accent);color:#fff}.delete-confirm-actions .danger:hover,.delete-confirm-actions .danger:focus-visible{background:var(--accent-hover)}
+    .inline-edit{margin-top:5px}.inline-edit textarea{display:block;width:100%;min-height:64px;max-height:160px;resize:vertical;padding:10px 11px;border:0;border-radius:10px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px var(--accent)}.inline-edit-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}.inline-edit-actions button{min-height:30px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--ink);cursor:pointer;font-size:12px}.inline-edit-actions button:hover{background:var(--sub)}.inline-edit-actions button:active{scale:.96}.inline-edit-actions .save{background:var(--ink);color:var(--paper)}.inline-edit-actions .save:disabled{opacity:.3;cursor:default}.action-error{margin-top:7px;color:#c43b3b;font-size:11px}
+    .comment.is-reply{margin-left:38px}
+    .replies-toggle{display:inline-flex;align-items:center;gap:6px;margin:4px 0 12px 38px;padding:0;border:0;background:none;color:var(--muted);cursor:pointer;font-size:11.5px}.replies-toggle:hover{color:var(--ink)}.replies-toggle::before{content:"";width:18px;height:1px;background:currentColor;opacity:.35}
     .thread-meta .label{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .thread-resolve{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border:0;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);cursor:pointer;font-size:10.5px}.thread-resolve:hover{background:var(--sub);color:var(--ink)}.thread-resolve:active{scale:.96}.thread-resolve.is-resolved{background:rgba(22,131,255,.12);box-shadow:none;color:var(--blue)}.thread-resolve.is-resolved:hover{background:rgba(22,131,255,.18);color:var(--blue)}
-    .thread-replies-caret{flex:0 0 auto;display:inline-grid;place-items:center;width:22px;height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer}.thread-replies-caret:hover{background:var(--sub);color:var(--ink)}.thread-replies-caret:active{scale:.96}.thread-replies-caret svg{display:block;width:14px;height:14px}
+    .thread-resolve{flex:0 0 auto;display:inline-grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}.thread-resolve svg{display:block;width:14px;height:14px}.thread-resolve:hover{background:var(--sub);color:var(--ink)}.thread-resolve:active{scale:.96}.thread-resolve.is-resolved{background:color-mix(in srgb,var(--accent) 7%,transparent);color:var(--accent)}.thread-resolve.is-resolved:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent-hover)}
+    .thread-replies-caret{flex:0 0 auto;display:inline-grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}.thread-replies-caret:hover{background:var(--sub);color:var(--ink)}.thread-replies-caret:active{scale:.96}.thread-replies-caret svg{display:block;width:14px;height:14px}
     .thread.is-resolved .comment p,.thread.is-resolved .comment-head b{opacity:.62}
-    .reactions{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px}.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border:0;border-radius:999px;background:var(--sub);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink-2);cursor:pointer;font-size:11px;line-height:1;transition:background-color 120ms cubic-bezier(.2,0,0,1),box-shadow 120ms cubic-bezier(.2,0,0,1)}
-    .chip:hover{background:var(--paper);box-shadow:inset 0 0 0 1px var(--muted)}.chip:active{scale:.96}.chip.is-mine{background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px var(--blue);color:var(--ink)}.chip-emoji{font-size:12px}.chip-count{font-variant-numeric:tabular-nums}.reactions .action-error{flex:0 0 100%;margin-top:3px}
-    .add-reaction,.reply-action{display:inline-grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;box-shadow:none;color:var(--muted);cursor:pointer;font-size:17px;line-height:1;opacity:.72}.add-reaction:hover,.reply-action:hover{background:var(--sub);color:var(--ink);opacity:1}.add-reaction:active,.reply-action:active{scale:.96}.reply-action{font-size:15px}.reply-action.is-active{background:rgba(22,131,255,.12);color:var(--ink);opacity:1}.reaction-add{position:relative;display:inline-flex}
-    .reaction-picker{position:absolute;z-index:5;bottom:-4px;left:32px;display:grid;grid-template-columns:repeat(4,28px);gap:2px;padding:5px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #0002,0 14px 34px #0001}.reaction-picker button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;cursor:pointer;font-size:15px;line-height:1}.reaction-picker button:hover{background:var(--sub)}.reaction-picker button:active{scale:.92}
-    .composer{display:grid;grid-template-columns:24px 1fr;gap:8px;margin-top:10px}.composer.is-reply{margin-left:26px}.composer.is-new-thread{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.composer-box{position:relative}.composer textarea{display:block;width:100%;height:36px;min-height:36px;max-height:120px;resize:none;overflow-y:auto;padding:8px 40px 8px 11px;border:0;border-radius:10px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px transparent;transition:box-shadow 140ms cubic-bezier(.2,0,0,1);color-scheme:inherit}.composer textarea:focus{background:var(--paper);box-shadow:inset 0 0 0 1px var(--blue)}.send{position:absolute;right:4px;bottom:4px;display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);cursor:pointer}.send:disabled{opacity:.24;cursor:default}.send:not(:disabled):active{scale:.96}.error{grid-column:2;color:#c43b3b;font-size:11px}
-    .launcher{position:fixed;z-index:2147483645;right:18px;bottom:18px;display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);box-shadow:0 2px 5px #0002,0 10px 28px #0003;cursor:pointer}.launcher:active{scale:.96}
-    @media(prefers-color-scheme:dark){:host{color-scheme:dark;--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#777;--paper:#171717;--sub:#242424;--line:#303030}}
+    .reactions{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;margin-left:-6px;min-height:28px}.chip{display:inline-flex;align-items:center;justify-content:center;gap:4px;height:28px;padding:0 9px;border:0;border-radius:8px;background:transparent;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 10%,transparent);color:var(--ink-2);cursor:pointer;font-size:11px;line-height:1;transition:background-color 120ms cubic-bezier(.2,0,0,1)}
+    .chip:hover{background:var(--sub)}.chip:active{scale:.96}.chip.is-mine{background:var(--sub);box-shadow:none;color:var(--ink)}.chip-emoji{display:block;font-size:13px;line-height:1}.chip-count{font-variant-numeric:tabular-nums;line-height:1}.reactions .action-error{flex:0 0 100%;margin-top:3px}
+    .add-reaction,.reply-action{position:relative;display:inline-grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;box-shadow:none;color:var(--muted);cursor:pointer;opacity:.68;line-height:0}.add-reaction::before,.reply-action::before{content:"";position:absolute;inset:-6px;border-radius:12px}.add-reaction:hover,.reply-action:hover{background:var(--sub);color:var(--ink);opacity:1}.add-reaction:active,.reply-action:active{scale:.96}.add-reaction svg,.reply-action svg{display:block;width:15px;height:15px}.reply-action.is-active{background:var(--accent-soft);color:var(--accent);opacity:1}.reaction-add{position:relative;display:inline-grid;place-items:center}
+    .reaction-picker{position:absolute;z-index:5;bottom:-4px;left:34px;display:grid;grid-template-columns:repeat(4,28px);gap:2px;padding:5px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 8%,transparent),0 4px 14px #7373731f,0 14px 34px #73737314}.reaction-picker button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;cursor:pointer;font-size:15px;line-height:1}.reaction-picker button:hover{background:var(--sub)}.reaction-picker button:active{scale:.92}
+    .composer{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;width:100%;margin-top:10px;align-items:start}.composer>.avatar{margin-top:5px}.composer.is-reply{margin-left:38px;width:calc(100% - 38px)}.pop-foot .composer{margin-top:0}.composer-box{position:relative;display:flex;align-items:flex-end;gap:4px;min-height:38px;padding:5px 5px 5px 12px;border-radius:19px;background:var(--sub);box-shadow:0 0 0 1px color-mix(in srgb,var(--muted) 32%,transparent);transition:box-shadow 140ms cubic-bezier(.2,0,0,1),background 140ms cubic-bezier(.2,0,0,1)}.composer-box:focus-within{background:var(--paper);box-shadow:0 0 0 2px color-mix(in srgb,var(--muted) 42%,transparent)}.composer textarea{display:block;flex:1 1 auto;width:100%;min-width:0;height:28px;min-height:28px;max-height:110px;resize:none;overflow-y:auto;padding:5px 0;border:0;border-radius:0;background:transparent;color:var(--ink);outline:none;line-height:18px;color-scheme:inherit}.send{flex:0 0 auto;display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:var(--accent);color:#fff;cursor:pointer;line-height:0;transition:background-color 120ms cubic-bezier(.2,0,0,1)}.send:not(:disabled):hover{background:var(--accent-hover)}.send svg{display:block;width:14px;height:14px}.send:disabled{opacity:.24;cursor:default}.send:not(:disabled):active{scale:.96}.error{grid-column:2;color:#c43b3b;font-size:11px}
+    .launcher{position:fixed;z-index:2147483645;right:18px;bottom:18px;display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);box-shadow:0 2px 5px #7373731f,0 10px 28px #7373732e;cursor:pointer}.launcher:active{scale:.96}
+    @media(prefers-color-scheme:dark){:host{color-scheme:dark;--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#777;--paper:#171717;--sub:#242424;--line:#303030;--accent-hover:color-mix(in srgb,var(--accent) 78%,#fff);--accent-soft:color-mix(in srgb,var(--accent) 22%,transparent)}}
     @media(max-width:560px){.popover{position:fixed;inset:auto 12px 12px;width:auto;max-height:70vh;transform-origin:bottom center}.popover[hidden]{inset:auto 12px 12px}.preview{display:none}}
     @media(prefers-reduced-motion:reduce){*{transition:none!important}}
   `;
+
+  // Stroke icons for the popover chrome. Text glyphs (✓ ☺ ↩) sit on mismatched
+  // baselines and refuse to line up with chips; these share one optical box.
+  const icon = (paths) =>
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+  const ICONS = {
+    check: icon('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
+    smile: icon('<circle cx="12" cy="12" r="9"/><path d="M8.2 14.2s1.6 2.2 3.8 2.2 3.8-2.2 3.8-2.2"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1" fill="currentColor" stroke="none"/>'),
+    reply: icon('<path d="M20 15a2 2 0 0 1-2 2H8l-4 4V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/>'),
+    send: icon('<path d="M12 19V5"/><path d="m6 11 6-6 6 6"/>'),
+  };
 
   const esc = (value) => {
     if (window.CSS && CSS.escape) return CSS.escape(value);
@@ -254,7 +272,12 @@
     return anchors;
   };
 
-  const threadsFor = (selector) => threads.filter((thread) => thread.selector === selector);
+  // Soft-deleted comments stay on disk for history, but the UI treats them as
+  // gone: no placeholder row, and a thread with nothing left disappears.
+  const liveComments = (thread) => (thread.comments || []).filter((comment) => !comment.deleted);
+  const threadIsLive = (thread) => liveComments(thread).length > 0;
+  const threadsFor = (selector) =>
+    threads.filter((thread) => thread.selector === selector && threadIsLive(thread));
 
   const avatar = (author) => {
     const node = document.createElement('span');
@@ -293,22 +316,41 @@
     element.setAttribute('data-lattice-comment-positioned', '');
   };
 
+  // Sticky master headers (template <header>, live counters, …) sit at
+  // z-index:20. Comment UI stacks just under that so markers and popovers
+  // clear ordinary page chrome without covering the bar the reader pins.
+  const COMMENT_Z = '15';
+
   const placeHost = (host, element) => {
     ensurePositioned(element);
     if (host.parentElement !== element) element.append(host);
     // Set properties individually - cssText would wipe the theme tokens
     // reportTheme wrote on the host, and the next paint flashes dark inputs.
-    // z-index stays local to the anchor: only the portaled popover floats high.
     host.style.position = 'absolute';
     host.style.right = '0';
     host.style.top = '12px';
     host.style.left = 'auto';
     host.style.transform = 'none';
-    host.style.zIndex = '1';
+    host.style.zIndex = COMMENT_Z;
+    // Lift the anchor's stacking context with the marker so later siblings
+    // cannot paint over it; sticky headers at 20 still win.
+    if (!element.hasAttribute('data-lattice-comment-z')) {
+      element.setAttribute('data-lattice-comment-z', element.style.zIndex || '');
+      element.style.zIndex = COMMENT_Z;
+    }
+  };
+
+  const releaseHost = (host) => {
+    const parent = host.parentElement;
+    host.remove();
+    if (!parent || !parent.hasAttribute('data-lattice-comment-z')) return;
+    parent.style.zIndex = parent.getAttribute('data-lattice-comment-z') || '';
+    parent.removeAttribute('data-lattice-comment-z');
+    parent.classList.remove('is-lattice-comment-open');
   };
 
   // Open popovers live on a body-level layer so they can sit above the page
-  // without dragging the marker's z-index up through neighbouring sections.
+  // without dragging every marker through neighbouring sections.
   let popoverLayer;
   const ensurePopoverLayer = () => {
     if (popoverLayer) return popoverLayer;
@@ -321,7 +363,7 @@
     mount.className = 'popover-mount';
     root.append(style, mount);
     popoverLayer.style.cssText =
-      'position:fixed;inset:0;z-index:2147483000;pointer-events:none';
+      `position:fixed;inset:0;z-index:${COMMENT_Z};pointer-events:none`;
     document.body.append(popoverLayer);
     return popoverLayer;
   };
@@ -333,8 +375,20 @@
 
   // Open popovers leave the marker and sit in the viewport. Without this they
   // scroll with the anchor and slide under the reader chrome (or off the top
-  // of the iframe). Keep a small margin so they never kiss the header edge.
+  // of the iframe). Stay clear of sticky master headers (template <header>,
+  // live counters, …) so the panel never hides behind the bar it sits under.
   const POP_EDGE = 10;
+  const stickyTopEdge = () => {
+    let bottom = POP_EDGE;
+    document.querySelectorAll('header, .live').forEach((node) => {
+      const style = getComputedStyle(node);
+      if (style.position !== 'sticky' && style.position !== 'fixed') return;
+      const rect = node.getBoundingClientRect();
+      if (rect.bottom <= 0 || rect.top > 80) return;
+      bottom = Math.max(bottom, Math.ceil(rect.bottom) + POP_EDGE);
+    });
+    return bottom;
+  };
   const clearPopoverPin = (popover) => {
     if (!popover) return;
     popover.style.position = '';
@@ -351,14 +405,15 @@
     const markerRect = marker.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const maxH = Math.max(160, vh - POP_EDGE * 2);
+    const topEdge = stickyTopEdge();
+    const maxH = Math.max(160, vh - topEdge - POP_EDGE);
     popover.style.maxHeight = maxH + 'px';
     popover.style.position = 'fixed';
     popover.style.right = 'auto';
-    const popW = popover.offsetWidth || 340;
-    const popH = popover.offsetHeight || 120;
+    const popW = popover.offsetWidth || 352;
+    const popH = Math.min(popover.offsetHeight || 120, maxH);
     let top = markerRect.top - 8;
-    top = Math.max(POP_EDGE, Math.min(top, vh - popH - POP_EDGE));
+    top = Math.max(topEdge, Math.min(top, vh - popH - POP_EDGE));
     // Prefer the existing left-of-marker placement (CSS right:38px on the host).
     let left = markerRect.right - 38 - popW;
     if (left < POP_EDGE) left = markerRect.left + 38;
@@ -382,14 +437,15 @@
         const hostRect = cursorHost.getBoundingClientRect();
         const vw = window.innerWidth;
         const vh = window.innerHeight;
-        const maxH = Math.max(160, vh - POP_EDGE * 2);
+        const topEdge = stickyTopEdge();
+        const maxH = Math.max(160, vh - topEdge - POP_EDGE);
         popover.style.maxHeight = maxH + 'px';
         popover.style.position = 'absolute';
         popover.style.right = 'auto';
-        const popW = popover.offsetWidth || 340;
-        const popH = popover.offsetHeight || 120;
+        const popW = popover.offsetWidth || 352;
+        const popH = Math.min(popover.offsetHeight || 120, maxH);
         let top = markerRect.top - 8;
-        top = Math.max(POP_EDGE, Math.min(top, vh - popH - POP_EDGE));
+        top = Math.max(topEdge, Math.min(top, vh - popH - POP_EDGE));
         let left = markerRect.right - 38 - popW;
         if (left < POP_EDGE) left = markerRect.left + 38;
         left = Math.max(POP_EDGE, Math.min(left, vw - popW - POP_EDGE));
@@ -425,7 +481,7 @@
     wrap.className = 'marker-wrap';
     root.append(style, wrap);
     cursorHost.style.cssText =
-      'position:fixed;left:0;top:0;display:none;width:28px;height:28px;z-index:2147483000';
+      `position:fixed;left:0;top:0;display:none;width:28px;height:28px;z-index:${COMMENT_Z}`;
     document.body.append(cursorHost);
     moveCursorHost(-100, -100);
     return cursorHost;
@@ -439,7 +495,7 @@
   const preview = (items) => {
     const box = document.createElement('span');
     box.className = 'preview';
-    const first = items[0] && items[0].comments && items[0].comments[0];
+    const first = items[0] && liveComments(items[0])[0];
     if (!first) {
       box.hidden = true;
       return box;
@@ -459,7 +515,7 @@
     body.textContent = first.body;
     const replies = document.createElement('span');
     replies.className = 'preview-replies';
-    const count = items.reduce((total, item) => total + Math.max(0, (item.comments || []).length - 1), 0);
+    const count = items.reduce((total, item) => total + Math.max(0, liveComments(item).length - 1), 0);
     replies.textContent = count + (count === 1 ? ' reply' : ' replies');
     box.append(head, body, replies);
     return box;
@@ -521,11 +577,42 @@
     if (at >= 0) pendingCreates.splice(at, 1);
   };
 
+  const summarizeThreads = () =>
+    threads.filter(threadIsLive).map((thread) => {
+      const comments = liveComments(thread);
+      const root = comments[0] || {};
+      const created = Number(root.created) || 0;
+      const updated = Number(root.updated) || 0;
+      return {
+        id: thread.id,
+        selector: thread.selector,
+        status: thread.status || 'open',
+        author: root.author || '',
+        body: root.body || '',
+        created,
+        edited: Boolean(root.edited) || (updated > created && created > 0),
+        replies: Math.max(0, comments.length - 1),
+        reactions: (root.reactions || []).map((reaction) => ({
+          emoji: reaction.emoji,
+          count: reaction.count,
+        })),
+      };
+    });
+
   const notifyCount = () => {
+    const items = summarizeThreads();
+    const count = items.length;
+    // Always tell in-document listeners (outline rail). The parent badge is a
+    // separate channel used only when this page is framed by the dashboard.
+    document.dispatchEvent(new CustomEvent('lattice:comment-count', {
+      detail: { count, threads: items },
+    }));
     if (isEmbedded) {
-      window.parent.postMessage({ type: 'lattice:comment-count', count: threads.length }, location.origin);
-    } else {
-      document.dispatchEvent(new CustomEvent('lattice:comment-count', { detail: { count: threads.length } }));
+      window.parent.postMessage({
+        type: 'lattice:comment-count',
+        count,
+        threads: items,
+      }, location.origin);
     }
   };
 
@@ -621,7 +708,7 @@
     const add = document.createElement('button');
     add.className = 'add-reaction';
     add.type = 'button';
-    add.textContent = '☺';
+    add.innerHTML = ICONS.smile;
     add.setAttribute('aria-label', 'Add reaction');
     add.setAttribute('aria-expanded', String(openReactionPickerID === comment.id));
     add.addEventListener('click', (event) => {
@@ -653,7 +740,7 @@
       const replyBtn = document.createElement('button');
       replyBtn.className = 'reply-action' + (replyingThreadID === thread.id ? ' is-active' : '');
       replyBtn.type = 'button';
-      replyBtn.textContent = '↩';
+      replyBtn.innerHTML = ICONS.reply;
       replyBtn.title = 'Reply';
       replyBtn.setAttribute('aria-label', 'Reply');
       replyBtn.setAttribute('aria-expanded', String(replyingThreadID === thread.id));
@@ -682,6 +769,7 @@
   };
 
   const commentRow = (thread, comment, isReply) => {
+    if (comment.deleted) return null;
     const row = document.createElement('article');
     row.className = 'comment' + (isReply ? ' is-reply' : '');
     const main = document.createElement('div');
@@ -692,7 +780,7 @@
     author.textContent = comment.author || 'Unknown';
     const time = document.createElement('time');
     time.textContent = formatTime(comment.created);
-    if (!comment.deleted && (comment.edited || Number(comment.updated) > Number(comment.created))) {
+    if (comment.edited || Number(comment.updated) > Number(comment.created)) {
       const edited = document.createElement('span');
       edited.className = 'edited';
       edited.textContent = 'edited';
@@ -701,11 +789,10 @@
       head.append(author, time);
     }
     const body = document.createElement('p');
-    body.textContent = comment.deleted ? 'Comment deleted' : comment.body;
-    body.classList.toggle('is-deleted', Boolean(comment.deleted));
+    body.textContent = comment.body;
     main.append(head);
 
-    if (editingCommentID === comment.id && !comment.deleted) {
+    if (editingCommentID === comment.id) {
       const form = document.createElement('form');
       form.className = 'inline-edit';
       const area = document.createElement('textarea');
@@ -782,33 +869,34 @@
       });
     } else {
       main.append(body);
-      if (!comment.deleted) main.append(reactionStrip(thread, comment, { canReply: !isReply }));
+      main.append(reactionStrip(thread, comment, { canReply: !isReply }));
     }
-    row.append(avatar(comment.author), main);
 
-    if (comment.can_edit && !comment.deleted && editingCommentID !== comment.id) {
+    if (comment.can_edit && editingCommentID !== comment.id) {
+      const menuOpen = openCommentMenuID === comment.id;
       const actions = document.createElement('div');
-      actions.className = 'comment-actions';
+      actions.className = 'comment-actions' + (menuOpen ? ' is-open' : '');
       const trigger = document.createElement('button');
       trigger.className = 'comment-menu-trigger';
       trigger.type = 'button';
       trigger.textContent = '•••';
       trigger.setAttribute('aria-label', 'Comment actions');
-      trigger.setAttribute('aria-expanded', String(openCommentMenuID === comment.id));
+      trigger.setAttribute('aria-expanded', String(menuOpen));
       trigger.addEventListener('click', (event) => {
         event.stopPropagation();
-        openCommentMenuID = openCommentMenuID === comment.id ? '' : comment.id;
+        openCommentMenuID = menuOpen ? '' : comment.id;
         deletingCommentID = '';
         commentActionError = undefined;
         render();
       });
       actions.append(trigger);
 
-      if (openCommentMenuID === comment.id) {
+      if (menuOpen) {
         const menu = document.createElement('div');
         menu.className = 'comment-menu';
         menu.setAttribute('role', 'menu');
         if (deletingCommentID === comment.id) {
+          menu.classList.add('is-confirm');
           const confirm = document.createElement('div');
           confirm.className = 'delete-confirm';
           const label = document.createElement('p');
@@ -839,6 +927,7 @@
             resetCommentActions();
             commentActionError = undefined;
             render();
+            notifyCount();
             try {
               await request(commentMutationURL(thread, comment), { method: 'DELETE' });
               pendingDeletes.delete(comment.id);
@@ -854,6 +943,7 @@
               openCommentMenuID = comment.id;
               commentActionError = { id: comment.id, message: cause.message || 'Could not delete comment' };
               render();
+              notifyCount();
             }
           });
           buttons.append(cancel, remove);
@@ -891,9 +981,15 @@
           menu.append(edit, remove);
         }
         actions.append(menu);
+        // Re-render replaces the node under the cursor, so :hover is gone until
+        // the next mousemove. Keep focus on the menu so it stays usable.
+        queueMicrotask(() => {
+          menu.querySelector('button')?.focus();
+        });
       }
-      row.append(actions);
+      head.append(actions);
     }
+    row.append(avatar(comment.author), main);
     return row;
   };
 
@@ -909,14 +1005,26 @@
     send.className = 'send';
     send.type = 'submit';
     send.disabled = true;
+    send.innerHTML = ICONS.send;
     send.setAttribute('aria-label', placeholder);
-    send.textContent = '↑';
-    const error = document.createElement('div');
-    error.className = 'error';
+    let error;
+    const clearError = () => {
+      if (!error) return;
+      error.remove();
+      error = undefined;
+    };
+    const showError = (message) => {
+      if (!error) {
+        error = document.createElement('div');
+        error.className = 'error';
+        form.append(error);
+      }
+      error.textContent = message;
+    };
     area.addEventListener('input', () => {
       send.disabled = !area.value.trim();
-      area.style.height = '36px';
-      area.style.height = Math.min(area.scrollHeight, 120) + 'px';
+      area.style.height = '28px';
+      area.style.height = Math.min(area.scrollHeight, 110) + 'px';
     });
     area.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
@@ -929,7 +1037,7 @@
       const body = area.value.trim();
       if (!body) return;
       send.disabled = true;
-      error.textContent = '';
+      clearError();
       try {
         // Submit paints optimistically and waits on the server behind the
         // scenes; on success the composer is usually already gone.
@@ -940,13 +1048,13 @@
         exitCommentMode(true);
       } catch (cause) {
         if (form.isConnected) {
-          error.textContent = cause.message || 'Could not save comment';
+          showError(cause.message || 'Could not save comment');
           send.disabled = false;
         }
       }
     });
     box.append(area, send);
-    form.append(avatar('You'), box, error);
+    form.append(avatar('You'), box);
     return { form, area };
   };
 
@@ -991,8 +1099,9 @@
       const resolve = document.createElement('button');
       resolve.className = 'thread-resolve' + (resolved ? ' is-resolved' : '');
       resolve.type = 'button';
-      resolve.textContent = resolved ? '✓ Resolved' : '✓ Resolve';
+      resolve.innerHTML = ICONS.check;
       resolve.title = resolved ? 'Reopen this thread' : 'Mark this thread resolved';
+      resolve.setAttribute('aria-label', resolved ? 'Reopen this thread' : 'Mark this thread resolved');
       resolve.addEventListener('click', (event) => {
         event.stopPropagation();
         const next = resolved ? 'open' : 'resolved';
@@ -1019,8 +1128,9 @@
       // The opening comment sits at the root and is the whole thread until you
       // ask for the rest: a popover that unrolls every answer to every thread
       // buries the one you came to read. Replies are indented, never boxed in.
-      const comments = thread.comments || [];
+      const comments = liveComments(thread);
       const [first, ...replies] = comments;
+      if (!first) return;
       const expanded = expandedThreads.has(thread.id);
       if (resolved && replies.length) {
         // Resolved threads drop the "n replies" link; the caret beside the
@@ -1048,7 +1158,8 @@
         section.append(error);
       }
 
-      if (first) section.append(commentRow(thread, first, false));
+      const root = commentRow(thread, first, false);
+      if (root) section.append(root);
       if (replies.length) {
         if (!resolved) {
           const toggle = document.createElement('button');
@@ -1066,7 +1177,12 @@
           });
           section.append(toggle);
         }
-        if (expanded) replies.forEach((comment) => section.append(commentRow(thread, comment, true)));
+        if (expanded) {
+          replies.forEach((comment) => {
+            const row = commentRow(thread, comment, true);
+            if (row) section.append(row);
+          });
+        }
       }
       if (replyingThreadID === thread.id) {
         const reply = composer('Reply', async (message) => {
@@ -1117,7 +1233,7 @@
       body.append(section);
     });
     // Starting another thread here is not a mode you have to find a button for:
-    // the box is simply there, under whatever is already being discussed.
+    // the box sits pinned under the scrollable thread list so it stays reachable.
     const fresh = composer(items.length ? 'Start another thread' : 'Add a comment', async (message) => {
       const tempId = tempID('t');
       const created = nowSecs();
@@ -1175,27 +1291,32 @@
         throw cause;
       }
     });
-    if (items.length) fresh.form.classList.add('is-new-thread');
-    body.append(fresh.form);
+    const foot = document.createElement('div');
+    foot.className = 'pop-foot' + (items.length ? ' has-threads' : '');
+    foot.append(fresh.form);
     if (commentActionError?.id === selector) {
       const error = document.createElement('div');
       error.className = 'action-error';
       error.textContent = commentActionError.message;
-      body.append(error);
+      foot.append(error);
     }
     if (isComposing || !items.length) queueMicrotask(() => fresh.area.focus());
-    box.append(head, body);
+    box.append(head);
+    if (items.length) box.append(body);
+    box.append(foot);
     return box;
   };
 
   // An anchor's own marker: the count, pinned to the element. The open popover
-  // is portaled to the body layer so only it - not the badge - stacks high.
+  // is portaled to a body-level layer so it clears page chrome under the sticky
+  // master header.
   const renderMarker = (selector, element, items) => {
     const host = markerHosts.get(selector) || makeHost(selector, element);
     placeHost(host, element);
-    host.classList.toggle('is-open', openSelector === selector);
-    const wrap = host.shadowRoot.querySelector('.marker-wrap');
     const open = openSelector === selector;
+    host.classList.toggle('is-open', open);
+    element.classList.toggle('is-lattice-comment-open', open);
+    const wrap = host.shadowRoot.querySelector('.marker-wrap');
     const layerPop = popoverLayer && popoverMount().querySelector('.popover');
     const scrolled = (open && layerPop
       ? layerPop.querySelector('.pop-body')?.scrollTop
@@ -1273,6 +1394,7 @@
       const selector = selectorFor(element);
       if (!selector) return;
       element.toggleAttribute('data-lattice-comment-target', commentMode);
+      element.classList.toggle('is-lattice-comment-open', openSelector === selector);
       // Highlight overlays (::after) and markers need a containing block on
       // every target, including ones with no threads yet. Sticky stays sticky.
       if (commentMode) ensurePositioned(element);
@@ -1285,7 +1407,7 @@
     // marker behind pointing at nothing.
     markerHosts.forEach((host, selector) => {
       if (anchored.has(selector)) return;
-      host.remove();
+      releaseHost(host);
       markerHosts.delete(selector);
     });
     if (openSelector && !anchored.has(openSelector)) {
@@ -1347,6 +1469,14 @@
     return luminance < 0.45 ? 'dark' : 'light';
   };
 
+  // Hex accent from the summary (theme.accent) or the user's config, else ink.
+  const HEX_ACCENT = /^#[0-9a-f]{6}$/i;
+  const parseAccent = (raw) => {
+    const value = String(raw || '').trim();
+    return HEX_ACCENT.test(value) ? value.toLowerCase() : '';
+  };
+  const configAccent = () => parseAccent(script && script.dataset.accent);
+
   const reportTheme = () => {
     const rootStyle = getComputedStyle(document.documentElement);
     const bodyStyle = getComputedStyle(document.body);
@@ -1359,6 +1489,9 @@
       '--muted': value('--muted', bodyStyle.color),
       '--line': value('--line', bodyStyle.color),
     };
+    const accent = parseAccent(value('--accent', '')) || configAccent() || theme['--ink'];
+    theme['--accent'] = accent;
+    document.documentElement.style.setProperty('--lattice-accent', accent);
     const scheme = schemeFor(theme['--paper'], rootStyle.colorScheme);
     [...markerHosts.values(), cursorHost, popoverLayer].forEach((host) => {
       if (!host) return;
@@ -1370,6 +1503,7 @@
         type: 'lattice:document-theme',
         background: theme['--paper'],
         color: theme['--ink'],
+        accent,
       }, location.origin);
     }
   };
@@ -1436,6 +1570,17 @@
     if (!insideComments && (openSelector || newThreadSelector)) {
       closePopovers();
       render();
+      return;
+    }
+    if (openCommentMenuID || deletingCommentID) {
+      const insideMenu = event.composedPath().some((node) =>
+        node.classList && node.classList.contains('comment-actions'));
+      if (!insideMenu) {
+        openCommentMenuID = '';
+        deletingCommentID = '';
+        commentActionError = undefined;
+        render();
+      }
     }
   }, true);
 
@@ -1457,10 +1602,12 @@
   addEventListener('resize', schedulePin);
 
   addEventListener('message', (event) => {
-    if (event.origin !== location.origin || event.data?.type !== 'lattice:comment-mode') return;
-    if (event.data.active === false) exitCommentMode();
-    else if (event.data.active === true) enterCommentMode();
-    else commentMode ? exitCommentMode() : enterCommentMode();
+    if (event.origin !== location.origin) return;
+    if (event.data?.type === 'lattice:comment-mode') {
+      if (event.data.active === false) exitCommentMode();
+      else if (event.data.active === true) enterCommentMode();
+      else commentMode ? exitCommentMode() : enterCommentMode();
+    }
   });
 
   new MutationObserver(reportTheme).observe(document.documentElement, {
@@ -1484,12 +1631,48 @@
     document.body.append(host);
   }
 
+  // Open an anchor's threads from outside the bridge - the outline rail hands a
+  // reader straight to the comment they clicked in the index. Scrolling is part
+  // of the job: an anchor five screens down would otherwise open a popover
+  // nobody can see. Returns false when the selector no longer resolves, so a
+  // caller can fall back instead of silently doing nothing.
+  const openAnchor = (selector, options = {}) => {
+    if (!selector) return false;
+    let element = null;
+    try {
+      element = document.querySelector(selector);
+    } catch {
+      return false;
+    }
+    if (!element) return false;
+    closePopovers();
+    openSelector = selector;
+    if (options.thread) expandedThreads.add(options.thread);
+    render();
+    if (options.scroll !== false) {
+      element.scrollIntoView({
+        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'center',
+      });
+    }
+    schedulePin();
+    return true;
+  };
+
+  addEventListener('message', (event) => {
+    if (event.origin !== location.origin || event.data?.type !== 'lattice:comment-open') return;
+    openAnchor(String(event.data.selector || ''), {
+      thread: event.data.thread ? String(event.data.thread) : '',
+    });
+  });
+
   window.lattice = Object.assign(window.lattice || {}, {
     comments: {
       list: () => threads.slice(),
       refresh,
       start: enterCommentMode,
       stop: exitCommentMode,
+      open: openAnchor,
     },
   });
 
