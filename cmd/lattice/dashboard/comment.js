@@ -51,7 +51,7 @@
   document.head.append(pageStyle);
 
   const css = `
-    :host{all:initial;color-scheme:light dark;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--paper:#fff;--sub:#f5f5f4;--line:#e6e6e3;--blue:#1683ff;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+    :host{all:initial;color-scheme:light;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--paper:#fff;--sub:#f5f5f4;--line:#e6e6e3;--blue:#1683ff;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
     *{box-sizing:border-box}button,textarea{font:inherit}button{color:inherit}.marker{position:relative;display:grid;place-items:center;width:28px;height:28px;padding:0;border:2px solid var(--paper);border-radius:50%;background:var(--blue);color:#fff;box-shadow:0 1px 3px #0002,0 4px 14px #0002;cursor:pointer;pointer-events:auto;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;transition:scale 160ms cubic-bezier(.2,0,0,1),box-shadow 160ms cubic-bezier(.2,0,0,1)}
     .marker::before{content:"";position:absolute;inset:-6px;border-radius:50%}.marker:hover,.marker:focus-visible{scale:1.06;box-shadow:0 2px 5px #0002,0 8px 20px #0002;outline:none}.marker:active{scale:.96}.marker.is-new{background:var(--blue);color:#fff;cursor:none;pointer-events:none;font-size:17px;font-weight:400}
     .preview{position:absolute;right:38px;top:-3px;width:260px;padding:12px 14px;border-radius:12px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 14px 36px #0002;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(3px) scale(.98);transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1),visibility 160ms}
@@ -71,9 +71,9 @@
     .chip:hover{background:var(--paper);box-shadow:inset 0 0 0 1px var(--muted)}.chip:active{scale:.96}.chip.is-mine{background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px var(--blue);color:var(--ink)}.chip-emoji{font-size:12.5px}.chip-count{font-variant-numeric:tabular-nums}.reactions .action-error{flex:0 0 100%;margin-top:3px}
     .add-reaction,.reply-action{display:inline-grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;box-shadow:none;color:var(--muted);cursor:pointer;font-size:17px;line-height:1;opacity:.72}.add-reaction:hover,.reply-action:hover{background:var(--sub);color:var(--ink);opacity:1}.add-reaction:active,.reply-action:active{scale:.96}.reply-action{font-size:15px}.reply-action.is-active{background:rgba(22,131,255,.12);color:var(--ink);opacity:1}.reaction-add{position:relative;display:inline-flex}
     .reaction-picker{position:absolute;z-index:5;bottom:-4px;left:32px;display:grid;grid-template-columns:repeat(4,28px);gap:2px;padding:5px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #0002,0 14px 34px #0001}.reaction-picker button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;cursor:pointer;font-size:15px;line-height:1}.reaction-picker button:hover{background:var(--sub)}.reaction-picker button:active{scale:.92}
-    .composer{display:grid;grid-template-columns:24px 1fr;gap:10px;margin-top:16px}.composer.is-reply{margin-left:26px}.composer.is-new-thread{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}.composer-box{position:relative}.composer textarea{display:block;width:100%;height:44px;min-height:44px;max-height:120px;resize:none;overflow-y:auto;padding:11px 44px 10px 12px;border:0;border-radius:12px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px transparent;transition:box-shadow 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}.composer textarea:focus{background:var(--paper);box-shadow:inset 0 0 0 1px var(--blue)}.send{position:absolute;right:6px;bottom:6px;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);cursor:pointer}.send:disabled{opacity:.24;cursor:default}.send:not(:disabled):active{scale:.96}.error{grid-column:2;color:#c43b3b;font-size:11px}
+    .composer{display:grid;grid-template-columns:24px 1fr;gap:10px;margin-top:16px}.composer.is-reply{margin-left:26px}.composer.is-new-thread{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}.composer-box{position:relative}.composer textarea{display:block;width:100%;height:44px;min-height:44px;max-height:120px;resize:none;overflow-y:auto;padding:11px 44px 10px 12px;border:0;border-radius:12px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px transparent;transition:box-shadow 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1);color-scheme:inherit}.composer textarea:focus{background:var(--paper);box-shadow:inset 0 0 0 1px var(--blue)}.send{position:absolute;right:6px;bottom:6px;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);cursor:pointer}.send:disabled{opacity:.24;cursor:default}.send:not(:disabled):active{scale:.96}.error{grid-column:2;color:#c43b3b;font-size:11px}
     .launcher{position:fixed;z-index:2147483645;right:18px;bottom:18px;display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);box-shadow:0 2px 5px #0002,0 10px 28px #0003;cursor:pointer}.launcher:active{scale:.96}
-    @media(prefers-color-scheme:dark){:host{--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#777;--paper:#171717;--sub:#242424;--line:#303030}}
+    @media(prefers-color-scheme:dark){:host{color-scheme:dark;--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#777;--paper:#171717;--sub:#242424;--line:#303030}}
     @media(max-width:560px){.popover{position:fixed;inset:auto 12px 12px;width:auto;max-height:70vh;transform-origin:bottom center}.preview{display:none}}
     @media(prefers-reduced-motion:reduce){*{transition:none!important}}
   `;
@@ -291,7 +291,14 @@
   const placeHost = (host, element) => {
     ensurePositioned(element);
     if (host.parentElement !== element) element.append(host);
-    host.style.cssText = 'position:absolute;right:-8px;top:12px;left:auto;transform:none;z-index:2147483000';
+    // Set properties individually - cssText would wipe the theme tokens
+    // reportTheme wrote on the host, and the next paint flashes dark inputs.
+    host.style.position = 'absolute';
+    host.style.right = '-8px';
+    host.style.top = '12px';
+    host.style.left = 'auto';
+    host.style.transform = 'none';
+    host.style.zIndex = '2147483000';
   };
 
   // The cursor marker is one host for the whole page, not one per anchor. It
@@ -1205,6 +1212,16 @@
     notifyCount();
   };
 
+  // Rough luminance so a light summary on a dark-OS machine does not hand the
+  // shadow tree color-scheme:dark and flash native form controls black.
+  const schemeFor = (background, fallback) => {
+    if (fallback === 'light' || fallback === 'dark') return fallback;
+    const match = String(background || '').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (!match) return 'light';
+    const luminance = (0.2126 * match[1] + 0.7152 * match[2] + 0.0722 * match[3]) / 255;
+    return luminance < 0.45 ? 'dark' : 'light';
+  };
+
   const reportTheme = () => {
     const rootStyle = getComputedStyle(document.documentElement);
     const bodyStyle = getComputedStyle(document.body);
@@ -1217,10 +1234,11 @@
       '--muted': value('--muted', bodyStyle.color),
       '--line': value('--line', bodyStyle.color),
     };
+    const scheme = schemeFor(theme['--paper'], rootStyle.colorScheme);
     [...markerHosts.values(), cursorHost].forEach((host) => {
       if (!host) return;
       Object.entries(theme).forEach(([name, color]) => host.style.setProperty(name, color));
-      host.style.colorScheme = rootStyle.colorScheme;
+      host.style.colorScheme = scheme;
     });
     if (isEmbedded) {
       window.parent.postMessage({
