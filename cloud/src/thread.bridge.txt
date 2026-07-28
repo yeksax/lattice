@@ -1456,6 +1456,26 @@
   // have to come back in order. Only the newest answer is allowed to land.
   let refreshTicket = 0;
 
+  // seedThreads adopts the listing the server inlined next to this script. It
+  // claims no refresh ticket on purpose: a fetch in flight is by definition
+  // newer than a payload that shipped with the page, so it lands on top.
+  const seedThreads = () => {
+    const node = document.getElementById('lattice-threads');
+    if (!node) return false;
+    let initial;
+    try {
+      initial = JSON.parse(node.textContent || 'null');
+    } catch {
+      return false;
+    }
+    if (!Array.isArray(initial)) return false;
+    threads = initial;
+    replayPending();
+    render();
+    notifyCount();
+    return true;
+  };
+
   const refresh = async () => {
     const ticket = ++refreshTicket;
     const out = await request(endpoint);
@@ -1701,6 +1721,9 @@
   });
 
   reportTheme();
-  refresh().catch(() => {});
+  // A hosted page ships its discussion inline, so the first paint already has
+  // the conversation and the count in the bar is right before anything is
+  // fetched. Local pages have no seed and fall back to the round trip.
+  if (!seedThreads()) refresh().catch(() => {});
   document.dispatchEvent(new CustomEvent('lattice:comments-ready', { detail: window.lattice.comments }));
 })();

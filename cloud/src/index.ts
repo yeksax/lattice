@@ -21,8 +21,10 @@ import {
   handleAuth,
   handleOwnerThreads,
   handlePublicThreads,
+  listThreads,
   requireShareAccess,
   validateAllowedDomains,
+  viewerActorID,
 } from './threads';
 
 export interface Env {
@@ -528,6 +530,7 @@ async function servePublic(req: Request, env: Env, sub: string, rest: string): P
     pollBridge +
     `</script>`;
   const threadTag =
+    (await threadSeedTag(req, env, sub)) +
     `<script id="lattice-comments" data-endpoint="${base}/threads">` +
     threadBridge +
     `</script>`;
@@ -672,6 +675,37 @@ function injectNoindex(html: string): string {
   const m = html.match(/^\s*<!doctype[^>]*>/i);
   const at = m ? m[0].length : 0;
   return html.slice(0, at) + tag + html.slice(at);
+}
+
+// threadSeedTag inlines the discussion the page is about to show. The bridge
+// would otherwise paint an empty margin and then fetch /threads, so every
+// reader paid a round trip for something this request already had the identity
+// to read. Failure is not fatal: with no seed the bridge does what it always
+// did, and a page that lost its comments is better than a page that lost D1.
+async function threadSeedTag(req: Request, env: Env, sub: string): Promise<string> {
+  try {
+    const viewer = await viewerActorID(req, env);
+    const threads = await listThreads(env, sub, viewer);
+    return (
+      `<script id="lattice-threads" type="application/json">` +
+      escapeJSONForScript(JSON.stringify(threads)) +
+      `</script>`
+    );
+  } catch {
+    return '';
+  }
+}
+
+// escapeJSONForScript makes a JSON payload safe to sit inside a <script> block.
+// A comment body is reader-supplied text, so a literal "</script>" in one would
+// otherwise close the tag and spill the rest of the conversation into the page
+// as markup. Escaping every "<" is enough and stays valid JSON; the line
+// separators are the other pair the HTML parser and JS disagree about.
+function escapeJSONForScript(value: string): string {
+  return value
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }
 
 // injectScript inserts markup before </body> (append as fallback). Port of the
