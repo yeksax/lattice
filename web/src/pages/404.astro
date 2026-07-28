@@ -3,22 +3,74 @@ import Layout from '../layouts/Layout.astro';
 ---
 
 <Layout title="Page not found: Lattice" description="Lattice could not find this page." solidHeader localize>
-  <section class="flex min-h-[70svh] items-center pt-16">
-    <div class="wrap">
-      <p class="eyebrow">404</p>
-      <h1
-        class="mt-5 font-serif text-ink"
-        style="font-size: clamp(2.2rem, 4.6vw, 3.4rem); line-height: 1.08; letter-spacing: -0.02em; font-variation-settings: 'opsz' 120; font-weight: 440;"
-      >
-        This page is not in the library.
-      </h1>
-      <p class="lede mt-5">
-        The address may have changed, or the link may be incomplete. Your local reports are unaffected.
+  <section class="relative flex min-h-[70svh] items-center overflow-hidden pt-20">
+    <canvas id="fluid" class="ink-wash" aria-hidden="true"></canvas>
+    <div class="shell relative max-w-[44rem]">
+      <p class="note wash-copy">404</p>
+      <h1 class="display wash-copy mt-4 max-w-[16ch]">This page is not in the library.</h1>
+      <p class="lede wash-copy mt-7">
+        The address may have changed, or the link may be incomplete. Your local reports are
+        unaffected.
       </p>
-      <div class="mt-10 flex flex-wrap gap-4">
-        <a class="btn btn-primary" href="/">Return home</a>
-        <a class="btn btn-ghost" href="/download">View downloads</a>
+      <div class="mt-10 flex flex-wrap gap-3.5">
+        <a class="btn btn-primary on-wash" href="/">Return home</a>
+        <a class="btn btn-ghost on-wash" href="/download">View downloads</a>
       </div>
     </div>
   </section>
 </Layout>
+
+<style>
+  /*
+    The ink wash from the hosted access-denied page, kept inside this section so
+    the header and footer stay solid. One paint stack, no isolation: the copy is
+    set in near-white and blended with difference, so it reads as ink on paper
+    and turns pale wherever the wash runs dark. The values below are the paper
+    colour minus the ink colour, so with no wash the page looks untouched.
+  */
+  .ink-wash {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    /* The wash is bounded by a section, not the viewport: fade the edges so it
+       reads as ink soaking into the page rather than a cropped rectangle. */
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 84%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 84%, transparent);
+  }
+
+  .wash-copy {
+    mix-blend-mode: difference;
+  }
+
+  .wash-copy.display {
+    color: #eeeeef;
+  }
+
+  .wash-copy.note {
+    color: #b3b3b6;
+  }
+
+  .wash-copy.lede {
+    color: #b3b3b6;
+  }
+
+  /* Controls stay out of the blend group — a ring keeps them off the ink. */
+  .on-wash {
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.75);
+  }
+
+  .btn-ghost.on-wash {
+    background: rgb(255 255 255 / 0.9);
+  }
+</style>
+
+<script>
+  import { initFluid } from '../scripts/fluid';
+
+  const canvas = document.getElementById('fluid');
+  if (canvas instanceof HTMLCanvasElement) initFluid(canvas);
+</script>

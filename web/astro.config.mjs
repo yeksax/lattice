@@ -6,5 +6,8 @@ export default defineConfig({
   output: 'static',
   vite: {
     plugins: [tailwindcss()],
+    server: {
+      allowedHosts: ['lp.yeksax.dev']
+    }
   },
 });

@@ -1,0 +1,1464 @@
+---
+/**
+ * Working miniatures of the reader, one per margin panel.
+ *
+ * Every piece here is lifted from the real product: the round anchor marker and
+ * the thread card come from `cmd/lattice/dashboard/comment.js`, the terminal
+ * transcript is the actual output of `lattice threads` and `lattice reply`, the
+ * checklist rows are the `data-lattice-state` items the state bridge persists,
+ * and the poll is the `.opt / .fill / .pct` markup the skill emits. Nothing is
+ * a drawing of a product: it is the product, at a smaller size.
+ *
+ * The two shape systems are the product's own. A report is drawn with hairlines
+ * and square corners; the Lattice chrome that floats over it is round. Keeping
+ * both is what makes the miniature recognisable.
+ */
+export interface Props {
+  kind: 'threads' | 'terminal' | 'state' | 'poll' | 'reader';
+}
+
+const { kind } = Astro.props;
+
+const cuts = [
+  { key: 'resize-uploads', label: 'Resize images on upload', cost: 780, money: '$780' },
+  { key: 'staging-replica', label: 'Drop the staging replica', cost: 310, money: '$310' },
+  { key: 'old-exports', label: 'Archive the 2023 exports', cost: 120, money: '$120' },
+];
+
+const options = [
+  { key: 'A', label: 'Keep it', votes: 1 },
+  { key: 'B', label: 'Drop it and watch', votes: 2 },
+  { key: 'C', label: 'Ask the data team', votes: 0 },
+];
+
+/* All five miniatures read the same report, so the section moves between them. */
+const outline = [
+  {
+    label: 'Summary',
+    excerpt: 'Three savings, nothing a reader would notice.',
+    rows: [],
+  },
+  {
+    label: 'Costs',
+    excerpt: 'The image CDN came to $1,240, triple last month.',
+    rows: [
+      { initial: 'M', name: 'Marina Vasques', body: 'Triple last month.' },
+      { initial: 'B', name: 'Bruno Sampaio', body: 'Nobody resized the hero images.' },
+    ],
+  },
+  {
+    label: 'Cuts',
+    excerpt: 'Resize on upload, drop the staging replica.',
+    rows: [{ initial: 'M', name: 'Marina Vasques', body: 'Nothing user-facing. Confirmed.' }],
+  },
+  {
+    label: 'Decision',
+    excerpt: 'Ship the three this week.',
+    rows: [],
+  },
+];
+
+const shortcuts = [
+  { cap: 'C', code: 'KeyC', label: 'Comment' },
+  { cap: 'S', code: 'KeyS', shift: true, label: 'Share' },
+  { cap: 'D', code: 'KeyD', shift: true, label: 'Download' },
+];
+---
+
+{
+  kind === 'threads' && (
+    <div class="dm" data-demo="threads">
+      <div class="dm-doc">
+        <p class="dm-doc-head">Monthly bill</p>
+        <div class="dm-line">
+          <span>Object storage</span>
+          <span class="dm-num">$310</span>
+        </div>
+        <div class="dm-line is-anchor" data-demo-anchor>
+          <span>Image CDN</span>
+          <span class="dm-num">$1,240</span>
+          <button class="dm-marker" type="button" data-demo-marker aria-expanded="true">
+            <span aria-hidden="true" data-demo-count>2</span>
+            <span class="dm-sr">Open the thread on this line</span>
+          </button>
+
+          {/* Floats beside the marker and over the document, where the reader puts it. */}
+          <div class="dm-pop" data-demo-pop>
+            <div class="dm-pop-head">
+              <strong>Image CDN</strong>
+              <button class="dm-icon" type="button" data-demo-close>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+                <span class="dm-sr">Close the thread</span>
+              </button>
+            </div>
+            <div class="dm-pop-body">
+              <p class="dm-thread-meta">
+                <span data-demo-status>open · costs</span>
+                <button class="dm-icon dm-resolve" type="button" data-demo-resolve aria-pressed="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m5 12.5 4.5 4.5L19 7.5" />
+                  </svg>
+                  <span class="dm-sr">Resolve this thread</span>
+                </button>
+              </p>
+              <article class="dm-comment">
+                <span class="dm-avatar" aria-hidden="true">M</span>
+                <div>
+                  <p class="dm-comment-head">
+                    <b>Marina Vasques</b>
+                    <time>2h</time>
+                  </p>
+                  <p class="dm-comment-body">Triple last month.</p>
+
+                  {/* Chips first, then the two buttons that add to them. */}
+                  <p class="dm-reactions">
+                    {[
+                      { emoji: '👍', count: 2, mine: false },
+                      { emoji: '✅', count: 1, mine: true },
+                      { emoji: '👀', count: 0, mine: false },
+                      { emoji: '🎉', count: 0, mine: false },
+                    ].map((chip) => (
+                      <button
+                        class:list={['dm-chip', chip.mine && 'is-mine']}
+                        type="button"
+                        data-demo-chip
+                        data-emoji={chip.emoji}
+                        data-base={chip.count}
+                        aria-pressed={chip.mine}
+                        hidden={chip.count === 0}
+                      >
+                        <span aria-hidden="true">{chip.emoji}</span>
+                        <span class="dm-chip-count" data-demo-chip-count>
+                          {chip.count}
+                        </span>
+                      </button>
+                    ))}
+
+                    <span class="dm-reaction-add">
+                      <button class="dm-icon" type="button" data-demo-react aria-expanded="false">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M8.2 14.2s1.6 2.2 3.8 2.2 3.8-2.2 3.8-2.2" />
+                          <circle cx="9" cy="10" r="1" fill="currentColor" stroke="none" />
+                          <circle cx="15" cy="10" r="1" fill="currentColor" stroke="none" />
+                        </svg>
+                        <span class="dm-sr">Add a reaction</span>
+                      </button>
+                      <span class="dm-picker" data-demo-picker hidden>
+                        {['👍', '✅', '👀', '🎉'].map((emoji) => (
+                          <button type="button" data-demo-pick data-emoji={emoji}>
+                            <span aria-hidden="true">{emoji}</span>
+                            <span class="dm-sr">{emoji}</span>
+                          </button>
+                        ))}
+                      </span>
+                    </span>
+
+                    <button class="dm-icon" type="button" data-demo-reply-action>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 15a2 2 0 0 1-2 2H8l-4 4V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" />
+                      </svg>
+                      <span class="dm-sr">Reply in this thread</span>
+                    </button>
+                  </p>
+                </div>
+              </article>
+
+              {/* Replies sit under the comment they answer, indented like the reader does it. */}
+              <article class="dm-comment is-reply">
+                <span class="dm-avatar" aria-hidden="true">B</span>
+                <div>
+                  <p class="dm-comment-head">
+                    <b>Bruno Sampaio</b>
+                    <time>1h</time>
+                  </p>
+                  <p class="dm-comment-body">Nobody resized the hero images.</p>
+                </div>
+              </article>
+              <article class="dm-comment is-new" data-demo-mine hidden>
+                <span class="dm-avatar" aria-hidden="true">Y</span>
+                <div>
+                  <p class="dm-comment-head">
+                    <b>You</b>
+                    <time>now</time>
+                  </p>
+                  <p class="dm-comment-body" data-demo-mine-body />
+                </div>
+              </article>
+            </div>
+            <form class="dm-pop-foot" data-demo-compose>
+              <span class="dm-avatar" aria-hidden="true">Y</span>
+              <span class="dm-composer">
+                <label class="dm-sr" for="dm-reply">Start a new thread on this line</label>
+                <input id="dm-reply" type="text" autocomplete="off" placeholder="Start a new thread" data-demo-input />
+                <button class="dm-send" type="submit" data-demo-send>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 19V5" />
+                    <path d="m6 11 6-6 6 6" />
+                  </svg>
+                  <span class="dm-sr">Send</span>
+                </button>
+              </span>
+            </form>
+          </div>
+        </div>
+        <div class="dm-line">
+          <span>Managed Postgres</span>
+          <span class="dm-num">$480</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+{
+  kind === 'terminal' && (
+    <div class="dm dm-term" data-demo="terminal">
+      <div class="dm-term-head">
+        <span>costs</span>
+        <button class="dm-btn" type="button" data-demo-run>
+          <span data-demo-run-label>Run</span>
+        </button>
+      </div>
+      <div class="dm-term-body" data-demo-term>{[
+        { text: '$ lattice threads costs --open', prompt: true },
+        { text: 'thr_7c41  open  #image-cdn  local' },
+        { text: '  Marina Vasques: Triple last month.' },
+        { text: '$ lattice reply costs thr_7c41 "resized on upload"', prompt: true },
+        { text: '$ lattice threads costs --open', prompt: true },
+        { text: 'thr_7c41  open  #image-cdn  local' },
+        { text: '  Marina Vasques: Triple last month.' },
+        { text: '  Agent: resized on upload' },
+      ].map((line) => (
+        <span class:list={['dm-term-line', line.prompt && 'is-prompt']} data-demo-line>{line.text}</span>
+      ))}</div>
+    </div>
+  )
+}
+
+{
+  kind === 'state' && (
+    <div class="dm" data-demo="state">
+      <div class="dm-doc">
+        <p class="dm-doc-head">What we are cutting</p>
+        {cuts.map((cut) => (
+          <label class="dm-line dm-check">
+            <input type="checkbox" data-demo-check data-key={cut.key} data-cost={cut.cost} />
+            <span>{cut.label}</span>
+            <span class="dm-num">{cut.money}</span>
+          </label>
+        ))}
+      </div>
+      <div class="dm-foot">
+        <span>
+          <span class="dm-num" data-demo-total>$0</span>
+          <span> agreed</span>
+        </span>
+        <button class="dm-btn" type="button" data-demo-reopen>
+          Reopen the file
+        </button>
+      </div>
+    </div>
+  )
+}
+
+{
+  kind === 'poll' && (
+    <div class="dm" data-demo="poll">
+      <div class="dm-doc dm-poll" data-demo-pollbox>
+        <p class="dm-doc-head">Drop the staging replica?</p>
+        {options.map((option) => (
+          <button class="dm-opt" type="button" data-demo-opt data-votes={option.votes}>
+            <span class="dm-fill" data-demo-fill />
+            <span class="dm-opt-row">
+              <span>
+                <span class="dm-key">{option.key}</span>
+                {option.label}
+              </span>
+              <span class="dm-pct" data-demo-pct>-</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div class="dm-foot">
+        <span>
+          <span class="dm-num" data-demo-answered>3</span>
+          <span> of 4 answered</span>
+        </span>
+        <span data-demo-hint>Click to vote</span>
+      </div>
+    </div>
+  )
+}
+
+{
+  kind === 'reader' && (
+    <div class="dm" data-demo="reader">
+      <div class="dm-reader">
+        {/* The rail the reader actually draws: one bar per section, a dot where
+            the discussion is, and a card that peeks at what is inside. */}
+        <nav class="dm-rail" aria-label="Outline">
+          {outline.map((entry, i) => (
+            <button
+              class:list={['dm-tick', entry.rows.length > 0 && 'has-comments']}
+              type="button"
+              data-demo-section
+              data-label={entry.label}
+              data-excerpt={entry.excerpt}
+              data-rows={JSON.stringify(entry.rows)}
+              aria-current={i === 1 ? 'true' : 'false'}
+            >
+              <span class="dm-bar" aria-hidden="true" />
+              {entry.rows.length > 0 && <span class="dm-dot" aria-hidden="true" />}
+              <span class="dm-sr">{entry.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div class="dm-doc dm-page" data-demo-page>
+          <p class="dm-doc-head" data-demo-section-title>Costs</p>
+          <div class="dm-line">
+            <span>Monthly run rate</span>
+            <span class="dm-num" data-demo-figure>$2,030</span>
+          </div>
+          <div class="dm-skeleton" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+
+        <div class="dm-peek" data-demo-peek hidden>
+          {/* The kicker gives the card its context, the title names the section.
+              Printing the section name in both is one word doing no work. */}
+          <p class="dm-kicker">
+            <span>costs</span>
+            <span class="dm-count" data-demo-peek-count>2</span>
+          </p>
+          <p class="dm-peek-title" data-demo-peek-title>Costs</p>
+          <p class="dm-peek-body" data-demo-peek-body>
+            The image CDN came to $1,240, triple last month.
+          </p>
+          <div class="dm-peek-threads" data-demo-peek-threads>
+            {[
+              { initial: 'M', name: 'Marina Vasques', body: 'Triple last month.' },
+              { initial: 'B', name: 'Bruno Sampaio', body: 'Nobody resized the hero images.' },
+            ].map((row) => (
+              <p class="dm-peek-thread" data-demo-peek-row>
+                <span class="dm-avatar is-small" aria-hidden="true" data-demo-row-initial>
+                  {row.initial}
+                </span>
+                <span>
+                  <b data-demo-row-name>{row.name}</b>
+                  <span data-demo-row-body>{row.body}</span>
+                </span>
+              </p>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div class="dm-foot">
+        <span class="dm-keys">
+          {shortcuts.map((shortcut) => (
+            <button
+              class="dm-cap"
+              type="button"
+              data-demo-cap
+              data-code={shortcut.code}
+              data-shift={shortcut.shift ? 'true' : 'false'}
+            >
+              <kbd>
+                {shortcut.shift && <span aria-hidden="true">&#8679;</span>}
+                {shortcut.cap}
+              </kbd>
+              <span>{shortcut.label}</span>
+            </button>
+          ))}
+        </span>
+        <button class="dm-btn" type="button" data-demo-save>
+          Save the file
+        </button>
+      </div>
+    </div>
+  )
+}
+
+<style>
+  /* ---------- shared frame ---------- */
+
+  .dm {
+    --dm-line: var(--color-rule);
+    --dm-sub: #f0f0ed;
+    width: 100%;
+    max-width: 25rem;
+    color: var(--color-ink);
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: left;
+  }
+
+  .dm-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* A report fragment: hairlines, square corners, the skill's own language. */
+  .dm-doc {
+    position: relative;
+    border: 1px solid var(--dm-line);
+    background: var(--color-surface);
+  }
+
+  .dm-doc-head {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--dm-line);
+    color: var(--color-ink);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .dm-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    color: var(--color-ink2);
+  }
+
+  .dm-line + .dm-line {
+    border-top: 1px solid var(--dm-line);
+  }
+
+  .dm-num {
+    margin-left: auto;
+    color: var(--color-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Wraps rather than squeezes: the reader's footer carries a shortcut legend
+     and a button, and on a narrow phone those are two lines, not one crushed. */
+  .dm-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 12px;
+    margin-top: 10px;
+    color: var(--color-muted);
+    font-size: 11.5px;
+  }
+
+  .dm-btn {
+    border: 1px solid var(--color-rule-strong);
+    border-radius: 999px;
+    padding: 4px 11px;
+    color: var(--color-ink2);
+    font-size: 11.5px;
+    cursor: pointer;
+    transition:
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+
+  @media (hover: hover) {
+    .dm-btn:hover {
+      border-color: var(--color-ink);
+      color: var(--color-ink);
+    }
+  }
+
+  .dm-btn:active {
+    scale: 0.97;
+  }
+
+  /* ---------- 02 threads ---------- */
+
+  /* The card leaves the flow, so the panel reserves the room it will need. */
+  .dm[data-demo='threads'] {
+    min-height: 26rem;
+  }
+
+  .dm-line.is-anchor {
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* The anchor wash, exactly as comment.js paints it over a live document. */
+  .dm-line.is-anchor::after {
+    content: '';
+    position: absolute;
+    inset: -1px -4px;
+    z-index: 0;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--color-ink) 7%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ink) 62%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .dm[data-open='true'] .dm-line.is-anchor::after {
+    opacity: 1;
+  }
+
+  /* A finger cannot hover, and a tap that leaves the wash behind reads as a
+     stuck state. Only a real cursor gets the preview. */
+  @media (hover: hover) {
+    .dm-line.is-anchor:hover::after {
+      opacity: 1;
+    }
+  }
+
+  .dm-marker {
+    position: absolute;
+    z-index: 1;
+    top: -10px;
+    right: -14px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 2px solid var(--color-surface);
+    border-radius: 50%;
+    border-bottom-left-radius: 0;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    box-shadow:
+      0 1px 3px rgb(115 115 115 / 0.12),
+      0 4px 14px rgb(115 115 115 / 0.12);
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition:
+      scale 160ms cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  @media (hover: hover) {
+    .dm-marker:hover {
+      scale: 1.06;
+    }
+  }
+
+  .dm-marker:active {
+    scale: 0.96;
+  }
+
+  /* The thread card: round, floating, the reader's own chrome. It leaves the
+     line it belongs to and sits over the document, beside its marker. */
+  .dm-pop {
+    position: absolute;
+    z-index: 2;
+    /* Hangs off the line it belongs to, without covering it. */
+    top: calc(100% - 2px);
+    right: 30px;
+    width: min(20rem, calc(100% - 1rem));
+    text-align: left;
+    border-radius: 20px;
+    background: var(--color-surface);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-ink) 8%, transparent),
+      0 2px 6px rgb(115 115 115 / 0.08),
+      0 18px 40px rgb(115 115 115 / 0.12);
+    transition:
+      opacity 200ms cubic-bezier(0.2, 0, 0, 1),
+      transform 220ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .dm[data-open='false'] .dm-pop {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    pointer-events: none;
+  }
+
+  .dm-pop-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 8px 11px 16px;
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-ink) 7%, transparent);
+    font-size: 12.5px;
+  }
+
+  .dm-pop-head strong {
+    flex: 1;
+    font-weight: 600;
+  }
+
+  .dm-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    color: var(--color-muted);
+    cursor: pointer;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+
+  .dm-icon svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+
+  @media (hover: hover) {
+    .dm-icon:hover {
+      background: var(--dm-sub);
+      color: var(--color-ink);
+    }
+  }
+
+  .dm-resolve[aria-pressed='true'] {
+    background: color-mix(in srgb, var(--color-ink) 7%, transparent);
+    color: var(--color-ink);
+  }
+
+  .dm-pop-body {
+    padding: 12px 16px 14px;
+  }
+
+  .dm-thread-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: -4px -6px 8px 0;
+    color: var(--color-muted);
+    font-size: 10.5px;
+  }
+
+  .dm-thread-meta span {
+    flex: 1;
+  }
+
+  .dm[data-resolved='true'] .dm-comment {
+    opacity: 0.55;
+  }
+
+  /* Composer: the send button only lights up once there is something to send. */
+  .dm-pop-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px 12px;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-ink) 7%, transparent);
+  }
+
+  .dm-composer {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 3px 3px 3px 12px;
+    border-radius: 999px;
+    background: var(--dm-sub);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-muted) 30%, transparent);
+    transition: box-shadow 0.16s ease;
+  }
+
+  .dm-composer:focus-within {
+    background: var(--color-surface);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-muted) 45%, transparent);
+  }
+
+  .dm-composer input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: none;
+    color: var(--color-ink);
+    font: inherit;
+    outline: none;
+  }
+
+  .dm-composer input::placeholder {
+    color: var(--color-ink2);
+  }
+
+  .dm-send {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    cursor: pointer;
+    transition: opacity 0.16s ease;
+  }
+
+  .dm-send svg {
+    display: block;
+    width: 13px;
+    height: 13px;
+  }
+
+  .dm-send:disabled {
+    opacity: 0.24;
+    cursor: default;
+  }
+
+  .dm-send:not(:disabled):active {
+    scale: 0.96;
+  }
+
+  .dm-comment {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .dm-comment + .dm-comment {
+    margin-top: 12px;
+  }
+
+  /* An answer is indented under what it answers, so a thread reads as one. */
+  .dm-comment.is-reply {
+    margin-left: 34px;
+  }
+
+  .dm-comment.is-reply + .dm-comment.is-reply {
+    margin-top: 10px;
+  }
+
+  .dm-comment.is-new {
+    margin-top: 14px;
+    padding-top: 14px;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-ink) 7%, transparent);
+  }
+
+  /* ---- reactions ---- */
+
+  .dm-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin: 4px 0 0 -6px;
+    min-height: 28px;
+  }
+
+  .dm-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ink) 12%, transparent);
+    color: var(--color-ink2);
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 120ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  @media (hover: hover) {
+    .dm-chip:hover {
+      background: var(--dm-sub);
+    }
+  }
+
+  .dm-chip.is-mine {
+    background: var(--dm-sub);
+    box-shadow: none;
+    color: var(--color-ink);
+  }
+
+  .dm-chip-count {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dm-reaction-add {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .dm-picker {
+    position: absolute;
+    z-index: 5;
+    bottom: -4px;
+    left: 32px;
+    display: grid;
+    grid-template-columns: repeat(4, 26px);
+    gap: 2px;
+    padding: 5px;
+    border-radius: 12px;
+    background: var(--color-surface);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-ink) 8%, transparent),
+      0 4px 14px rgb(115 115 115 / 0.12);
+  }
+
+  .dm-picker button {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  @media (hover: hover) {
+    .dm-picker button:hover {
+      background: var(--dm-sub);
+    }
+  }
+
+  .dm-avatar {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    font-size: 11px;
+  }
+
+  .dm-comment-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+  }
+
+  .dm-comment-head b {
+    font-weight: 600;
+  }
+
+  .dm-comment-head time {
+    color: var(--color-muted);
+    font-size: 10.5px;
+  }
+
+  .dm-comment-body {
+    color: var(--color-ink2);
+    line-height: 1.5;
+  }
+
+  /* ---------- 03 terminal ---------- */
+
+  .dm-term .dm-term-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 8px 7px 14px;
+    border: 1px solid var(--dm-line);
+    border-bottom: 0;
+    background: var(--color-paper-2);
+    color: var(--color-muted);
+    font-size: 11.5px;
+  }
+
+  .dm-term-body {
+    overflow-x: auto;
+    padding: 12px 14px;
+    border: 1px solid var(--dm-line);
+    background: var(--color-surface);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.75;
+    font-variant-ligatures: none;
+  }
+
+  .dm-term-line {
+    display: block;
+    color: var(--color-ink2);
+    white-space: pre;
+    opacity: 0;
+    transform: translateY(2px);
+    transition:
+      opacity 0.24s ease,
+      transform 0.24s ease;
+  }
+
+  .dm-term-line.is-shown {
+    opacity: 1;
+    transform: none;
+  }
+
+  .dm-term-line.is-prompt {
+    color: var(--color-ink);
+  }
+
+  /* ---------- 04 state ---------- */
+
+  .dm-check {
+    cursor: pointer;
+  }
+
+  .dm-check input {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--color-ink);
+  }
+
+  .dm-check:has(input:checked) span:not(.dm-num) {
+    color: var(--color-ink);
+  }
+
+  .dm[data-reopening='true'] .dm-doc {
+    opacity: 0.28;
+  }
+
+  .dm[data-demo='state'] .dm-doc {
+    transition: opacity 0.24s ease;
+  }
+
+  /* ---------- 05 poll ---------- */
+
+  .dm-opt {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    border-top: 1px solid var(--dm-line);
+    overflow: hidden;
+    color: var(--color-ink2);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  @media (hover: hover) {
+    .dm-opt:hover {
+      background: var(--color-paper-2);
+    }
+  }
+
+  .dm-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: var(--color-ink);
+    opacity: 0.1;
+    transition: width 0.45s var(--ease-out-expo);
+  }
+
+  .dm-opt-row {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .dm-key {
+    display: inline-block;
+    margin-right: 8px;
+    padding: 0 5px;
+    border: 1px solid var(--dm-line);
+    font-size: 10.5px;
+  }
+
+  .dm-opt[aria-pressed='true'] .dm-key {
+    border-color: var(--color-ink);
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  .dm-pct {
+    color: var(--color-muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    opacity: 0;
+    white-space: nowrap;
+    transition: opacity 0.3s ease;
+  }
+
+  /* Nobody sees a number until the room has finished answering. */
+  .dm-poll.is-revealed .dm-pct {
+    opacity: 1;
+  }
+
+  /* ---------- 06 reader ---------- */
+
+  .dm-reader {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+  }
+
+  .dm-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+
+  .dm-tick {
+    display: flex;
+    align-items: center;
+    height: 9px;
+    cursor: pointer;
+  }
+
+  .dm-bar {
+    display: block;
+    width: 11px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--color-muted);
+    opacity: 0.42;
+    transition:
+      background-color 160ms cubic-bezier(0.2, 0, 0, 1),
+      width 130ms cubic-bezier(0.2, 0, 0, 1),
+      opacity 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .dm-tick[aria-current='true'] .dm-bar {
+    width: 15px;
+    background: var(--color-ink);
+    opacity: 1;
+  }
+
+  @media (hover: hover) {
+    .dm-rail:hover .dm-bar {
+      opacity: 0.72;
+    }
+
+    .dm-tick:hover .dm-bar {
+      width: 15px;
+      background: var(--color-ink);
+      opacity: 1;
+    }
+  }
+
+  /* A section with discussion carries a dot, which the bar absorbs once you
+     are standing in that section. */
+  .dm-dot {
+    display: block;
+    flex: none;
+    width: 4px;
+    height: 4px;
+    margin-left: 5px;
+    border-radius: 50%;
+    background: var(--color-ink);
+    transition:
+      transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 200ms ease,
+      margin-left 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .dm-tick[aria-current='true'] .dm-dot {
+    margin-left: 0;
+    opacity: 0;
+    transform: translateX(-9px) scale(0);
+  }
+
+  /* The peek card: what is in the section, without going there. */
+  .dm-peek {
+    position: absolute;
+    z-index: 3;
+    left: 2.5rem;
+    width: min(19rem, calc(100% - 2.5rem));
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--color-surface);
+    box-shadow:
+      0 0 0 1px var(--dm-line),
+      0 2px 6px rgb(0 0 0 / 0.05),
+      0 18px 40px rgb(0 0 0 / 0.1);
+    transition:
+      opacity 160ms cubic-bezier(0.2, 0, 0, 1),
+      transform 180ms cubic-bezier(0.2, 0, 0, 1);
+    transform-origin: left center;
+  }
+
+  .dm-peek[hidden] {
+    display: block;
+    opacity: 0;
+    transform: translateX(-4px) scale(0.985);
+    pointer-events: none;
+  }
+
+  /* Sentence case, no tracking: a label, not a fashion caption. */
+  .dm-kicker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+    color: var(--color-muted);
+    font-size: 11px;
+  }
+
+  .dm-count {
+    display: inline-flex;
+    align-items: center;
+    height: 16px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-ink) 10%, transparent);
+    color: var(--color-ink);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dm-peek-title {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .dm-peek-body {
+    margin-top: 4px;
+    color: var(--color-ink2);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .dm-peek-threads {
+    margin: 8px -6px -4px;
+    padding-top: 6px;
+    border-top: 1px solid var(--dm-line);
+  }
+
+  .dm-peek-thread {
+    display: grid;
+    grid-template-columns: 20px 1fr;
+    gap: 8px;
+    padding: 5px 6px;
+    font-size: 11.5px;
+  }
+
+  .dm-peek-thread b {
+    display: block;
+    font-weight: 600;
+  }
+
+  .dm-peek-thread span span {
+    color: var(--color-ink2);
+  }
+
+  .dm-avatar.is-small {
+    width: 20px;
+    height: 20px;
+    font-size: 9px;
+  }
+
+  .dm-page {
+    transition: opacity 0.2s ease;
+  }
+
+  .dm[data-reloading='true'] .dm-page {
+    opacity: 0.3;
+  }
+
+  .dm-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--dm-line);
+  }
+
+  .dm-skeleton span {
+    height: 5px;
+    border-radius: 999px;
+    background: var(--dm-sub);
+  }
+
+  .dm-skeleton span:nth-child(2) {
+    width: 78%;
+  }
+
+  .dm-skeleton span:nth-child(3) {
+    width: 46%;
+  }
+
+  .dm-keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+
+  .dm-cap {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--color-muted);
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .dm-cap kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border: 1px solid var(--dm-line);
+    border-radius: 5px;
+    background: var(--color-surface);
+    color: var(--color-ink2);
+    font-family: var(--font-sans);
+    font-size: 10.5px;
+    transition:
+      background-color 0.18s ease,
+      color 0.18s ease,
+      border-color 0.18s ease;
+  }
+
+  .dm-cap.is-hit kbd {
+    border-color: var(--color-ink);
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  .dm-cap.is-hit {
+    color: var(--color-ink);
+  }
+
+  /* Narrow screens: a phone gives the card one screen and no more, so it hangs
+     from its marker the way it does on a desktop — left of the trigger, not
+     across the whole width — and everything inside it tightens up. The panel
+     reserves exactly the room the card ends up needing, which is what keeps it
+     from running off the bottom of a phone. */
+  @media (max-width: 560px) {
+    /* No reserved slot: on a phone the card is closed until you ask for it, and
+       then it floats over the panel. The miniature is just the table, so the
+       panel has one short block to centre instead of a column of empty room. */
+    .dm[data-demo='threads'] {
+      min-height: 0;
+    }
+
+    /* Every row above the anchor pushes the card that much further down the
+       screen. On a phone the table keeps the row under discussion and the one
+       under it, which is still a table with one line picked out of it. */
+    .dm[data-demo='threads'] .dm-line:first-of-type {
+      display: none;
+    }
+
+    .dm-line {
+      padding: 8px 12px;
+    }
+
+    .dm-doc-head {
+      padding: 8px 12px;
+    }
+
+    /* Hangs from the marker and stops short of the line's left edge. The width
+       is in pixels on purpose: a phone with the system font scaled up turns a
+       rem-based card into one that hangs off the side of the document. */
+    .dm-pop {
+      right: 14px;
+      left: auto;
+      width: calc(100% - 24px);
+      border-radius: 18px;
+    }
+
+    .dm-pop-head {
+      padding: 11px 8px 11px 15px;
+    }
+
+    .dm-pop-body {
+      padding: 12px 15px 14px;
+    }
+
+    .dm-thread-meta {
+      margin-bottom: 6px;
+    }
+
+    .dm-comment {
+      grid-template-columns: 24px 1fr;
+      gap: 8px;
+    }
+
+    .dm-comment + .dm-comment {
+      margin-top: 9px;
+    }
+
+    /* A shallower indent still reads as an answer, and buys the line a word. */
+    .dm-comment.is-reply {
+      margin-left: 26px;
+    }
+
+    .dm-comment.is-reply + .dm-comment.is-reply {
+      margin-top: 8px;
+    }
+
+    .dm-avatar {
+      width: 24px;
+      height: 24px;
+    }
+
+    /* Reactions and the composer are the two things a phone gets wrong first:
+       they are chrome around a message, and at full size they take more of the
+       card than the conversation does. */
+    .dm-reactions {
+      margin-top: 2px;
+      gap: 4px;
+      min-height: 24px;
+    }
+
+    .dm-chip {
+      height: 24px;
+      padding: 0 7px;
+      font-size: 10.5px;
+    }
+
+    .dm-reactions .dm-icon {
+      width: 24px;
+      height: 24px;
+    }
+
+    .dm-reactions .dm-icon svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    .dm-pop-foot {
+      padding: 9px 11px 11px;
+    }
+
+    .dm-composer {
+      padding: 3px 3px 3px 11px;
+    }
+
+    .dm-send {
+      width: 24px;
+      height: 24px;
+    }
+
+    .dm-send svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .dm-composer input {
+      font-size: 12.5px;
+    }
+
+    .dm-peek {
+      left: 2rem;
+      width: calc(100% - 2rem);
+    }
+  }
+
+  /* ---------- touch ----------
+
+     A thumb is blunter than a cursor and carries no hover with it. On a touch
+     screen the miniature keeps its proportions but grows every control to
+     something a finger can land on, which is the same trade the reader itself
+     makes on a phone. */
+
+  @media (pointer: coarse) {
+    .dm-icon {
+      width: 28px;
+      height: 28px;
+    }
+
+    .dm-icon svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .dm-reactions {
+      gap: 5px;
+      min-height: 28px;
+    }
+
+    .dm-chip {
+      height: 28px;
+      padding: 0 9px;
+      font-size: 11.5px;
+    }
+
+    .dm-picker {
+      grid-template-columns: repeat(4, 30px);
+    }
+
+    .dm-picker button {
+      width: 30px;
+      height: 30px;
+      font-size: 15px;
+    }
+
+    .dm-marker {
+      top: -12px;
+      width: 28px;
+      height: 28px;
+    }
+
+    .dm-send {
+      width: 28px;
+      height: 28px;
+    }
+
+    /* Anything under 16px and iOS zooms the whole page the moment the field
+       takes focus, which throws the reader out of the panel it was reading.
+       Only iOS pays for the bigger text; everywhere else the field stays the
+       size the rest of the miniature is drawn at. */
+    @supports (-webkit-touch-callout: none) {
+      .dm-composer input {
+        font-size: 16px;
+      }
+    }
+
+    .dm-btn {
+      padding: 8px 14px;
+    }
+
+    .dm-check,
+    .dm-opt {
+      padding-top: 12px;
+      padding-bottom: 12px;
+    }
+
+    .dm-check input {
+      width: 17px;
+      height: 17px;
+    }
+
+    /* The bars keep their size; the button around them grows, so two
+       neighbouring sections are two separate taps. */
+    .dm-tick {
+      height: 26px;
+      padding-right: 15px;
+    }
+
+    .dm-rail {
+      gap: 0;
+    }
+
+    /* No keys to press here. The legend was a caption for something that
+       cannot happen on this device, so it goes and the footer keeps the one
+       control that does work. */
+    .dm-keys {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dm *,
+    .dm *::after {
+      transition: none !important;
+    }
+  }
+</style>
