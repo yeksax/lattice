@@ -881,79 +881,551 @@ mark {
   text-underline-offset: 2px;
 }
 
-/* ---------- shared list ---------- */
-.share-row {
-  --row-px: 16px;
-  position: relative;
+/* ---------- shared: cards ----------
+   A share is a published document, so the card leads with the document: a
+   scaled, script-less preview of the file, then title, description, and the
+   facts that only exist because it is shared (audience, revision, activity).
+   Two buttons stay permanent; everything else waits inside the menu. */
+.share-grid {
   display: grid;
-  gap: 10px;
-  padding: 14px var(--row-px);
-  border-radius: var(--radius);
-  transition: background-color 140ms var(--ease);
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 16px;
+  align-items: start;
 }
-.share-row:hover { background: var(--fill); }
 
-.share-row-top {
+.share-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elev);
+  overflow: hidden;
+  transition: border-color 140ms var(--ease), background-color 140ms var(--ease);
+}
+.share-card[tabindex] { cursor: pointer; }
+.share-card:hover,
+.share-card:focus-visible,
+.share-card:focus-within { border-color: var(--line-strong); }
+.share-card:focus-visible { outline: none; }
+
+/* Preview: the top of the document, scaled to fit the card width. Fades out at
+   the bottom so it reads as a peek, not as a cropped screenshot. */
+.share-preview {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+}
+.share-preview iframe {
+  position: absolute;
+  inset: 0;
+  width: 250%;
+  height: 250%;
+  border: 0;
+  transform: scale(0.4);
+  transform-origin: top left;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms var(--ease);
+}
+.share-preview.is-ready iframe { opacity: 1; }
+.share-preview.is-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  mask-image: none;
+  -webkit-mask-image: none;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 7px,
+      color-mix(in srgb, var(--line) 55%, transparent) 7px 8px
+    );
+}
+.share-preview-note {
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--bg-elev);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.share-card-body {
+  padding: 13px 15px 0;
+  min-width: 0;
+}
+.share-card-top {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 8px;
+  min-width: 0;
 }
-.share-row .title {
-  font-size: 14.5px;
+.share-card .title {
+  margin: 0;
+  font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.014em;
   line-height: 1.35;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
-.share-row .votes {
+.share-flag {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.share-flag::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.share-flag.is-drift { color: var(--ink-2); }
+
+.share-desc {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.share-meta {
+  margin-top: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 12px;
+  min-width: 0;
+}
+.share-chip {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.share-chip.is-src {
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+/* Second metadata line: path on the left, freshness pinned right. Its own row
+   so a long path can never push the date onto a line of its own. */
+.share-subline {
+  margin-top: 5px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+.share-subline .is-src {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.share-chip.is-when {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+/* Icon plus text, no pill: the access policy is a fact on the metadata line,
+   not a button. */
+.share-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.share-badge-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.share-badge-more { color: var(--muted); }
+.share-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.share-favicon {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+.share-mono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--ink-2);
+  color: var(--bg);
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.share-card-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 11px 11px 15px;
+}
+.share-url {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: color 120ms var(--ease);
 }
-.share-row .slug {
+.share-url-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.share-url:hover,
+.share-url.is-done { color: var(--ink); }
+
+.share-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.share-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: 500 11.5px/1 var(--sans);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 120ms var(--ease),
+    background-color 120ms var(--ease),
+    border-color 120ms var(--ease);
+}
+.share-act svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.share-act-label { display: none; }
+.share-act:hover {
+  color: var(--ink);
+  background: var(--fill);
+  border-color: var(--line-strong);
+}
+.share-act:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.share-act:disabled { cursor: default; }
+.share-act.is-suggested,
+.share-act.is-busy,
+.share-act.is-done {
+  width: auto;
+  padding: 0 10px;
+}
+.share-act.is-suggested .share-act-label,
+.share-act.is-busy .share-act-label,
+.share-act.is-done .share-act-label { display: inline; }
+.share-act.is-suggested {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.share-act.is-done { color: var(--ink); }
+
+/* Controls that belong to the snapshot, floated over its preview. */
+.share-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  pointer-events: none;
+}
+/* These sit on top of someone else's document, whose colours we do not know, so
+   they carry their own contrast instead of following the dashboard theme. */
+.share-overlay-btn {
+  pointer-events: auto;
+  color: #f4f4f4;
+  background: rgba(22, 22, 22, 0.66);
+  border-color: transparent;
+  backdrop-filter: blur(10px);
+}
+.share-overlay-btn.is-right { margin-left: auto; }
+.share-overlay-btn:hover,
+.share-overlay-btn.is-suggested {
+  color: #ffffff;
+  background: rgba(22, 22, 22, 0.86);
+  border-color: transparent;
+}
+
+/* Overflow menu: the actions that are rarer, riskier, or both. */
+.share-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  min-width: 190px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22);
+}
+.share-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 9px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  font: 500 12px/1 var(--sans);
+  text-align: left;
+  cursor: pointer;
+  transition: color 120ms var(--ease), background-color 120ms var(--ease);
+}
+.share-menu-item svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.share-menu-item:hover {
+  color: var(--ink);
+  background: var(--fill);
+}
+.share-menu-item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.share-menu-item:disabled { opacity: 0.5; cursor: default; }
+.share-menu-item.is-danger:hover,
+.share-menu-item.is-armed {
+  color: #d07676;
+  background: color-mix(in srgb, #d07676 10%, transparent);
+}
+.share-menu-item.is-danger:hover svg,
+.share-menu-item.is-armed svg { color: currentColor; }
+.share-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+
+.share-panel {
+  padding: 12px 15px 14px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+}
+.share-panel[hidden] { display: none; }
+.share-panel-label {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: -0.01em;
+}
+.share-panel-row {
+  display: flex;
+  gap: 6px;
+}
+.share-panel-row input {
+  flex: 1;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 9px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: 400 11.5px/1 var(--mono);
+}
+.share-panel-row input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -1px;
+}
+.share-panel-save {
+  min-height: 30px;
+  padding: 0 12px;
+  color: var(--bg);
+  background: var(--ink);
+  border: 0;
+  border-radius: 8px;
+  font: 550 11.5px/1 var(--sans);
+  cursor: pointer;
+}
+.share-panel-save:disabled { opacity: 0.4; cursor: default; }
+.share-panel-note {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.share-panel-note.is-error { color: #d07676; }
+
+/* Snapshot history. One row per revision; the live one is marked, the others
+   can be previewed in place or opened on their own. */
+.share-history-list {
+  display: grid;
+  gap: 1px;
+}
+.share-version {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 28px;
+  padding: 0 7px;
+  border-radius: 7px;
+  transition: background-color 120ms var(--ease);
+}
+.share-version:hover { background: var(--fill); }
+.share-version.is-active { background: var(--fill-strong); }
+.share-version-n {
   font-family: var(--mono);
   font-size: 11.5px;
   color: var(--ink-2);
+  min-width: 2.4em;
 }
-.share-row .url {
-  font-family: var(--mono);
-  font-size: 11.5px;
+.share-version-facts {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.share-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.share-version-tag {
+  font-size: 10.5px;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 1px 7px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  white-space: nowrap;
 }
-.share-actions button,
-.share-actions a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 0 10px;
+.share-version-view {
+  padding: 3px 8px;
   color: var(--ink-2);
   background: transparent;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  font: 500 12px/1 var(--sans);
-  text-decoration: none;
+  border-radius: 999px;
+  font: 500 11px/1 var(--sans);
   cursor: pointer;
-  transition: color 120ms var(--ease), background-color 120ms var(--ease), border-color 120ms var(--ease);
+  transition: color 120ms var(--ease), background-color 120ms var(--ease);
 }
-.share-actions button:hover,
-.share-actions a:hover {
+.share-version-view:hover {
   color: var(--ink);
   background: var(--fill);
 }
-.share-actions button:disabled {
-  opacity: 0.5;
-  cursor: default;
+.share-version-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--muted);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.share-version-open svg { width: 13px; height: 13px; }
+.share-version-open:hover { color: var(--ink); background: var(--fill); }
+
+/* Banner over the preview while an old revision is on screen, so a stale
+   preview can never be mistaken for what readers see now. */
+.share-viewing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--fill-strong);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.share-viewing[hidden] { display: none; }
+.share-version-back {
+  margin-left: auto;
+  padding: 0;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  font: 500 11px/1 var(--sans);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+/* Bottom-left: the top corners belong to the history and republish controls. */
+.share-preview-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 1;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font: 600 10.5px/1.5 var(--mono);
+}
+.share-card.is-viewing .share-preview {
+  mask-image: none;
+  -webkit-mask-image: none;
+  box-shadow: inset 0 0 0 2px var(--line-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-preview iframe { transition: none; }
 }
 
 /* ---------- settings / sharing forms ---------- */
@@ -1546,9 +2018,8 @@ mark {
   }
   .library-bar { margin-inline: 0; }
   .library-seg-label { display: none; }
-  .row,
-  .share-row { --row-px: 12px; }
-  .row { --peek-w: min(160px, 34%); }
+  .row { --row-px: 12px; --peek-w: min(160px, 34%); }
+  .share-grid { grid-template-columns: minmax(0, 1fr); }
   .field-row { grid-template-columns: 1fr; }
   .accent-field { width: 100%; }
   .theme-preview { min-height: 240px; padding: 22px; }
