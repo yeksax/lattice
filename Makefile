@@ -42,7 +42,12 @@ cloud-deploy:
 
 install: build
 	mkdir -p $(PREFIX) $(HOME)/.summaries/.lattice/meta $(HOME)/Library/LaunchAgents
+	# Overwriting the file in place leaves macOS holding the previous binary's
+	# code signature for that path, and it SIGKILLs the new one on sight.
+	# Replace the inode, then re-sign ad hoc.
+	rm -f $(PREFIX)/$(BIN)
 	cp $(BIN) $(PREFIX)/$(BIN)
+	-codesign --force --sign - $(PREFIX)/$(BIN) 2>/dev/null
 	$(PREFIX)/$(BIN) skills install
 	sed "s|__HOME__|$(HOME)|g" launchd/$(PLIST_ID).plist > $(PLIST)
 	launchctl bootout gui/$$(id -u)/$(PLIST_ID) 2>/dev/null || true
