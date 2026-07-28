@@ -57,8 +57,8 @@
 
   const css = `
     :host{all:initial;color-scheme:light;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--paper:#fff;--sub:#f5f5f4;--line:#e6e6e3;--blue:#1683ff;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
-    *{box-sizing:border-box}button,textarea{font:inherit}button{color:inherit}.marker{position:relative;display:grid;place-items:center;width:28px;height:28px;padding:0;border:2px solid var(--paper);border-radius:50%;background:var(--blue);color:#fff;box-shadow:0 1px 3px #0002,0 4px 14px #0002;cursor:pointer;pointer-events:auto;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;transition:scale 160ms cubic-bezier(.2,0,0,1),box-shadow 160ms cubic-bezier(.2,0,0,1)}
-    .marker::before{content:"";position:absolute;inset:-6px;border-radius:50%}.marker:hover,.marker:focus-visible{scale:1.06;box-shadow:0 2px 5px #0002,0 8px 20px #0002;outline:none}.marker:active{scale:.96}.marker.is-new{background:var(--blue);color:#fff;cursor:none;pointer-events:none;font-size:17px;font-weight:400}
+    *{box-sizing:border-box}button,textarea{font:inherit}button{color:inherit}.marker{position:relative;display:grid;place-items:center;width:28px;height:28px;padding:0;border:2px solid var(--paper);border-radius:50%;border-bottom-left-radius:0;background:var(--blue);color:#fff;box-shadow:0 1px 3px #0002,0 4px 14px #0002;cursor:pointer;pointer-events:auto;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;transition:scale 160ms cubic-bezier(.2,0,0,1),box-shadow 160ms cubic-bezier(.2,0,0,1)}
+    .marker::before{content:"";position:absolute;inset:-6px;border-radius:50%;border-bottom-left-radius:0}.marker:hover,.marker:focus-visible{scale:1.06;box-shadow:0 2px 5px #0002,0 8px 20px #0002;outline:none}.marker:active{scale:.96}.marker.is-new{background:var(--blue);color:#fff;cursor:none;pointer-events:none;font-size:17px;font-weight:400}
     .preview{position:absolute;right:38px;top:-3px;width:260px;padding:12px 14px;border-radius:12px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 14px 36px #0002;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(3px) scale(.98);transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1),visibility 160ms}
     .marker-wrap:hover .preview,.marker:focus-visible+.preview{opacity:1;visibility:visible;transform:none}.preview[hidden]{display:none}.preview-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}.avatar{display:grid;place-items:center;flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:10px;text-transform:uppercase}.preview b{font-weight:600}.preview-time{color:var(--muted)}.preview-body{display:-webkit-box;overflow:hidden;color:var(--ink-2);-webkit-box-orient:vertical;-webkit-line-clamp:2}.preview-replies{margin-top:4px;color:var(--muted);font-size:11px}
     .popover{position:absolute;z-index:2;right:38px;top:-8px;display:flex;flex-direction:column;width:min(340px,calc(100vw - 56px));max-height:min(420px,calc(100vh - 20px));overflow:hidden;border-radius:14px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 18px 48px #0002;opacity:1;pointer-events:auto;transform:none;transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1)}
@@ -300,7 +300,7 @@
     // reportTheme wrote on the host, and the next paint flashes dark inputs.
     // z-index stays local to the anchor: only the portaled popover floats high.
     host.style.position = 'absolute';
-    host.style.right = '-8px';
+    host.style.right = '0';
     host.style.top = '12px';
     host.style.left = 'auto';
     host.style.transform = 'none';
