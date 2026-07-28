@@ -23,8 +23,13 @@
 
   const pageStyle = document.createElement('style');
   pageStyle.id = 'lattice-comment-page-style';
+  // Do not set position:relative here. Sticky/fixed/absolute anchors (the
+  // live counter on gcp-next-actions, a sticky section head, …) already form
+  // a containing block; forcing relative would override sticky and the bar
+  // would scroll away the moment comment mode turns on. Static anchors get
+  // relative from ensurePositioned instead.
   pageStyle.textContent = `
-    [data-lattice-comment-target]{position:relative;isolation:isolate}
+    [data-lattice-comment-target]{isolation:isolate}
     body[data-lattice-comment-mode="true"]:not([data-lattice-comment-open]) [data-lattice-comment-target]{
       cursor:none!important
     }
@@ -274,11 +279,11 @@
   };
 
   // A marker anchored inside its element needs a positioning context there.
-  // Measuring naively reads our own comment-mode rule, which already sets
-  // position:relative on every target - the element then looks positioned, gets
-  // no inline style, and falls back to static the moment comment mode ends,
-  // dropping the marker in the page's top-right corner. Measure with the
-  // attribute off, once per element, and keep the answer.
+  // Only static elements need an inline relative: sticky/fixed/absolute already
+  // contain absolute children, and forcing relative would kill sticky (the live
+  // counter on summaries that pin a bar to the top). Measure with the target
+  // attribute off so a future page rule cannot masquerade as positioned, keep
+  // the answer once per element, and leave sticky alone.
   const ensurePositioned = (element) => {
     if (element.hasAttribute('data-lattice-comment-positioned')) return;
     const wasTarget = element.hasAttribute('data-lattice-comment-target');
@@ -1262,6 +1267,9 @@
       const selector = selectorFor(element);
       if (!selector) return;
       element.toggleAttribute('data-lattice-comment-target', commentMode);
+      // Highlight overlays (::after) and markers need a containing block on
+      // every target, including ones with no threads yet. Sticky stays sticky.
+      if (commentMode) ensurePositioned(element);
       const items = threadsFor(selector);
       if (!items.length) return;
       anchored.add(selector);
