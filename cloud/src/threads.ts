@@ -191,15 +191,18 @@ export async function handlePublicThreads(
   sub: string,
   rest: string,
 ): Promise<Response> {
-  if (!(await liveShare(env, sub))) return new Response('gone', { status: 404 });
-  const denied = await requireShareAccess(req, env, sub);
+  // Two independent gates, so they wait together rather than in turn.
+  const [live, denied] = await Promise.all([
+    liveShare(env, sub),
+    requireShareAccess(req, env, sub),
+  ]);
+  if (!live) return new Response('gone', { status: 404 });
   if (denied) return denied;
 
-  if (rest === '/threads' && req.method === 'GET') {
-    const viewer = await sessionActor(req, env);
-    return json(await listThreads(env, sub, viewer?.id ?? null));
-  }
   const actor = await sessionActor(req, env);
+  if (rest === '/threads' && req.method === 'GET') {
+    return json(await listThreads(env, sub, actor?.id ?? null));
+  }
   if (!actor) {
     return json({ error: 'authentication required', login: loginURL(req, env) }, 401);
   }
@@ -591,72 +594,147 @@ async function mutateComment(
   });
 }
 
-// listThreads renders a snapshot's whole discussion. `withSignature` is on for
-// the owner listing only: the daemon needs the dedupe keys to reconcile its own
-// copy, and a public reader has no use for another store's internal ids.
-async function listThreads(
+const MAX_THREADS = 200;
+const MAX_COMMENTS_PER_THREAD = 500;
+
+interface ThreadRow {
+  id: string;
+  selector: string;
+  anchor_text: string | null;
+  snapshot_version_created: number;
+  status: string;
+  signature: string | null;
+  created: number;
+  updated: number;
+  comment_id: string | null;
+  body: string | null;
+  comment_created: number | null;
+  comment_updated: number | null;
+  actor_id: string | null;
+  comment_signature: string | null;
+  author: string | null;
+  author_provider: string | null;
+  edited: number | null;
+}
+
+// listThreads renders a snapshot's whole discussion in two queries: one join
+// for the threads and their comments, one grouped query for every reaction on
+// the share. It used to be a query per thread plus a query per thread's
+// reactions - 1 + 2N sequential D1 round trips, which is seconds of latency on
+// a page with a real conversation, all of it spent waiting rather than working.
+//
+// `forOwner` is the daemon's listing. It gets the dedupe signatures, which a
+// public reader has no use for, and it gets soft-deleted comments, which it
+// needs to reconcile deletions into its own sidecar. The public listing drops
+// both: the reader UI renders no tombstone row and hides a thread whose
+// comments are all gone, so shipping them is payload nobody paints.
+export async function listThreads(
   env: Env,
   sub: string,
   viewerActorID: string | null,
-  withSignature = false,
+  forOwner = false,
 ): Promise<unknown[]> {
-  const { results } = await env.DB.prepare(
-    `SELECT t.id, t.selector, t.anchor_text, t.snapshot_version_created,
-            t.status, t.signature, t.created, t.updated
-      FROM threads t
-      WHERE t.sub = ?
-      ORDER BY t.updated DESC
-      LIMIT 200`,
-  )
-    .bind(sub)
-    .all<{
-      id: string;
-      selector: string;
-      anchor_text: string | null;
-      snapshot_version_created: number;
-      status: string;
-      signature: string | null;
-      created: number;
-      updated: number;
-    }>();
-  const out: unknown[] = [];
-  for (const { signature, ...thread } of results ?? []) {
-    const comments = await env.DB.prepare(
-      `SELECT c.id, c.body, c.created, c.updated, c.actor_id, c.signature, a.name AS author,
+  const [{ results }, reactions] = await Promise.all([
+    env.DB.prepare(
+      `SELECT t.id, t.selector, t.anchor_text, t.snapshot_version_created,
+              t.status, t.signature, t.created, t.updated,
+              c.id AS comment_id, c.body,
+              c.created AS comment_created, c.updated AS comment_updated,
+              c.actor_id, c.signature AS comment_signature,
+              a.name AS author, a.provider AS author_provider,
               EXISTS (
                 SELECT 1 FROM comment_revisions r
                  WHERE r.comment_id = c.id AND r.action = 'edit'
-              ) AS edited,
-              a.provider AS author_provider
-         FROM comments c
-         JOIN actors a ON a.id = c.actor_id
-        WHERE c.thread_id = ?
-        ORDER BY c.created
-        LIMIT 500`,
+              ) AS edited
+         FROM (
+                SELECT id, selector, anchor_text, snapshot_version_created,
+                       status, signature, created, updated
+                  FROM threads
+                 WHERE sub = ?
+                 ORDER BY updated DESC
+                 LIMIT ${MAX_THREADS}
+              ) t
+         LEFT JOIN comments c
+                ON c.thread_id = t.id${forOwner ? '' : " AND c.body <> ''"}
+         LEFT JOIN actors a ON a.id = c.actor_id
+        ORDER BY t.updated DESC, c.created`,
     )
-      .bind(thread.id)
-      .all<{
-        id: string;
-        body: string;
-        created: number;
-        updated: number;
-        actor_id: string;
-        signature: string | null;
-        author: string;
-        author_provider: string;
-        edited: number;
-      }>();
-    const rows = comments.results ?? [];
-    const reactions = await reactionsFor(env, rows.map((c) => c.id), viewerActorID);
-    const visibleComments = rows.map(({ actor_id, signature: sig, ...comment }) => ({
-      ...comment,
-      ...(withSignature ? { signature: sig } : {}),
-      edited: Boolean(comment.edited) && comment.body !== '',
-      deleted: comment.body === '',
-      can_edit: comment.body !== '' && actor_id === viewerActorID,
-      reactions: reactions[comment.id] ?? [],
-    }));
-    out.push({ ...thread, ...(withSignature ? { signature } : {}), comments: visibleComments });
+      .bind(sub)
+      .all<ThreadRow>(),
+    reactionsForShare(env, sub, viewerActorID),
+  ]);
+
+  const out: unknown[] = [];
+  const byThread = new Map<string, { comments: unknown[] }>();
+  for (const row of results ?? []) {
+    let thread = byThread.get(row.id);
+    if (!thread) {
+      thread = { comments: [] };
+      byThread.set(row.id, thread);
+      out.push({
+        id: row.id,
+        selector: row.selector,
+        anchor_text: row.anchor_text,
+        snapshot_version_created: row.snapshot_version_created,
+        status: row.status,
+        ...(forOwner ? { signature: row.signature } : {}),
+        created: row.created,
+        updated: row.updated,
+        comments: thread.comments,
+      });
+    }
+    // A thread with no comments left after the join condition arrives as a
+    // single row of NULLs, not as zero rows.
+    if (!row.comment_id) continue;
+    if (thread.comments.length >= MAX_COMMENTS_PER_THREAD) continue;
+    const body = row.body ?? '';
+    thread.comments.push({
+      id: row.comment_id,
+      body,
+      created: row.comment_created,
+      updated: row.comment_updated,
+      author: row.author,
+      author_provider: row.author_provider,
+      ...(forOwner ? { signature: row.comment_signature } : {}),
+      edited: Boolean(row.edited) && body !== '',
+      deleted: body === '',
+      can_edit: body !== '' && row.actor_id === viewerActorID,
+      reactions: reactions[row.comment_id] ?? [],
+    });
+  }
+  // A thread the reader would render empty is one the reader hides anyway.
+  return forOwner
+    ? out
+    : out.filter((thread) => (thread as { comments: unknown[] }).comments.length > 0);
+}
+
+// reactionsForShare is reactionsFor over a whole snapshot at once. Going
+// through the threads table instead of an id list keeps it to two bind
+// parameters - D1 caps a query at 100 - however long the conversation gets.
+async function reactionsForShare(
+  env: Env,
+  sub: string,
+  viewerActorID: string | null,
+): Promise<Record<string, { emoji: string; count: number; mine: boolean }[]>> {
+  const out: Record<string, { emoji: string; count: number; mine: boolean }[]> = {};
+  const { results } = await env.DB.prepare(
+    `SELECT cr.comment_id, cr.emoji, COUNT(*) AS count,
+            MAX(CASE WHEN cr.actor_id = ? THEN 1 ELSE 0 END) AS mine
+       FROM comment_reactions cr
+       JOIN comments c ON c.id = cr.comment_id
+       JOIN threads t ON t.id = c.thread_id
+      WHERE t.sub = ?
+      GROUP BY cr.comment_id, cr.emoji
+      ORDER BY count DESC, cr.emoji`,
+  )
+    .bind(viewerActorID ?? '', sub)
+    .all<{ comment_id: string; emoji: string; count: number; mine: number }>();
+  for (const row of results ?? []) {
+    (out[row.comment_id] ??= []).push({
+      emoji: row.emoji,
+      count: row.count,
+      mine: Boolean(row.mine),
+    });
   }
   return out;
 }
