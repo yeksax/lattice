@@ -146,6 +146,17 @@ async function apiShares(req: Request, env: Env, path: string): Promise<Response
   if (stateMatch) {
     return handleOwnerState(req, env, tok, decodeURIComponent(stateMatch[1]), stateMatch[2]);
   }
+  // Snapshot history: the list, and one past revision's HTML. Owner-only —
+  // publishing a new version is meant to replace what readers see, so an old
+  // revision must not be reachable from the public side.
+  const versionsMatch = rest.match(/^(.+?)\/versions(?:\/(\d+))?$/);
+  if (versionsMatch) {
+    if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
+    const slug = decodeURIComponent(versionsMatch[1]);
+    return versionsMatch[2]
+      ? shareVersionHTML(env, tok, slug, parseInt(versionsMatch[2], 10))
+      : shareVersions(env, tok, slug);
+  }
   const resultsMatch = rest.match(/^(.+)\/results$/);
   if (resultsMatch) {
     if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
@@ -351,6 +362,75 @@ async function deleteShare(env: Env, tok: Token, slug: string): Promise<Response
   ]);
   // Votes are kept (mirrors local unshare: poll data survives).
   return new Response(null, { status: 204 });
+}
+
+// shareVersions lists the snapshot revisions of a share, newest first. Sizes
+// come from R2 metadata, one HEAD per revision, issued in parallel; a share
+// that predates snapshot_versions reports the single version it implicitly is.
+async function shareVersions(env: Env, tok: Token, slug: string): Promise<Response> {
+  const share = await env.DB.prepare(
+    'SELECT sub, r2_key, created, updated FROM shares WHERE token = ? AND slug = ?',
+  )
+    .bind(tok.token, slug)
+    .first<{ sub: string; r2_key: string; created: number; updated: number }>();
+  if (!share) return json({ error: `not shared: ${slug}` }, 404);
+
+  const { results } = await env.DB.prepare(
+    'SELECT version, r2_key, created FROM snapshot_versions WHERE sub = ? ORDER BY version DESC',
+  )
+    .bind(share.sub)
+    .all<{ version: number; r2_key: string; created: number }>();
+
+  const rows = (results ?? []).length
+    ? (results ?? [])
+    : [{ version: 1, r2_key: share.r2_key, created: share.created }];
+
+  const versions = await Promise.all(
+    rows.map(async (row) => {
+      const head = await env.SNAPSHOTS.head(row.r2_key).catch(() => null);
+      return {
+        version: row.version,
+        created: row.created,
+        size: head?.size ?? 0,
+        // The live one is whatever the share row points at, not simply the
+        // highest number: that stays true if a rollback ever moves the pointer.
+        current: row.r2_key === share.r2_key,
+      };
+    }),
+  );
+  return json({ slug, sub: share.sub, versions });
+}
+
+// shareVersionHTML returns one past revision as it was uploaded: no bridges,
+// no chrome. The dashboard frames it as a preview of what readers saw then.
+async function shareVersionHTML(env: Env, tok: Token, slug: string, version: number): Promise<Response> {
+  const share = await env.DB.prepare('SELECT sub, r2_key FROM shares WHERE token = ? AND slug = ?')
+    .bind(tok.token, slug)
+    .first<{ sub: string; r2_key: string }>();
+  if (!share) return json({ error: `not shared: ${slug}` }, 404);
+
+  let key = share.r2_key;
+  const row = await env.DB.prepare(
+    'SELECT r2_key FROM snapshot_versions WHERE sub = ? AND version = ?',
+  )
+    .bind(share.sub, version)
+    .first<{ r2_key: string }>();
+  if (row) {
+    key = row.r2_key;
+  } else if (version !== 1) {
+    return json({ error: `no version ${version} of ${slug}` }, 404);
+  }
+
+  const obj = await env.SNAPSHOTS.get(key);
+  if (!obj) return json({ error: 'snapshot is gone' }, 404);
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Robots-Tag': NOINDEX,
+      'Referrer-Policy': 'no-referrer',
+    },
+  });
 }
 
 async function shareResults(env: Env, tok: Token, slug: string): Promise<Response> {

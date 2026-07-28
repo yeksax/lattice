@@ -21,6 +21,8 @@ CLI at it with `--api` / `LATTICE_API_BASE`.
 | `POST /v1/shares` | Bearer | `{slug, html, sub?, title?, random?}` → upload snapshot, upsert share. Re-posting the same slug updates it and keeps the subdomain. |
 | `GET /v1/shares` | Bearer | list your shares with `{slug, sub, title, url, created, updated, version, votes, threads, threads_open, comments, domains}` |
 | `DELETE /v1/shares/{slug}` | Bearer | stop sharing (votes kept) |
+| `GET /v1/shares/{slug}/versions` | Bearer | snapshot history: `[{version, created, size, current}]`, newest first |
+| `GET /v1/shares/{slug}/versions/{n}` | Bearer | one past revision's HTML, exactly as uploaded (owner-only) |
 | `GET /v1/shares/{slug}/results` | Bearer | dump submissions (same shape as local `.jsonl`) |
 | `GET /v1/shares/{slug}/threads` | Bearer | list threads and replies |
 | `POST /v1/shares/{slug}/threads` | Bearer | start a thread at `{selector, anchor_text?, body}` |
