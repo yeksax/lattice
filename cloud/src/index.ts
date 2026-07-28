@@ -13,6 +13,8 @@
 import pollBridge from './poll.bridge.txt';
 import threadBridge from './thread.bridge.txt';
 import chromeBridge from './chrome.bridge.txt';
+import stateBridge from './state.bridge.txt';
+import { handleOwnerState, handlePublicState, stateDeleteStatement } from './state';
 import {
   configureShareAccess,
   handleAuth,
@@ -140,6 +142,21 @@ async function apiShares(req: Request, env: Env, path: string): Promise<Response
   if (threadMatch) {
     return handleOwnerThreads(req, env, tok, decodeURIComponent(threadMatch[1]), threadMatch[2]);
   }
+  const stateMatch = rest.match(/^(.+?)(\/state)$/);
+  if (stateMatch) {
+    return handleOwnerState(req, env, tok, decodeURIComponent(stateMatch[1]), stateMatch[2]);
+  }
+  // Snapshot history: the list, and one past revision's HTML. Owner-only —
+  // publishing a new version is meant to replace what readers see, so an old
+  // revision must not be reachable from the public side.
+  const versionsMatch = rest.match(/^(.+?)\/versions(?:\/(\d+))?$/);
+  if (versionsMatch) {
+    if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
+    const slug = decodeURIComponent(versionsMatch[1]);
+    return versionsMatch[2]
+      ? shareVersionHTML(env, tok, slug, parseInt(versionsMatch[2], 10))
+      : shareVersions(env, tok, slug);
+  }
   const resultsMatch = rest.match(/^(.+)\/results$/);
   if (resultsMatch) {
     if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
@@ -261,12 +278,25 @@ async function createShare(req: Request, env: Env, tok: Token): Promise<Response
   return json({ slug, sub, url: publicURL(env, sub), version }, existing ? 200 : 201);
 }
 
+// The dashboard's shared view is the only place an owner sees a share without
+// opening it, so the listing carries everything that page shows: not just the
+// URL and the access policy, but how many revisions the snapshot has and how
+// much conversation happened on it. All of it is one round trip of subqueries
+// against indexed columns — cheaper than the N follow-up requests a thinner
+// payload would cost.
 async function listShares(env: Env, tok: Token): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT s.sub, s.slug, s.title, s.created, s.updated,
             (SELECT sa.allowed_domains FROM share_access sa
               WHERE sa.sub = s.sub AND sa.mode = 'domain') AS allowed_domains,
-            (SELECT COUNT(*) FROM votes v WHERE v.sub = s.sub) AS votes
+            (SELECT COUNT(*) FROM votes v WHERE v.sub = s.sub) AS votes,
+            (SELECT MAX(sv.version) FROM snapshot_versions sv WHERE sv.sub = s.sub) AS version,
+            (SELECT COUNT(*) FROM threads th WHERE th.sub = s.sub) AS threads,
+            (SELECT COUNT(*) FROM threads th
+              WHERE th.sub = s.sub AND th.status = 'open') AS threads_open,
+            (SELECT COUNT(*) FROM comments c
+               JOIN threads th ON th.id = c.thread_id
+              WHERE th.sub = s.sub AND c.body != '') AS comments
      FROM shares s WHERE s.token = ? ORDER BY s.updated DESC`,
   )
     .bind(tok.token)
@@ -277,6 +307,10 @@ async function listShares(env: Env, tok: Token): Promise<Response> {
       created: number;
       updated: number;
       votes: number;
+      version: number | null;
+      threads: number;
+      threads_open: number;
+      comments: number;
       allowed_domains: string | null;
     }>();
   return json(
@@ -288,6 +322,12 @@ async function listShares(env: Env, tok: Token): Promise<Response> {
       created: r.created,
       updated: r.updated,
       votes: r.votes,
+      // A share published before snapshot_versions existed has no rows there
+      // and is version 1 by definition — the same reading createShare uses.
+      version: r.version ?? 1,
+      threads: r.threads,
+      threads_open: r.threads_open,
+      comments: r.comments,
       domains: parseStringArray(r.allowed_domains),
     })),
   );
@@ -315,12 +355,82 @@ async function deleteShare(env: Env, tok: Token, slug: string): Promise<Response
     env.DB.prepare('DELETE FROM comments WHERE thread_id IN (SELECT id FROM threads WHERE sub = ?)')
       .bind(row.sub),
     env.DB.prepare('DELETE FROM threads WHERE sub = ?').bind(row.sub),
+    stateDeleteStatement(env, row.sub),
     env.DB.prepare('DELETE FROM snapshot_versions WHERE sub = ?').bind(row.sub),
     env.DB.prepare('DELETE FROM share_access WHERE sub = ?').bind(row.sub),
     env.DB.prepare('DELETE FROM shares WHERE sub = ?').bind(row.sub),
   ]);
   // Votes are kept (mirrors local unshare: poll data survives).
   return new Response(null, { status: 204 });
+}
+
+// shareVersions lists the snapshot revisions of a share, newest first. Sizes
+// come from R2 metadata, one HEAD per revision, issued in parallel; a share
+// that predates snapshot_versions reports the single version it implicitly is.
+async function shareVersions(env: Env, tok: Token, slug: string): Promise<Response> {
+  const share = await env.DB.prepare(
+    'SELECT sub, r2_key, created, updated FROM shares WHERE token = ? AND slug = ?',
+  )
+    .bind(tok.token, slug)
+    .first<{ sub: string; r2_key: string; created: number; updated: number }>();
+  if (!share) return json({ error: `not shared: ${slug}` }, 404);
+
+  const { results } = await env.DB.prepare(
+    'SELECT version, r2_key, created FROM snapshot_versions WHERE sub = ? ORDER BY version DESC',
+  )
+    .bind(share.sub)
+    .all<{ version: number; r2_key: string; created: number }>();
+
+  const rows = (results ?? []).length
+    ? (results ?? [])
+    : [{ version: 1, r2_key: share.r2_key, created: share.created }];
+
+  const versions = await Promise.all(
+    rows.map(async (row) => {
+      const head = await env.SNAPSHOTS.head(row.r2_key).catch(() => null);
+      return {
+        version: row.version,
+        created: row.created,
+        size: head?.size ?? 0,
+        // The live one is whatever the share row points at, not simply the
+        // highest number: that stays true if a rollback ever moves the pointer.
+        current: row.r2_key === share.r2_key,
+      };
+    }),
+  );
+  return json({ slug, sub: share.sub, versions });
+}
+
+// shareVersionHTML returns one past revision as it was uploaded: no bridges,
+// no chrome. The dashboard frames it as a preview of what readers saw then.
+async function shareVersionHTML(env: Env, tok: Token, slug: string, version: number): Promise<Response> {
+  const share = await env.DB.prepare('SELECT sub, r2_key FROM shares WHERE token = ? AND slug = ?')
+    .bind(tok.token, slug)
+    .first<{ sub: string; r2_key: string }>();
+  if (!share) return json({ error: `not shared: ${slug}` }, 404);
+
+  let key = share.r2_key;
+  const row = await env.DB.prepare(
+    'SELECT r2_key FROM snapshot_versions WHERE sub = ? AND version = ?',
+  )
+    .bind(share.sub, version)
+    .first<{ r2_key: string }>();
+  if (row) {
+    key = row.r2_key;
+  } else if (version !== 1) {
+    return json({ error: `no version ${version} of ${slug}` }, 404);
+  }
+
+  const obj = await env.SNAPSHOTS.get(key);
+  if (!obj) return json({ error: 'snapshot is gone' }, 404);
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Robots-Tag': NOINDEX,
+      'Referrer-Policy': 'no-referrer',
+    },
+  });
 }
 
 async function shareResults(env: Env, tok: Token, slug: string): Promise<Response> {
@@ -349,6 +459,9 @@ async function servePublic(req: Request, env: Env, sub: string, rest: string): P
   if (denied) return denied;
   if (rest === '/threads' || rest.startsWith('/threads/')) {
     return handlePublicThreads(req, env, sub, rest);
+  }
+  if (rest === '/state') {
+    return handlePublicState(req, env, sub, rest);
   }
   if (rest === '/submit') {
     if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
@@ -392,11 +505,22 @@ async function servePublic(req: Request, env: Env, sub: string, rest: string): P
     `<script id="lattice-comments" data-endpoint="${base}/threads">` +
     threadBridge +
     `</script>`;
+  // A slower poll than the daemon's: a hosted reader's tab should not bill a
+  // request every four seconds for a page nobody else is editing.
+  const stateTag =
+    `<script id="lattice-state" data-endpoint="${base}/state" data-poll="20000">` +
+    stateBridge +
+    `</script>`;
   // Reader chrome: the dashboard's top bar, minus home, search, Raw and Share.
   // Injected BEFORE the comment bridge so it can claim the launcher — the
   // Comment action belongs in the bar, not in a second floating button.
   const chromeTag = `<script id="lattice-chrome" data-base="${base}">` + chromeBridge + `</script>`;
-  const page = injectScript(injectScript(injectScript(html, pollTag), chromeTag), threadTag);
+  // stateTag first: poll.js fires the shared `lattice:ready`, so the state
+  // bridge must already exist when a page's ready handler runs.
+  const page = injectScript(
+    injectScript(injectScript(injectScript(html, stateTag), pollTag), chromeTag),
+    threadTag,
+  );
   return new Response(injectNoindex(page), {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
@@ -490,6 +614,7 @@ function robotsTxt(): Response {
     'Disallow: /submit',
     'Disallow: /results',
     'Disallow: /threads',
+    'Disallow: /state',
     '',
   ].join('\n');
   return new Response(body, {

@@ -14,6 +14,7 @@ sharing, polls, and discussion threads.
 - [Skill installation](#skill-installation)
 - [Hosted authentication and sharing](#hosted-authentication-and-sharing)
 - [Poll results](#poll-results)
+- [Page state](#page-state)
 - [Discussion threads](#discussion-threads)
 - [Environment variables](#environment-variables)
 - [Agent safety rules](#agent-safety-rules)
@@ -36,9 +37,10 @@ The filesystem remains the source of truth:
 - Registration writes a metadata sidecar under
   `~/.summaries/.lattice/meta/`.
 - Local discussions live under `~/.summaries/.lattice/comments/`.
+- Local page state lives under `~/.summaries/.lattice/state/`.
 - Configuration lives at `~/.summaries/.lattice/config.json`.
-- Lattice injects live reload, polls, and comments into HTTP responses. It does
-  not add those bridges to the source HTML.
+- Lattice injects live reload, polls, state, and comments into HTTP responses.
+  It does not add those bridges to the source HTML.
 
 A **slug** identifies a registered summary. It normally comes from the filename:
 `Cloud Run Costs.html` becomes `cloud-run-costs`. Collisions receive `-2`,
@@ -63,6 +65,7 @@ Run `lattice help` to print the built-in command summary.
 | `lattice unshare` | Remove one hosted snapshot | hosted |
 | `lattice shares` | List active hosted snapshots | no |
 | `lattice results` | Print hosted poll submissions | no |
+| `lattice state` | Read or write a summary's persisted state | local or hosted |
 | `lattice threads` | List local or hosted threads | no |
 | `lattice comment` | Start a local or hosted thread | local or hosted |
 | `lattice reply` | Reply to a local or hosted thread | local or hosted |
@@ -354,6 +357,66 @@ This command reads hosted results. Local poll storage remains under:
 
 For poll bridge implementation details, read `references/polls.md`.
 
+## Page state
+
+Summaries can persist arbitrary values — ticked checkboxes, notes, whether a
+section is open. The page writes them through the injected state bridge; these
+commands read and write the same store. Read `references/state.md` before
+building a page that uses it.
+
+State has two scopes. `document` is one shared value per key. `user` is one
+value per reader, keyed by a viewer id.
+
+### `lattice state`
+
+```sh
+lattice state <slug> [--json] [--user <viewer-id>] [--hosted]
+```
+
+Prints every key, one per line: the scope, the key, the value as JSON, and — for
+user-scoped keys — the reader they belong to. `--json` prints the whole document
+as one object, which is the form to parse. `--user` narrows the output to one
+reader. `--hosted` reads the published snapshot's state instead of the local one.
+
+**Read this before writing a follow-up summary.** It is the record of what the
+human actually decided, which is usually not what the previous summary assumed.
+
+### `lattice state set`
+
+```sh
+lattice state set <slug> <key> <value> [--scope user] [--user <viewer-id>] [--hosted]
+```
+
+The value parses as JSON when it is valid JSON (`true`, `12`, `{"n":1}`) and as
+a plain string otherwise. Writes are document-scoped unless `--scope user` is
+given, which also requires `--user`. Existing keys are overwritten;
+last write wins.
+
+Use it to pre-fill a checklist from what you already know — not to decide on the
+human's behalf. Changing a shared value is visible to every reader, and open
+pages pick it up within seconds.
+
+### `lattice state rm` and `lattice state clear`
+
+```sh
+lattice state rm <slug> <key> [--scope user] [--user <viewer-id>] [--hosted]
+lattice state clear <slug> [--scope document|user] [--user <viewer-id>] [--hosted]
+```
+
+`rm` removes one key. `clear` removes a whole scope, or everything when no scope
+is given. Both are destructive and unrecoverable: the value is not versioned.
+Ask before clearing state you did not write.
+
+Local state lives at:
+
+```text
+~/.summaries/.lattice/state/<slug>.json
+```
+
+It survives `lattice rm` (the file is keyed by slug, and re-registering the same
+name picks it back up). Hosted state is removed with `lattice unshare`, so a
+released subdomain cannot hand its state to the next share that claims it.
+
 ## Discussion threads
 
 Discussion commands operate on **local threads by default**. Append `--hosted`
@@ -551,6 +614,9 @@ workflow.
 7. Run `share`, `unshare`, `login`, and `logout` only when the user authorized
    the corresponding external or credential change.
 8. Never reveal `hosted.token`.
+9. Read `lattice state <slug> --json` before acting on a checklist a human has
+   been using. Never run `state clear`, or overwrite state you did not write,
+   without being asked.
 9. Use `rm` to unregister. Do not delete the HTML source.
 10. Inspect thread IDs with `threads --json`; never derive or shorten them.
 

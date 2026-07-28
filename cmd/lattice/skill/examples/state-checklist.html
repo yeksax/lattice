@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Example — decisions the reader ticks off</title>
+<!-- Restores the theme before first paint (no white flash). Never write a
+     static data-theme on <html>: it kills prefers-color-scheme. -->
+<script>(function(){try{var t=localStorage.getItem('lattice-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}})()</script>
+<style>
+  /* ═══ SHARED BASE ══════════════════════════════════════════════════
+     Same tokens, type scale and components as template.html, trimmed to
+     what this file actually uses. Copy the base from template.html (it
+     carries the full set) and change only what sits below "SPECIFIC".
+     ================================================================== */
+  :root{
+    --bg:#ffffff; --bg-sub:#fafafa;
+    --ink:#111111; --ink-2:#555555; --muted:#8a8a8a;
+    --line:#e4e4e4; --line-2:#111111;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --pad-section:40px;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0b0b0b; --bg-sub:#141414;
+    --ink:#f2f2f2; --ink-2:#b5b5b5; --muted:#7d7d7d;
+    --line:#1f1f1f; --line-2:#3a3a3a;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:13.5px/1.5 var(--mono);
+       font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+         padding:18px 0;border-bottom:1px solid var(--line-2)}
+  .brand{font-weight:500}
+  .meta{color:var(--muted);font-size:11px}
+  .toggle{font:inherit;font-size:11px;background:none;border:1px solid var(--line);
+          color:var(--ink);padding:4px 10px;cursor:pointer}
+  .toggle:hover{border-color:var(--line-2)}
+
+  section{padding:var(--pad-section) 0 8px}
+  .eyebrow{font-size:11px;color:var(--muted);margin:0 0 10px}
+  h1{font-size:24px;font-weight:500;margin:0 0 8px}
+  h2{font-size:17px;font-weight:500;margin:0 0 6px}
+  p{margin:0 0 12px;color:var(--ink-2);max-width:68ch}
+  .lead{color:var(--ink);font-size:14.5px;max-width:80ch}
+  .sub{color:var(--muted);font-size:11px}
+  code{font:inherit}
+  .tag{display:inline-block;font-size:11px;border:1px solid var(--line);
+       color:var(--ink-2);padding:2px 8px}
+  .tblwrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+  th{text-align:left;font-weight:500;color:var(--muted);font-size:11px;
+     padding:8px 12px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+  td{padding:8px 12px;border-bottom:1px solid var(--line)}
+  .invert{background:var(--ink);color:var(--bg);padding:24px;margin-top:32px}
+  .invert .lbl{font-size:11px;opacity:.6}
+  footer{margin-top:32px;padding:24px 0;border-top:1px solid var(--line-2);
+         color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* ═══ SPECIFIC TO THIS EXAMPLE — the checklist ═════════════════════ */
+  /* Metric strip: the numbers the ticks drive. */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+           border:1px solid var(--line);margin-top:18px}
+  .metric{padding:14px 16px;border-right:1px solid var(--line)}
+  .metric:last-child{border-right:0}
+  .metric .val{font-size:22px;font-weight:500}
+  .metric .lbl{font-size:11px;color:var(--muted);margin-top:2px}
+
+  /* Progress: a stacked ink bar, not a thin floating line. */
+  .bar{height:6px;background:var(--bg-sub);border:1px solid var(--line);border-top:0;
+       display:flex;overflow:hidden}
+  .bar .done{background:var(--ink);width:0;transition:width .18s ease-out}
+
+  .items{border:1px solid var(--line);margin-top:20px}
+  .item{display:flex;gap:12px;align-items:baseline;padding:12px 16px;
+        border-bottom:1px solid var(--line)}
+  .item:last-child{border-bottom:0}
+  .item input[type="checkbox"]{margin:0;accent-color:var(--ink);flex:none;
+                               position:relative;top:2px}
+  .item .body{flex:1;min-width:0}
+  .item .why{color:var(--muted);font-size:11px;margin-top:2px}
+  .item .cost{color:var(--ink-2);white-space:nowrap}
+  .item.done .body{color:var(--muted)}
+
+  /* Private column: same list, but only this reader sees what is in it. */
+  .private{border:1px solid var(--line);margin-top:20px;padding:14px 16px}
+  .private textarea{width:100%;min-height:70px;margin-top:8px;font:inherit;
+                    background:var(--bg-sub);color:var(--ink);border:1px solid var(--line);
+                    padding:8px 10px;resize:vertical}
+  .private textarea:focus{outline:0;border-color:var(--line-2)}
+
+  .offline{border:1px solid var(--line);background:var(--bg-sub);padding:12px 16px;
+           margin-top:14px;color:var(--ink-2);font-size:12px;max-width:640px;display:none}
+  .offline.on{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">Example — decisions the reader ticks off</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="meta">persisted state</span>
+      <button class="toggle" id="themeBtn">theme</button>
+    </div>
+  </header>
+
+  <section id="overview">
+    <p class="eyebrow">01 — what this file teaches</p>
+    <h1>Tick it once. It stays ticked.</h1>
+    <p class="lead">A cut list whose decisions survive the reload, the laptop and
+      the next reader — with a private column nobody else sees.</p>
+    <p class="sub">Bridge reference: <span class="tag">references/state.md</span>.
+      Nothing here writes <code>localStorage</code> by hand.</p>
+
+    <div class="metrics">
+      <div class="metric"><div class="val" id="mCut">$0</div><div class="lbl">selected / month</div></div>
+      <div class="metric"><div class="val" id="mLeft">$0</div><div class="lbl">left on the table</div></div>
+      <div class="metric"><div class="val" id="mCount">0 / 4</div><div class="lbl">decided</div></div>
+    </div>
+    <div class="bar"><div class="done" id="bar"></div></div>
+  </section>
+
+  <section id="cuts">
+    <p class="eyebrow">02 — shared decisions</p>
+    <h2>What we are cutting</h2>
+    <p>Ticks here are <strong>document scope</strong>: one shared answer. Whoever
+      opens this summary next sees the same boxes — and if they are looking right
+      now, their page updates without a reload.</p>
+
+    <!-- Zero JS for persistence: the attribute IS the wiring. The key is
+         semantic and stable - renaming it would lose the tick. -->
+    <div class="items" id="items">
+      <label class="item">
+        <input type="checkbox" data-lattice-state="cut.analytics-api" data-cost="1300">
+        <span class="body">
+          <span><code>analytics-api</code> + <code>analytics-web</code>: cpu-throttling on, min 2→0</span>
+          <span class="why">4.3% and 2.3% p50 CPU with always-allocated instances</span>
+        </span>
+        <span class="cost">$1,300</span>
+      </label>
+
+      <label class="item">
+        <input type="checkbox" data-lattice-state="cut.betting-collector" data-cost="660">
+        <span class="body">
+          <span><code>betting-pool-collector</code>: min 1 → 0</span>
+          <span class="why">zero requests in 14 days — confirm it is not a background worker</span>
+        </span>
+        <span class="cost">$660</span>
+      </label>
+
+      <label class="item">
+        <input type="checkbox" data-lattice-state="cut.asset-hub-db" data-cost="104">
+        <span class="body">
+          <span>Kill <code>asset-hub-db</code> in both projects</span>
+          <span class="why">77 MiB identical, no transactions above the noise floor</span>
+        </span>
+        <span class="cost">$104</span>
+      </label>
+
+      <label class="item">
+        <input type="checkbox" data-lattice-state="cut.opex-postgres-ha" data-cost="104">
+        <span class="body">
+          <span><code>opex-postgres</code>: drop regional HA</span>
+          <span class="why">0.046 average connections — paying 2× for a dead database</span>
+        </span>
+        <span class="cost">$104</span>
+      </label>
+    </div>
+
+    <!-- data-lattice-scope on the wrapper: every key inside is per reader. -->
+    <div class="private" data-lattice-scope="user">
+      <div><strong>Your column</strong> <span class="sub">— private to you, on this page</span></div>
+      <label class="sub" style="display:block;margin-top:8px">
+        <input type="checkbox" data-lattice-state="me.reviewed"> I have read the whole list
+      </label>
+      <textarea data-lattice-state="me.notes" placeholder="what you want to raise before we act…"></textarea>
+    </div>
+
+    <div class="offline" id="offline">
+      Opened straight from disk, so nothing is stored. The boxes still tick; they
+      just forget. Register the file with <span class="tag">lattice add</span> and
+      open it at <span class="tag">127.0.0.1:4600/s/&lt;slug&gt;</span>.
+    </div>
+  </section>
+
+  <section id="failure-modes">
+    <p class="eyebrow">03 — the three things that go wrong</p>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Mistake</th><th>Symptom</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Hand-rolled <code>localStorage</code></td>
+            <td>State is stuck in one browser; the CLI cannot read it</td>
+            <td><code>data-lattice-state</code>, and let the bridge store it</td>
+          </tr>
+          <tr>
+            <td>Totals painted only in the click handler</td>
+            <td>Numbers go stale when someone else ticks a box</td>
+            <td>Repaint from <code>lattice.state.subscribe</code></td>
+          </tr>
+          <tr>
+            <td>Positional keys (<code>item-3</code>)</td>
+            <td>Reordering the list moves everyone's ticks</td>
+            <td>Semantic keys tied to the decision, not the row</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="invert">
+    <div class="lbl">Rule</div>
+    <div style="font-size:15px;font-weight:500;margin-top:4px">
+      Shared decisions are document scope. Reading progress is yours alone.
+    </div>
+  </div>
+
+  <footer>
+    <span>examples/state-checklist.html</span>
+    <span>html-summary · lattice</span>
+  </footer>
+
+</div>
+
+<script>
+/* ── theme ─────────────────────────────────────────────────────────── */
+document.getElementById('themeBtn').addEventListener('click',function(){
+  var r=document.documentElement;
+  var cur=r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  var next=cur==='dark'?'light':'dark';
+  r.dataset.theme=next;
+  try{localStorage.setItem('lattice-theme',next)}catch(e){}
+});
+
+/* ── derived numbers ───────────────────────────────────────────────────
+   The ticks persist themselves; what needs code is everything computed
+   FROM them. paint() runs on load, on every local tick, and on every
+   remote change - which is why it reads the DOM rather than an event. */
+var boxes=[].slice.call(document.querySelectorAll('#items input[type="checkbox"]'));
+var money=function(n){return '$'+n.toLocaleString('en-US')};
+
+function paint(){
+  var cut=0,total=0,done=0;
+  boxes.forEach(function(b){
+    var cost=Number(b.dataset.cost)||0;
+    total+=cost;
+    if(b.checked){cut+=cost;done++}
+    b.closest('.item').classList.toggle('done',b.checked);
+  });
+  document.getElementById('mCut').textContent=money(cut);
+  document.getElementById('mLeft').textContent=money(total-cut);
+  document.getElementById('mCount').textContent=done+' / '+boxes.length;
+  document.getElementById('bar').style.width=(total?cut/total*100:0)+'%';
+}
+
+/* A click repaints immediately; the bridge stores the value itself. */
+document.addEventListener('change',paint);
+
+/* ── the bridge gate ───────────────────────────────────────────────────
+   Injected AFTER this script, so window.lattice is undefined at load.
+   `lattice:state-ready` is the state bridge's own event (lattice:ready
+   belongs to the poll bridge). */
+function boot(){
+  if(!window.lattice||!window.lattice.state){
+    document.getElementById('offline').classList.add('on');
+    paint();
+    return;
+  }
+  document.getElementById('offline').classList.remove('on');
+  lattice.state.ready.then(paint);   // values have landed in the DOM
+  lattice.state.subscribe(paint);    // someone else ticked, or an agent did
+}
+window.lattice&&window.lattice.state
+  ? boot()
+  : document.addEventListener('lattice:state-ready',boot,{once:true});
+
+/* A loose file never fires the event. Give it a moment, then degrade. */
+setTimeout(function(){if(!window.lattice||!window.lattice.state)boot()},600);
+</script>
+</body>
+</html>

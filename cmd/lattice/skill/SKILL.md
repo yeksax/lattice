@@ -30,9 +30,11 @@ possible** — dense, scannable, functional. Not an editorial landing page.
 | `references/layout.md` | before choosing your sections: the template is a **guide**, not a mould |
 | `references/diagrams.md` | the drawing vocabulary — flow chain, before/after, layers, waterfall, matrix, count strip |
 | `references/polls.md` | when the summary collects votes — the bridge, both patterns, graceful degradation |
+| `references/state.md` | when the page has anything to remember — checkboxes, notes, progress — per document or per reader |
 | `references/lattice-cli.md` | before any Lattice CLI operation: complete commands, flags, local/hosted behavior, and comment workflows |
 | `examples/poll-live-reveal.html` | ordinary poll: vote, reveal immediately |
 | `examples/poll-bakeoff.html` | blind bake-off: nothing reveals until the last vote |
+| `examples/state-checklist.html` | decisions the reader ticks off: persisted state, shared and private, live totals |
 | `examples/interactive-walkthrough.html` | manual / onboarding: re-enacted interaction + step-by-step narration |
 
 The `examples/` are there to **read the technique from**, not to paste wholesale:
@@ -212,6 +214,16 @@ module still represents the same concept. Add `data-lattice-comment-label` when
 the visible text does not provide a concise title. Do not annotate both a
 wrapper and its children unless each level is independently worth discussing.
 Sections remain the broad fallback; module anchors provide precise feedback.
+
+Anything the reader can **change** — a checkbox, a note field, a section they
+collapse — gets the same treatment, through `data-lattice-state`: a stable,
+semantic key naming the decision (`cut.analytics-api`), never its position
+(`item-3`). That key is what lets the tick be restored later instead of lost;
+it costs nothing when nothing is restoring it. Wrap the whole row in the
+`<label>` while you are there: a native checkbox is a ~13px target, and on a
+phone the row is what the thumb actually hits. A loose file forgets on reload —
+say so in one line if it matters, and never fake saved progress or build an
+export-your-ticks flow.
 
 ## One file per step — never overwrite a previous summary
 
@@ -642,5 +654,42 @@ link go to the hosted backend. `lattice results <slug>` dumps them.
 
 > `share` publishes to the internet and is effectively irreversible (caching).
 > Only run it if the user explicitly asks.
+
+### Persistent state — ticks that survive a reload
+
+**Full reference: `references/state.md`.** Working example:
+`examples/state-checklist.html`. Read it before writing any "remember the
+checkbox" JS — the common case needs no JS at all.
+
+A summary with decisions in it (a cut list, a migration checklist, a review
+queue) should let the reader tick them off and find them ticked tomorrow.
+Lattice stores that for you, so **never hand-roll `localStorage`** and never
+build an export/import-your-progress flow.
+
+```html
+<input type="checkbox" data-lattice-state="cut.analytics-api">          <!-- shared -->
+<section data-lattice-scope="user">
+  <textarea data-lattice-state="notes.section-b"></textarea>            <!-- private -->
+</section>
+```
+
+Four things to get right:
+
+1. **Scope is a decision.** `document` (the default) is one shared value for
+   everyone reading the summary; `user` is per reader. Team decisions are
+   shared; reading progress and personal notes are not. On a public-by-URL
+   share, anyone with the link can write the document scope.
+2. **Keys are stable and semantic**, exactly like `data-lattice-comment`:
+   `cut.analytics-api`, never `item-7`. A renamed key is a lost value.
+3. **Ordering.** The bridge lands after your scripts; wait for
+   `lattice:state-ready`, then `await lattice.state.ready`. Repaint derived
+   numbers (totals, progress) from `lattice.state.subscribe`, which also fires
+   when someone else — or an agent — changes a shared key.
+4. **No bridge** — the page stays readable and the boxes still tick; they just
+   don't persist. One honest line says so. Never fake a saved state.
+
+`lattice state <slug> --json` dumps what the reader actually ticked — read it
+before writing the follow-up summary, and use `lattice state set` to pre-fill a
+checklist from what you already know.
 
 **Non-poll summaries are unaffected** — no bridge, pure single-file, fully offline.

@@ -131,6 +131,22 @@
           <h1 data-i18n="page.shared">Shared</h1>
           <span class="count" id="shared-count"></span>
         </div>
+        <div class="library-bar" id="shared-bar" hidden>
+          <div class="library-controls">
+            <div class="library-seg" role="group" data-i18n-aria-label="shared.sort.aria">
+              <span class="library-seg-label" data-i18n="library.sort">Sort</span>
+              <button type="button" class="library-chip" data-shared-sort="updated" data-i18n="shared.sort.updated">Updated</button>
+              <button type="button" class="library-chip" data-shared-sort="created" data-i18n="shared.sort.created">Published</button>
+              <button type="button" class="library-chip" data-shared-sort="title" data-i18n="library.sort.title">Title</button>
+            </div>
+            <div class="library-seg" role="group" data-i18n-aria-label="shared.filter.aria">
+              <span class="library-seg-label" data-i18n="shared.filter">Access</span>
+              <button type="button" class="library-chip" data-shared-access="all" data-i18n="shared.filter.all">All</button>
+              <button type="button" class="library-chip" data-shared-access="public" data-i18n="shared.filter.public">Public</button>
+              <button type="button" class="library-chip" data-shared-access="domain" data-i18n="shared.filter.domain">Restricted</button>
+            </div>
+          </div>
+        </div>
         <div id="shared-status" class="status" hidden></div>
         <div id="shared-list" role="list"></div>
         <div id="shared-empty" class="empty" hidden></div>

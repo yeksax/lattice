@@ -48,6 +48,13 @@ usage:
   lattice unshare <slug>             stop sharing (poll data is kept)
   lattice shares                     list active shares + vote counts
   lattice results <slug>             dump poll submissions
+  lattice state <slug> [flags]       show saved page state (checkboxes, notes)
+      --json       print machine-readable JSON
+      --user id    only this reader's keys
+      --hosted     read the hosted share's state instead
+  lattice state set <slug> <key> <value> [--scope user] [--user id] [--hosted]
+  lattice state rm <slug> <key> [--scope user] [--user id] [--hosted]
+  lattice state clear <slug> [--scope document|user] [--user id] [--hosted]
   lattice threads <slug> [flags]     list local discussion threads
       --open       show only open threads
       --json       print machine-readable JSON
@@ -161,6 +168,19 @@ func main() {
 			break
 		}
 		err = hostedResults(os.Args[2])
+	case "state":
+		fs := flag.NewFlagSet("state", flag.ExitOnError)
+		hosted := fs.Bool("hosted", false, "use the hosted share's state")
+		rawJSON := fs.Bool("json", false, "print JSON")
+		scope := fs.String("scope", "", "document (default) or user")
+		user := fs.String("user", "", "viewer id for user-scoped keys")
+		fs.Parse(reorderFlags(os.Args[2:], "scope", "user"))
+		err = cliState(fs.Args(), stateFlags{
+			hosted:  *hosted,
+			rawJSON: *rawJSON,
+			scope:   *scope,
+			viewer:  *user,
+		})
 	case "threads":
 		fs := flag.NewFlagSet("threads", flag.ExitOnError)
 		onlyOpen := fs.Bool("open", false, "show only open threads")

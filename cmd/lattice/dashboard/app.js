@@ -736,11 +736,129 @@
     if (!searchSlot.contains(e.target)) closeSearchMenu();
   });
 
+  // ---- domain helpers (shared by the shared view and the share popover) -----
+  // "acme.com, @Team.dev " → ['acme.com', 'team.dev']. An empty field means
+  // public, which is what the API reads an empty array as.
+  const parseDomains = (value) =>
+    String(value || '')
+      .split(/[,\s]+/)
+      .map((d) => d.trim().toLowerCase().replace(/^@+/, '').replace(/^https?:\/\//, '').replace(/\/.*$/, ''))
+      .filter(Boolean);
+
+  const domainField = (value) =>
+    el('input', {
+      class: 'url',
+      type: 'text',
+      value: value || '',
+      placeholder: t('share.domains.placeholder'),
+      spellcheck: 'false',
+      autocapitalize: 'off',
+    });
+
+  // A domain-gated share is gated by a company, and a favicon says which one
+  // faster than the string does. The daemon proxies and caches it (see
+  // favicon.go) so no icon service learns who this person shares with; a domain
+  // that serves no icon falls back to the monogram, which is what paints first.
+  function domainMark(domain) {
+    const wrap = el('span', { class: 'share-mark' });
+    const mono = el('span', { class: 'share-mono' }, (domain[0] || '?').toUpperCase());
+    const img = el('img', {
+      class: 'share-favicon',
+      src: '/api/favicon?domain=' + encodeURIComponent(domain),
+      alt: '',
+      loading: 'lazy',
+      width: '13',
+      height: '13',
+    });
+    img.hidden = true;
+    img.addEventListener('load', () => { img.hidden = false; mono.remove(); });
+    img.addEventListener('error', () => img.remove());
+    wrap.append(mono, img);
+    return wrap;
+  }
+
   // ---- compartilhados ------------------------------------------------------
   const sharedList = $('shared-list');
   const sharedEmpty = $('shared-empty');
   const sharedCount = $('shared-count');
   const sharedStatus = $('shared-status');
+  const sharedBar = $('shared-bar');
+
+  const SHARED_SORT_KEY = 'lattice.shared.sort';
+  const SHARED_ACCESS_KEY = 'lattice.shared.access';
+  const SHARED_SORTS = ['updated', 'created', 'title'];
+  const SHARED_ACCESSES = ['all', 'public', 'domain'];
+
+  const readPref = (key, allowed, fallback) => {
+    try {
+      const v = localStorage.getItem(key);
+      return allowed.includes(v) ? v : fallback;
+    } catch { return fallback; }
+  };
+
+  let sharedSort = readPref(SHARED_SORT_KEY, SHARED_SORTS, 'updated');
+  let sharedAccess = readPref(SHARED_ACCESS_KEY, SHARED_ACCESSES, 'all');
+  let sharedRows = [];              // last payload, so filters repaint without a refetch
+  const sharedOpenPanels = new Set();  // slugs whose access editor is expanded
+  const sharedOpenHistory = new Set(); // slugs whose snapshot history is expanded
+
+  const ICONS = {
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H7a2 2 0 0 0-2 2v8"/>',
+    external: '<path d="M7 17 17 7"/><polyline points="9 7 17 7 17 15"/>',
+    reader: '<path d="M3 5.5h5.5a3.5 3.5 0 0 1 3.5 3.5v9a3 3 0 0 0-3-3H3Z"/><path d="M21 5.5h-5.5a3.5 3.5 0 0 0-3.5 3.5v9a3 3 0 0 1 3-3H21Z"/>',
+    republish: '<path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.5"/><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5"/><path d="M20 4v4.5h-4.5"/><path d="M4 20v-4.5h4.5"/>',
+    access: '<rect x="4.5" y="10.5" width="15" height="9.5" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/>',
+    stop: '<circle cx="12" cy="12" r="8"/><path d="M6.5 6.5 17.5 17.5"/>',
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5a13 13 0 0 1 0 17"/><path d="M12 3.5a13 13 0 0 0 0 17"/>',
+    more: '<circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none"/>',
+    history: '<path d="M3.8 9.5A8.5 8.5 0 1 1 3.5 12"/><path d="M3.5 4.5v5h5"/><path d="M12 7.5V12l3 2"/>',
+  };
+
+  function actionIcon(name) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.7');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = ICONS[name] || '';
+    return svg;
+  }
+
+  // Actions are icons with the label kept in the DOM but hidden: the tooltip
+  // and the accessible name still read it, and a state change (copied, armed,
+  // publishing) can reveal it without a second element.
+  function shareAction(name, label, onClick, { danger = false, tag = 'button' } = {}) {
+    const node = tag === 'a'
+      ? el('a', { class: 'share-act', target: '_blank', rel: 'noopener' })
+      : el('button', { class: 'share-act', type: 'button' });
+    if (danger) node.classList.add('is-danger');
+    node.dataset.icon = name;
+    node.append(actionIcon(name), el('span', { class: 'share-act-label' }, label));
+    node.title = label;
+    node.setAttribute('aria-label', label);
+    node.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onClick?.(node, event);
+    });
+    return node;
+  }
+
+  // Swap an action's icon and label for the duration of a state, then put both
+  // back. Returns the restore function for the paths that finish early.
+  function actionState(node, iconName, label) {
+    const svg = node.querySelector('svg');
+    const text = node.querySelector('.share-act-label');
+    if (svg) svg.innerHTML = ICONS[iconName] || '';
+    if (text) text.textContent = label;
+    return () => {
+      if (svg) svg.innerHTML = ICONS[node.dataset.icon] || '';
+      if (text) text.textContent = node.title;
+    };
+  }
 
   function setSharedStatus(text, isError = false) {
     if (!text) {
@@ -755,17 +873,642 @@
   }
 
   function showSharedEmpty(html) {
-    sharedList.innerHTML = '';
+    sharedList.replaceChildren();
+    sharedBar.hidden = true;
     sharedEmpty.hidden = false;
     sharedEmpty.innerHTML = html;
     sharedCount.textContent = '';
   }
 
-  async function loadShared() {
-    setSharedStatus(t('shared.loading'));
+  async function copyText(text) {
+    if (!text) return false;
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const tmp = el('input', { value: text });
+      document.body.appendChild(tmp);
+      tmp.select();
+      document.execCommand?.('copy');
+      tmp.remove();
+    }
+    return true;
+  }
+
+  // Copy, then say so on the control that was clicked.
+  async function copyFrom(node, text) {
+    if (!await copyText(text)) return;
+    const restore = actionState(node, 'check', t('shared.copied'));
+    node.classList.add('is-done');
+    setTimeout(() => {
+      restore();
+      node.classList.remove('is-done');
+    }, 1200);
+  }
+
+  // Epoch seconds (hosted API) → the same relative label the library uses.
+  // `lower` is the form that reads right mid-sentence ("published yesterday").
+  const epochLabel = (sec) => {
+    if (!sec) return null;
+    const when = fmtRelDate(new Date(sec * 1000).toISOString());
+    return { ...when, lower: when.label.toLocaleLowerCase(i18n.locale) };
+  };
+
+  // The snapshot is a copy, so the file on disk drifts away from it silently.
+  // 30s of slack absorbs the gap between reading the file and the upload
+  // landing — anything past that is a real edit the reader has not seen.
+  const shareDrifted = (sh, doc) =>
+    !!(doc && !doc.missing && sh.updated && doc.modified &&
+      Date.parse(doc.modified) / 1000 > sh.updated + 30);
+
+  function sharedSortValue(sh) {
+    if (sharedSort === 'created') return sh.created || sh.updated || 0;
+    return sh.updated || sh.created || 0;
+  }
+
+  function visibleShares() {
+    const out = sharedRows.filter((sh) => {
+      if (sharedAccess === 'public') return !(sh.domains || []).length;
+      if (sharedAccess === 'domain') return (sh.domains || []).length > 0;
+      return true;
+    });
+    if (sharedSort === 'title') {
+      out.sort((a, b) => shareTitle(a).localeCompare(shareTitle(b), i18n.locale, { sensitivity: 'base' }));
+    } else {
+      out.sort((a, b) => sharedSortValue(b) - sharedSortValue(a));
+    }
+    return out;
+  }
+
+  const shareTitle = (sh) => {
+    const doc = docs.find((d) => d.slug === sh.slug);
+    return doc?.title || sh.title || sh.slug;
+  };
+
+  function syncSharedControls() {
+    sharedBar.querySelectorAll('[data-shared-sort]').forEach((btn) => {
+      const on = btn.dataset.sharedSort === sharedSort;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    sharedBar.querySelectorAll('[data-shared-access]').forEach((btn) => {
+      const on = btn.dataset.sharedAccess === sharedAccess;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  sharedBar.addEventListener('click', (event) => {
+    const sortBtn = event.target.closest('[data-shared-sort]');
+    if (sortBtn) {
+      sharedSort = sortBtn.dataset.sharedSort;
+      try { localStorage.setItem(SHARED_SORT_KEY, sharedSort); } catch { /* private mode */ }
+      paintShared();
+      return;
+    }
+    const accessBtn = event.target.closest('[data-shared-access]');
+    if (accessBtn) {
+      sharedAccess = accessBtn.dataset.sharedAccess;
+      try { localStorage.setItem(SHARED_ACCESS_KEY, sharedAccess); } catch { /* private mode */ }
+      paintShared();
+    }
+  });
+
+  // The access badge: who can open this link, stated the way the reader will
+  // experience it — a public link, or a Google sign-in on these domains.
+  function accessBadge(domains) {
+    if (!domains.length) {
+      const badge = el('span', { class: 'share-badge' });
+      const globe = actionIcon('globe');
+      globe.classList.add('share-badge-icon');
+      badge.append(globe, el('span', { class: 'share-badge-text' }, t('shared.access.public')));
+      return badge;
+    }
+    const badge = el('span', {
+      class: 'share-badge is-domain',
+      title: domains.map((d) => '@' + d).join(', '),
+    });
+    domains.slice(0, 2).forEach((d) => badge.appendChild(domainMark(d)));
+    badge.append(el('span', { class: 'share-badge-text' }, '@' + domains[0]));
+    if (domains.length > 1) {
+      badge.append(el('span', { class: 'share-badge-more' }, '+' + (domains.length - 1)));
+    }
+    return badge;
+  }
+
+  function shareMeta(sh, doc) {
+    const meta = el('div', { class: 'share-meta' });
+    // No dot separators: this line wraps, and a wrapped line would open or end
+    // on an orphan dot. Spacing does the separating instead.
+    const push = (node) => {
+      meta.appendChild(node);
+      return node;
+    };
+    const chip = (text, cls) => push(el('span', { class: 'share-chip' + (cls ? ' ' + cls : '') }, text));
+
+    push(accessBadge(sh.domains || []));
+    if (sh.version > 1) chip(t('shared.version', { n: sh.version }));
+    if (sh.votes) chip(t('shared.votes', { n: sh.votes }));
+    if (sh.comments) chip(t('shared.comments', { n: sh.comments }));
+    if (sh.threads_open) chip(t('shared.threadsOpen', { n: sh.threads_open }));
+
+    // Second line: where the file lives, and — pinned right, same spot on every
+    // card — how fresh the snapshot is.
+    const sub = el('div', { class: 'share-subline' });
+    const src = fileLabel(doc?.source || '');
+    if (src) {
+      const node = el('span', { class: 'share-chip is-src' }, src);
+      node.title = doc.source;
+      sub.appendChild(node);
+    }
+    const updated = epochLabel(sh.updated);
+    const created = epochLabel(sh.created);
+    if (updated?.label) {
+      const node = el('span', { class: 'share-chip is-when' }, t('shared.updated', { when: updated.lower }));
+      node.title = created?.title
+        ? t('shared.published.title', { when: created.title })
+        : t('shared.updated.title', { when: updated.title || updated.label });
+      sub.appendChild(node);
+    }
+
+    const wrap = document.createDocumentFragment();
+    wrap.append(meta, sub);
+    return wrap;
+  }
+
+  // Access editor, inline. Saving re-posts the share, which is also how the CLI
+  // changes a restriction — and re-uploads the file as it stands on disk.
+  function accessPanel(sh) {
+    const panel = el('div', { class: 'share-panel' });
+    const field = domainField((sh.domains || []).join(', '));
+    const save = el('button', { class: 'share-panel-save', type: 'button' }, t('share.access.save'));
+    const note = el('div', { class: 'share-panel-note' }, t('share.domains.hint'));
+
+    save.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      save.disabled = true;
+      save.textContent = t('share.access.saving');
+      try {
+        const response = await fetch('/api/shares', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ slug: sh.slug, domains: parseDomains(field.value) }),
+        });
+        const out = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(out.error || t('form.error.save'));
+        save.textContent = t('share.access.saved');
+        sharedOpenPanels.delete(sh.slug);
+        setTimeout(loadShared, 600);
+      } catch (error) {
+        save.disabled = false;
+        save.textContent = t('share.access.save');
+        note.textContent = String(error.message || error);
+        note.classList.add('is-error');
+      }
+    });
+    field.addEventListener('click', (event) => event.stopPropagation());
+    field.addEventListener('keydown', (event) => {
+      event.stopPropagation();
+      if (event.key === 'Enter') save.click();
+    });
+
+    panel.append(
+      el('span', { class: 'share-panel-label' }, t('share.domains.label')),
+      el('div', { class: 'share-panel-row' }, field, save),
+      note,
+    );
+    return panel;
+  }
+
+  // Re-upload the file as it stands on disk. Works from a card button or a menu
+  // item; both report on the control that was clicked.
+  async function republishShare(sh, node) {
+    const label = node.querySelector('.share-act-label') || node.querySelector('span');
+    const original = label?.textContent;
+    node.disabled = true;
+    node.classList.add('is-busy');
+    if (label) label.textContent = t('shared.republishing');
+    try {
+      const response = await fetch('/api/shares', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ slug: sh.slug }),
+      });
+      if (!response.ok) {
+        const out = await response.json().catch(() => ({}));
+        throw new Error(out.error || t('shared.error.republish'));
+      }
+      node.classList.remove('is-busy');
+      if (label) label.textContent = t('shared.republished');
+      setTimeout(loadShared, 700);
+    } catch (error) {
+      node.disabled = false;
+      node.classList.remove('is-busy');
+      if (label) label.textContent = original;
+      setSharedStatus(error.message || t('shared.error.republish'), true);
+    }
+  }
+
+  // Unsharing takes a public URL down for everyone holding it, so it asks once.
+  // Two clicks on the same item, no modal: the second click is the answer.
+  function stopMenuItem(sh) {
+    let armed = false;
+    let disarm = 0;
+    const item = menuItem('stop', t('shared.stop'), async () => {
+      const label = item.querySelector('span');
+      if (!armed) {
+        armed = true;
+        item.classList.add('is-armed');
+        label.textContent = t('shared.stop.confirm');
+        disarm = setTimeout(() => {
+          armed = false;
+          item.classList.remove('is-armed');
+          label.textContent = t('shared.stop');
+        }, 4000);
+        return;
+      }
+      clearTimeout(disarm);
+      item.disabled = true;
+      label.textContent = t('shared.stopping');
+      try {
+        const response = await fetch('/api/shares/' + encodeURIComponent(sh.slug), { method: 'DELETE' });
+        if (!response.ok && response.status !== 204) throw new Error(t('shared.error.stop'));
+        closeShareMenu();
+        await loadShared();
+      } catch (error) {
+        item.disabled = false;
+        armed = false;
+        item.classList.remove('is-armed');
+        label.textContent = t('shared.stop');
+        setSharedStatus(error.message || t('shared.error.stop'), true);
+      }
+    }, { danger: true });
+    return item;
+  }
+
+  // ---- card preview --------------------------------------------------------
+  // The snapshot itself is the best description of a share, so every card shows
+  // one: the local file, scaled down, in a script-less iframe. Mounted only
+  // when the card scrolls into view — a shelf of shares should not open twenty
+  // documents at once — and sandboxed, so a preview cannot run anything.
+  const previewObserver = 'IntersectionObserver' in window
+    ? new IntersectionObserver((entries, observer) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        observer.unobserve(entry.target);
+        if (!entry.target.dataset.mounted) mountPreview(entry.target);
+      }
+    }, { rootMargin: '200px' })
+    : null;
+
+  function mountPreview(box, src) {
+    box.dataset.mounted = '1';
+    const frame = el('iframe', {
+      src: src || '/s/' + encodeURIComponent(box.dataset.slug) + '?raw=1',
+      title: '',
+      tabindex: '-1',
+      loading: 'lazy',
+      sandbox: '',
+      'aria-hidden': 'true',
+    });
+    box.classList.remove('is-ready');
+    frame.addEventListener('load', () => box.classList.add('is-ready'));
+    box.replaceChildren(frame);
+  }
+
+  function sharePreview(sh, doc, openable) {
+    const box = el('div', { class: 'share-preview', 'aria-hidden': 'true' });
+    if (!openable) {
+      // No local file to render: say so instead of framing an error page.
+      box.classList.add('is-blank');
+      box.appendChild(el('span', { class: 'share-preview-note' },
+        t(doc ? 'row.missing' : 'shared.orphan')));
+      return box;
+    }
+    box.dataset.slug = sh.slug;
+    if (previewObserver) previewObserver.observe(box);
+    else mountPreview(box);
+    return box;
+  }
+
+  // ---- snapshot history ----------------------------------------------------
+  // Publishing replaces what readers see, but the old revisions are still in
+  // R2. This panel is the only place they are visible: pick one and the card's
+  // preview swaps to it, so "what did they see last week" is one click, not an
+  // archaeology exercise.
+  const fmtBytes = (n) => {
+    if (!n) return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const fmtStamp = (sec) => {
+    if (!sec) return '';
+    return new Date(sec * 1000).toLocaleString(i18n.locale, {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    });
+  };
+
+  function historyPanel(sh, card, preview, openable) {
+    const panel = el('div', { class: 'share-panel share-history' });
+    const list = el('div', { class: 'share-history-list' });
+    panel.append(el('span', { class: 'share-panel-label' }, t('shared.history')), list);
+
+    const note = (text, error = false) => {
+      const node = el('div', { class: 'share-panel-note' + (error ? ' is-error' : '') }, text);
+      list.replaceChildren(node);
+    };
+
+    const showVersion = (version, current) => {
+      if (!preview) return;
+      card.classList.toggle('is-viewing', !current);
+      viewingLabel.textContent = t('shared.history.viewing', { n: version });
+      viewing.hidden = current;
+      mountPreview(
+        preview,
+        current
+          ? undefined
+          : `/api/shares/${encodeURIComponent(sh.slug)}/versions/${version}`,
+      );
+      // Stamp the preview itself (after mounting, which replaces its children):
+      // the panel can be scrolled out of sight, and an old revision must never
+      // read as the live one.
+      if (!current) {
+        preview.appendChild(el('span', { class: 'share-preview-badge' }, 'v' + version));
+      }
+      list.querySelectorAll('.share-version').forEach((row) => {
+        row.classList.toggle('is-active', Number(row.dataset.version) === version);
+      });
+    };
+
+    const viewingLabel = el('span', {});
+    const back = el('button', { class: 'share-version-back', type: 'button' }, t('shared.history.back'));
+    const viewing = el('div', { class: 'share-viewing' }, viewingLabel, back);
+    viewing.hidden = true;
+    back.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const live = list.querySelector('.share-version[data-current="1"]');
+      showVersion(Number(live?.dataset.version) || 1, true);
+    });
+    panel.appendChild(viewing);
+
+    let loaded = false;
+    panel.loadHistory = async () => {
+      if (loaded) return;
+      note(t('shared.loading'));
+      try {
+        const response = await fetch('/api/shares/' + encodeURIComponent(sh.slug) + '/versions');
+        const versions = await response.json();
+        // 501: the backend predates the history API (see hosted.go). Say that
+        // in the dashboard's own words rather than relaying an HTTP verdict.
+        if (response.status === 501) throw new Error(t('shared.history.unsupported'));
+        if (!response.ok) throw new Error(versions?.error || t('shared.error.history'));
+        loaded = true;
+        if (!versions.length) {
+          note(t('shared.history.none'));
+          return;
+        }
+        list.replaceChildren();
+        versions.forEach((v) => {
+          const row = el('div', { class: 'share-version' });
+          row.dataset.version = String(v.version);
+          if (v.current) {
+            row.dataset.current = '1';
+            row.classList.add('is-active');
+          }
+          const facts = [fmtStamp(v.created), fmtBytes(v.size)].filter(Boolean).join(' · ');
+          row.append(
+            el('span', { class: 'share-version-n' }, 'v' + v.version),
+            el('span', { class: 'share-version-facts' }, facts),
+          );
+          if (v.current) {
+            row.appendChild(el('span', { class: 'share-version-tag' }, t('shared.history.current')));
+          } else if (openable) {
+            const view = el('button', { class: 'share-version-view', type: 'button' }, t('shared.history.view'));
+            view.addEventListener('click', (event) => {
+              event.stopPropagation();
+              showVersion(v.version, false);
+            });
+            row.appendChild(view);
+          }
+          const open = el('a', {
+            class: 'share-version-open',
+            href: `/api/shares/${encodeURIComponent(sh.slug)}/versions/${v.version}`,
+            target: '_blank',
+            rel: 'noopener',
+            title: t('shared.history.openTab'),
+          });
+          open.appendChild(actionIcon('external'));
+          open.addEventListener('click', (event) => event.stopPropagation());
+          row.appendChild(open);
+          list.appendChild(row);
+        });
+      } catch (error) {
+        note(error.message || t('shared.error.history'), true);
+      }
+    };
+    return panel;
+  }
+
+  // ---- overflow menu -------------------------------------------------------
+  let openMenu = null;
+
+  function closeShareMenu() {
+    if (!openMenu) return;
+    openMenu.menu.remove();
+    openMenu.button.setAttribute('aria-expanded', 'false');
+    openMenu = null;
+  }
+
+  addEventListener('click', closeShareMenu);
+  addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeShareMenu();
+  });
+
+  function menuItem(iconName, label, onClick, { danger = false } = {}) {
+    const item = el('button', { class: 'share-menu-item', type: 'button' });
+    if (danger) item.classList.add('is-danger');
+    item.append(actionIcon(iconName), el('span', {}, label));
+    item.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onClick(item);
+    });
+    return item;
+  }
+
+  function renderShareCard(sh) {
+    const doc = docs.find((d) => d.slug === sh.slug);
+    const openable = !!doc && !doc.missing;
+    const drifted = shareDrifted(sh, doc);
+
+    const card = el('article', { class: 'share-card', role: 'listitem' });
+    if (drifted) card.classList.add('has-drift');
+    if (openable) card.tabIndex = 0;
+
+    const heading = el('div', { class: 'share-card-top' },
+      el('h2', { class: 'title' }, shareTitle(sh)),
+    );
+    if (drifted) {
+      heading.appendChild(el('span', { class: 'share-flag is-drift', title: t('shared.drift.title') }, t('shared.drift')));
+    }
+
+    const body = el('div', { class: 'share-card-body' }, heading);
+
+    // Meta description if the file has one, its own opening paragraph if not.
+    const description = doc?.description || doc?.excerpt || '';
+    if (description) body.appendChild(el('p', { class: 'share-desc' }, description));
+    body.appendChild(shareMeta(sh, doc));
+
+    // Footer: the link, and the two actions worth a permanent button. The rest
+    // lives behind the menu — a card with six buttons reads as a toolbar, not
+    // as a document.
+    const host = (sh.url || '').replace(/^https?:\/\//, '');
+    const link = el('button', { class: 'share-url', type: 'button', title: t('shared.copy') },
+      el('span', { class: 'share-url-text' }, host));
+    link.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      if (!await copyText(sh.url)) return;
+      const text = link.firstChild;
+      text.textContent = t('shared.copied');
+      link.classList.add('is-done');
+      setTimeout(() => {
+        text.textContent = host;
+        link.classList.remove('is-done');
+      }, 1200);
+    });
+
+    const actions = el('div', { class: 'share-actions' });
+    const openPublic = shareAction('external', t('shared.openPublic'), null, { tag: 'a' });
+    openPublic.href = sh.url || '#';
+    if (!sh.url) openPublic.setAttribute('aria-disabled', 'true');
+    actions.append(
+      shareAction('copy', t('shared.copy'), (node) => copyFrom(node, sh.url)),
+      openPublic,
+    );
+
+    const preview = sharePreview(sh, doc, openable);
+    const panel = accessPanel(sh);
+    const history = historyPanel(sh, card, openable ? preview : null, openable);
+    panel.hidden = !sharedOpenPanels.has(sh.slug);
+    history.hidden = !sharedOpenHistory.has(sh.slug);
+    if (!panel.hidden || !history.hidden) card.classList.add('is-open');
+    if (!history.hidden) history.loadHistory();
+
+    // The two panels share the bottom of the card, so opening one closes the
+    // other instead of stacking two editors under a 310px card.
+    const togglePanel = (which) => {
+      const set = which === 'access' ? sharedOpenPanels : sharedOpenHistory;
+      const other = which === 'access' ? sharedOpenHistory : sharedOpenPanels;
+      const expanded = set.has(sh.slug);
+      other.delete(sh.slug);
+      if (expanded) set.delete(sh.slug);
+      else set.add(sh.slug);
+      panel.hidden = !sharedOpenPanels.has(sh.slug);
+      history.hidden = !sharedOpenHistory.has(sh.slug);
+      card.classList.toggle('is-open', !panel.hidden || !history.hidden);
+      card.querySelector('.share-overlay-btn.is-left')
+        ?.setAttribute('aria-expanded', history.hidden ? 'false' : 'true');
+      if (!panel.hidden) panel.querySelector('input')?.focus();
+      if (!history.hidden) history.loadHistory();
+    };
+
+    const more = shareAction('more', t('shared.more'), (node, event) => {
+      event.stopPropagation();
+      const wasOpen = openMenu?.button === node;
+      closeShareMenu();
+      if (wasOpen) return;
+
+      const menu = el('div', { class: 'share-menu', role: 'menu' });
+      if (openable) {
+        menu.appendChild(menuItem('reader', t('shared.openReader'), () => {
+          closeShareMenu();
+          location.hash = '#/read/' + sh.slug;
+        }));
+        menu.appendChild(menuItem('republish', t('shared.republish'), (item) => {
+          closeShareMenu();
+          republishShare(sh, item);
+        }));
+      }
+      menu.appendChild(menuItem('access', t('shared.access'), () => {
+        closeShareMenu();
+        togglePanel('access');
+      }));
+      menu.appendChild(el('div', { class: 'share-menu-sep' }));
+      menu.appendChild(stopMenuItem(sh));
+      menu.addEventListener('click', (e) => e.stopPropagation());
+      node.parentElement.appendChild(menu);
+      node.setAttribute('aria-expanded', 'true');
+      openMenu = { menu, button: node };
+      menu.querySelector('button')?.focus();
+    });
+    more.setAttribute('aria-haspopup', 'menu');
+    more.setAttribute('aria-expanded', 'false');
+    actions.appendChild(more);
+
+    // Two controls ride on the preview itself, where they belong to the
+    // document rather than to the row of link actions: history on the left,
+    // and — only when the file has moved on — the fix for that on the right.
+    const overlay = el('div', { class: 'share-overlay' });
+    const historyBtn = shareAction('history', t('shared.history'), () => togglePanel('history'));
+    historyBtn.classList.add('share-overlay-btn', 'is-left');
+    historyBtn.setAttribute('aria-expanded', history.hidden ? 'false' : 'true');
+    overlay.appendChild(historyBtn);
+
+    if (drifted && openable) {
+      const republish = shareAction('republish', t('shared.republish'), (node) => republishShare(sh, node));
+      republish.classList.add('share-overlay-btn', 'is-right', 'is-suggested');
+      overlay.appendChild(republish);
+    }
+
+    card.append(
+      preview,
+      overlay,
+      body,
+      el('div', { class: 'share-card-foot' }, link, actions),
+      history,
+      panel,
+    );
+
+    if (openable) {
+      const openReader = (event) => {
+        if (event.target.closest('button, a, input')) return;
+        location.hash = '#/read/' + sh.slug;
+      };
+      card.addEventListener('click', openReader);
+      card.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') openReader(event);
+      });
+    }
+    return card;
+  }
+
+  function paintShared() {
+    syncSharedControls();
+    // Visible from the first share on: with a filter saved from a past visit,
+    // hiding the bar would strand the page on "nothing matches" with no way back.
+    sharedBar.hidden = sharedRows.length === 0;
+    sharedCount.textContent = t('shared.count', { n: sharedRows.length });
+
+    const items = visibleShares();
+    if (!items.length) {
+      sharedList.replaceChildren();
+      sharedEmpty.hidden = false;
+      sharedEmpty.innerHTML = t('shared.filtered');
+      return;
+    }
     sharedEmpty.hidden = true;
-    sharedList.innerHTML = '';
-    sharedCount.textContent = '';
+    closeShareMenu();
+    const grid = el('div', { class: 'share-grid' });
+    items.forEach((sh) => grid.appendChild(renderShareCard(sh)));
+    sharedList.replaceChildren(grid);
+  }
+
+  async function loadShared() {
+    if (!sharedRows.length) {
+      setSharedStatus(t('shared.loading'));
+      sharedEmpty.hidden = true;
+      sharedList.replaceChildren();
+      sharedCount.textContent = '';
+    }
 
     if (!docs.length) {
       try { await loadAll(); } catch { /* keep going; titles may be missing */ }
@@ -780,12 +1523,14 @@
       }
       shares = await response.json() || [];
     } catch (error) {
+      sharedRows = [];
       setSharedStatus(error.message || t('shared.error.load'), true);
       showSharedEmpty(t('shared.error.empty'));
       return;
     }
 
     setSharedStatus('');
+    sharedRows = shares;
 
     // Empty array from the API also covers "not logged in" (server returns []).
     // Probe config so we can distinguish "no shares" from "token missing".
@@ -801,69 +1546,7 @@
       return;
     }
 
-    sharedEmpty.hidden = true;
-    sharedCount.textContent = t('shared.count', { n: shares.length });
-
-    const frag = document.createDocumentFragment();
-    shares.forEach((sh) => {
-      const doc = docs.find((d) => d.slug === sh.slug);
-      const title = doc ? doc.title : sh.slug;
-      const row = el('div', { class: 'share-row', role: 'listitem' });
-      const top = el('div', { class: 'share-row-top' },
-        el('span', { class: 'title' }, title),
-        el('span', { class: 'votes' }, t('shared.votes', { n: sh.votes || 0 })),
-      );
-      const slugEl = el('div', { class: 'slug' }, sh.slug);
-      const urlEl = el('div', { class: 'url', title: sh.url || '' }, sh.url || '');
-
-      const copyBtn = el('button', { type: 'button' }, t('shared.copy'));
-      copyBtn.addEventListener('click', async () => {
-        if (!sh.url) return;
-        try { await navigator.clipboard.writeText(sh.url); }
-        catch {
-          const tmp = el('input', { value: sh.url });
-          document.body.appendChild(tmp);
-          tmp.select();
-          document.execCommand?.('copy');
-          tmp.remove();
-        }
-        copyBtn.textContent = t('shared.copied');
-        setTimeout(() => { copyBtn.textContent = t('shared.copy'); }, 1200);
-      });
-
-      const openPublic = el('a', {
-        href: sh.url || '#',
-        target: '_blank',
-        rel: 'noopener',
-      }, t('shared.openPublic'));
-      if (!sh.url) openPublic.setAttribute('aria-disabled', 'true');
-
-      const openReader = el('button', { type: 'button' }, t('shared.openReader'));
-      openReader.addEventListener('click', () => { location.hash = '#/read/' + sh.slug; });
-
-      const stopBtn = el('button', { type: 'button' }, t('shared.stop'));
-      stopBtn.addEventListener('click', async () => {
-        stopBtn.disabled = true;
-        stopBtn.textContent = t('shared.stopping');
-        try {
-          const r = await fetch('/api/shares/' + encodeURIComponent(sh.slug), { method: 'DELETE' });
-          if (!r.ok && r.status !== 204) throw new Error('stop failed');
-          await loadShared();
-        } catch {
-          stopBtn.disabled = false;
-          stopBtn.textContent = t('shared.stop');
-        }
-      });
-
-      row.append(
-        top,
-        slugEl,
-        urlEl,
-        el('div', { class: 'share-actions' }, copyBtn, openPublic, openReader, stopBtn),
-      );
-      frag.appendChild(row);
-    });
-    sharedList.appendChild(frag);
+    paintShared();
   }
 
   // ---- appearance / sharing forms ------------------------------------------
@@ -1264,24 +1947,6 @@
   }
 
   function shareLoading() { sharePop.replaceChildren(el('div', { class: 'lead' }, t('share.loading'))); }
-
-  // "acme.com, @Team.dev " → ['acme.com', 'team.dev']. An empty field means
-  // public, which is what the API reads an empty array as.
-  const parseDomains = (value) =>
-    String(value || '')
-      .split(/[,\s]+/)
-      .map((d) => d.trim().toLowerCase().replace(/^@+/, '').replace(/^https?:\/\//, '').replace(/\/.*$/, ''))
-      .filter(Boolean);
-
-  const domainField = (value) =>
-    el('input', {
-      class: 'url',
-      type: 'text',
-      value: value || '',
-      placeholder: t('share.domains.placeholder'),
-      spellcheck: 'false',
-      autocapitalize: 'off',
-    });
 
   function shareUnshared(slug) {
     const random = el('input', { type: 'checkbox' });

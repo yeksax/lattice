@@ -1,4 +1,5 @@
 import type { Env, Token } from './index';
+import fluidBridge from './denied.fluid.txt';
 
 const SESSION_COOKIE = 'lattice_session';
 const STATE_COOKIE = 'lattice_oidc_state';
@@ -153,13 +154,7 @@ export async function requireShareAccess(
     return redirect(start);
   }
   if (!actor.domain || !policy.domains.includes(actor.domain.toLowerCase())) {
-    const retry = escapeHTML(loginURL(req, env));
-    return htmlMessage(
-      403,
-      'Access denied',
-      `This snapshot is restricted to ${policy.domains.map((d) => '@' + escapeHTML(d)).join(', ')}. ` +
-        `<a href="${retry}">Try another Google account.</a>`,
-    );
+    return accessDeniedPage(actor, policy.domains, loginURL(req, env));
   }
   return null;
 }
@@ -451,6 +446,14 @@ async function listThreads(env: Env, sub: string, viewerActorID: string | null):
   return out;
 }
 
+// viewerActorID is the identity the state bridge writes user-scoped keys under
+// when the reader is signed in. Anonymous readers fall back to the browser id
+// they send themselves - see state.ts.
+export async function viewerActorID(req: Request, env: Env): Promise<string | null> {
+  const actor = await sessionActor(req, env);
+  return actor?.id ?? null;
+}
+
 async function sessionActor(req: Request, env: Env): Promise<Actor | null> {
   const raw = cookie(req, SESSION_COOKIE);
   if (!raw) return null;
@@ -650,13 +653,253 @@ function json(value: unknown, status = 200, headers: Record<string, string> = {}
   });
 }
 
-function htmlMessage(status: number, title: string, message: string): Response {
-  return new Response(
-    `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex">` +
-      `<title>${escapeHTML(title)}</title><style>body{font:16px/1.5 ui-monospace,monospace;max-width:44rem;margin:15vh auto;padding:2rem;color:#191817}small{color:#706c66}</style>` +
-      `<main><small>lattice</small><h1>${escapeHTML(title)}</h1><p>${message}</p></main>`,
-    { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
-  );
+// Access-denied gate for domain-restricted shares. Lives outside the snapshot
+// chrome on purpose: the reader never reached the HTML, so this page has to
+// carry the Lattice identity itself. Kept as one Response so the Worker has no
+// extra asset to fetch.
+function accessDeniedPage(actor: Actor, domains: string[], retryURL: string): Response {
+  const chips = domains
+    .map(
+      (d) =>
+        `<li><span class="chip"><span class="mono" aria-hidden="true">${escapeHTML(
+          (d[0] || '?').toUpperCase(),
+        )}</span>@${escapeHTML(d)}</span></li>`,
+    )
+    .join('');
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Access denied · lattice</title>
+<style>
+  :root {
+    --paper: #ffffff;
+    --paper-2: #f7f7f5;
+    --ink: #141414;
+    --ink-2: #545454;
+    --muted: #8b8b8b;
+    --line: #e6e6e4;
+    --line-2: #c9c9c6;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100%;
+    font: 400 16px/1.65 var(--sans);
+    color: var(--ink);
+    background:
+      radial-gradient(120% 80% at 12% -10%, #f3f1eb 0%, transparent 55%),
+      radial-gradient(90% 70% at 100% 0%, #eef2f0 0%, transparent 48%),
+      var(--paper);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /*
+    One paint stack, no z-index isolation — difference only works when the
+    wash is in the same backdrop as the copy. Fluid first in DOM, then grain,
+    then main. White type + difference → black on paper, white on ink.
+  */
+  #fluid {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+  }
+  .grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  main {
+    position: relative;
+    display: flex;
+    min-height: 100%;
+    align-items: center;
+    width: min(100%, 72rem);
+    margin: 0 auto;
+    padding: clamp(2.5rem, 10vh, 6rem) clamp(1.5rem, 5vw, 2.5rem);
+  }
+  .panel { width: min(100%, 34rem); }
+  .copy {
+    mix-blend-mode: difference;
+    color: #fff;
+  }
+  .brand {
+    display: inline-block;
+    font-family: var(--serif);
+    font-size: 21px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: #fff;
+    text-decoration: none;
+  }
+  .brand:hover { color: #e8e8e8; }
+  .eyebrow {
+    margin: 2.25rem 0 0;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: #c8c8c8;
+  }
+  h1 {
+    margin: 0.85rem 0 0;
+    font-family: var(--serif);
+    font-size: clamp(2rem, 4.4vw, 2.85rem);
+    font-weight: 500;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: #fff;
+    text-wrap: balance;
+  }
+  .lede {
+    margin: 1.15rem 0 0;
+    max-width: 38ch;
+    color: #dedede;
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    text-wrap: pretty;
+  }
+  .signed {
+    margin: 1.75rem 0 0;
+    color: #c8c8c8;
+    font-size: 0.9375rem;
+  }
+  .signed strong {
+    color: #f2f2f2;
+    font-weight: 500;
+  }
+  /* Solid chrome — kept out of the difference group on purpose. */
+  .chrome {
+    animation: rise 0.65s var(--ease) both;
+    animation-delay: 0.12s;
+  }
+  .domains {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+    margin: 1.5rem 0 0;
+    padding: 0;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2rem;
+    padding: 0 0.85rem 0 0.45rem;
+    border: 1px solid rgba(20, 20, 20, 0.14);
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .mono {
+    display: grid;
+    place-items: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 999px;
+    background: #efefed;
+    color: var(--ink-2);
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    min-height: 2.85rem;
+    padding: 0 1.35rem;
+    border: 1px solid #141414;
+    border-radius: 999px;
+    background: #141414;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    text-decoration: none;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.2s var(--ease);
+  }
+  .btn:hover {
+    background: #2a2a2a;
+    border-color: #2a2a2a;
+    transform: translateY(-1px);
+  }
+  .btn:active { transform: translateY(0) scale(0.98); }
+  .btn:focus-visible {
+    outline: 2px solid #141414;
+    outline-offset: 3px;
+  }
+  .btn svg { width: 14px; height: 14px; flex: 0 0 auto; }
+  /* Transform only — opacity on a difference layer kills the blend. */
+  @keyframes rise {
+    from { transform: translateY(10px); }
+    to { transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chrome { animation: none; }
+    .btn { transition: none; }
+    .btn:hover { transform: none; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="fluid" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
+  <main>
+    <div class="panel">
+      <div class="copy">
+        <a class="brand" href="https://lattice.pub" rel="noopener">lattice</a>
+        <p class="eyebrow">403 · restricted</p>
+        <h1>This snapshot isn't open to you.</h1>
+        <p class="lede">Only Google accounts on the domains below can open it. Sign in with a matching account, or ask the owner to add yours.</p>
+      </div>
+      <div class="chrome">
+        <ul class="domains" aria-label="Allowed domains">${chips}</ul>
+      </div>
+      <p class="copy signed">Signed in as <strong>${escapeHTML(actor.email)}</strong></p>
+      <div class="chrome actions">
+        <a class="btn" href="${escapeHTML(retryURL)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Try another Google account
+        </a>
+      </div>
+    </div>
+  </main>
+  <script>` +
+    fluidBridge +
+    `</script>
+</body>
+</html>`;
+  return new Response(html, {
+    status: 403,
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  });
 }
 
 function escapeHTML(value: string): string {

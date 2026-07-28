@@ -84,6 +84,8 @@ lattice share report
 lattice share internal-report --domain furia.gg
 lattice shares
 lattice results report
+lattice state report
+lattice state set report cut.analytics-api true
 lattice threads report
 lattice comment report '#recommendation' 'Validate this assumption.'
 lattice reply report <thread-id> 'Validated with the current data.'
@@ -106,13 +108,23 @@ using the CLI. `share --domain example.com` requires a verified Google Workspace
 identity from that domain. Re-sharing without an access flag preserves the
 current policy; `share --public` removes it.
 
+Summaries can also **remember things**. Any element carrying
+`data-lattice-state="<key>"` — a checkbox, a text field, a `<details>` — persists
+itself when the page is served through Lattice, with no JavaScript in the file.
+Keys are shared by every reader (`document` scope) or private to one
+(`data-lattice-scope="user"`), pages can read and write arbitrary values through
+`window.lattice.state`, and `lattice state <slug>` puts the result back in the
+terminal — so an agent can see what a human actually ticked before writing the
+follow-up. It works the same on a hosted snapshot.
+
 ## How local storage works
 
 Lattice registers each summary by storing its absolute source path in a small
 metadata sidecar under `~/.summaries/.lattice/meta/`. It does not copy, move, or
 symlink newly added files, so registration behaves the same on every platform.
 Local discussions are stored separately under
-`~/.summaries/.lattice/comments/`, keeping agent and human replies out of the
+`~/.summaries/.lattice/comments/`, and persisted page state under
+`~/.summaries/.lattice/state/`, keeping replies and ticked decisions out of the
 source HTML while preserving them across document updates.
 Legacy symlinks and HTML files dropped directly into `~/.summaries/` remain
 supported. The in-memory search index rebuilds on startup and stays current
