@@ -1484,12 +1484,41 @@
     document.body.append(host);
   }
 
+  // Open an anchor's threads from outside the bridge - the outline rail hands a
+  // reader straight to the comment they clicked in the index. Scrolling is part
+  // of the job: an anchor five screens down would otherwise open a popover
+  // nobody can see. Returns false when the selector no longer resolves, so a
+  // caller can fall back instead of silently doing nothing.
+  const openAnchor = (selector, options = {}) => {
+    if (!selector) return false;
+    let element = null;
+    try {
+      element = document.querySelector(selector);
+    } catch {
+      return false;
+    }
+    if (!element) return false;
+    closePopovers();
+    openSelector = selector;
+    if (options.thread) expandedThreads.add(options.thread);
+    render();
+    if (options.scroll !== false) {
+      element.scrollIntoView({
+        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'center',
+      });
+    }
+    schedulePin();
+    return true;
+  };
+
   window.lattice = Object.assign(window.lattice || {}, {
     comments: {
       list: () => threads.slice(),
       refresh,
       start: enterCommentMode,
       stop: exitCommentMode,
+      open: openAnchor,
     },
   });
 
