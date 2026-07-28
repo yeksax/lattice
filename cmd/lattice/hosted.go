@@ -98,11 +98,23 @@ func hostedAPI(c Config, method, path string, body any) (*http.Response, error) 
 	return apiClient().Do(req)
 }
 
+// hostedShareRow mirrors one row of the hosted listing. Everything past URL and
+// Votes is what the dashboard's shared view puts in front of the owner without
+// making them open the share; a backend that predates a field just sends zero,
+// and the dashboard omits that line.
 type hostedShareRow struct {
-	Slug    string   `json:"slug"`
-	URL     string   `json:"url"`
-	Votes   int      `json:"votes"`
-	Domains []string `json:"domains"`
+	Slug        string   `json:"slug"`
+	Sub         string   `json:"sub,omitempty"`
+	Title       string   `json:"title,omitempty"`
+	URL         string   `json:"url"`
+	Created     int64    `json:"created,omitempty"`
+	Updated     int64    `json:"updated,omitempty"`
+	Version     int      `json:"version,omitempty"`
+	Votes       int      `json:"votes"`
+	Threads     int      `json:"threads,omitempty"`
+	ThreadsOpen int      `json:"threads_open,omitempty"`
+	Comments    int      `json:"comments,omitempty"`
+	Domains     []string `json:"domains"`
 }
 
 type hostedCommentRow struct {

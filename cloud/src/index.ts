@@ -267,12 +267,25 @@ async function createShare(req: Request, env: Env, tok: Token): Promise<Response
   return json({ slug, sub, url: publicURL(env, sub), version }, existing ? 200 : 201);
 }
 
+// The dashboard's shared view is the only place an owner sees a share without
+// opening it, so the listing carries everything that page shows: not just the
+// URL and the access policy, but how many revisions the snapshot has and how
+// much conversation happened on it. All of it is one round trip of subqueries
+// against indexed columns — cheaper than the N follow-up requests a thinner
+// payload would cost.
 async function listShares(env: Env, tok: Token): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT s.sub, s.slug, s.title, s.created, s.updated,
             (SELECT sa.allowed_domains FROM share_access sa
               WHERE sa.sub = s.sub AND sa.mode = 'domain') AS allowed_domains,
-            (SELECT COUNT(*) FROM votes v WHERE v.sub = s.sub) AS votes
+            (SELECT COUNT(*) FROM votes v WHERE v.sub = s.sub) AS votes,
+            (SELECT MAX(sv.version) FROM snapshot_versions sv WHERE sv.sub = s.sub) AS version,
+            (SELECT COUNT(*) FROM threads th WHERE th.sub = s.sub) AS threads,
+            (SELECT COUNT(*) FROM threads th
+              WHERE th.sub = s.sub AND th.status = 'open') AS threads_open,
+            (SELECT COUNT(*) FROM comments c
+               JOIN threads th ON th.id = c.thread_id
+              WHERE th.sub = s.sub AND c.body != '') AS comments
      FROM shares s WHERE s.token = ? ORDER BY s.updated DESC`,
   )
     .bind(tok.token)
@@ -283,6 +296,10 @@ async function listShares(env: Env, tok: Token): Promise<Response> {
       created: number;
       updated: number;
       votes: number;
+      version: number | null;
+      threads: number;
+      threads_open: number;
+      comments: number;
       allowed_domains: string | null;
     }>();
   return json(
@@ -294,6 +311,12 @@ async function listShares(env: Env, tok: Token): Promise<Response> {
       created: r.created,
       updated: r.updated,
       votes: r.votes,
+      // A share published before snapshot_versions existed has no rows there
+      // and is version 1 by definition — the same reading createShare uses.
+      version: r.version ?? 1,
+      threads: r.threads,
+      threads_open: r.threads_open,
+      comments: r.comments,
       domains: parseStringArray(r.allowed_domains),
     })),
   );
