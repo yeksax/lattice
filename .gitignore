@@ -17,6 +17,7 @@ CLAUDE.local.md
 *.p12
 *.pfx
 /cloud/.wrangler/
+/cloud/.dev.vars
 /.claude/
 /.codex/
 
