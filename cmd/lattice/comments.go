@@ -5,6 +5,12 @@ package main
 // Conversations live beside Lattice metadata, never inside the summary HTML.
 // The daemon injects the comment UI at response time, while agents use the same
 // API through the CLI.
+//
+// A shared summary has a second audience, and sync.go double-writes every row
+// here into the hosted backend so both sides see one conversation. Two fields
+// carry that relationship: the row's own id doubles as the dedupe signature the
+// backend stores, and HostedID remembers what the backend called it, so a later
+// edit or deletion lands on the same row instead of a copy of it.
 
 import (
 	"crypto/rand"
@@ -29,6 +35,7 @@ type localComment struct {
 	Deleted    bool                   `json:"deleted,omitempty"`
 	Edited     bool                   `json:"edited,omitempty"`
 	CanEdit    bool                   `json:"can_edit,omitempty"`
+	HostedID   string                 `json:"hosted_id,omitempty"`
 	Revisions  []localCommentRevision `json:"revisions,omitempty"`
 }
 
@@ -48,10 +55,23 @@ type localThread struct {
 	Status               string         `json:"status"`
 	Created              int64          `json:"created"`
 	Updated              int64          `json:"updated"`
+	HostedID             string         `json:"hosted_id,omitempty"`
 	Comments             []localComment `json:"comments"`
 }
 
 var commentsMu sync.Mutex
+
+// A row can be addressed by either name: the id this machine minted, or the id
+// the hosted backend gave the copy it was pushed as. The browser shows whichever
+// of the two the merge in sync.go put in front of the reader, so every lookup
+// here answers to both.
+func sameLocalThread(t *localThread, id string) bool {
+	return t.ID == id || (t.HostedID != "" && t.HostedID == id)
+}
+
+func sameLocalComment(c *localComment, id string) bool {
+	return c.ID == id || (c.HostedID != "" && c.HostedID == id)
+}
 
 func commentsDir() string {
 	return filepath.Join(summariesDir(), ".lattice", "comments")
@@ -195,7 +215,7 @@ func replyLocalThread(slug, threadID, body, author, authorKind string) (*localCo
 	found := false
 	if _, err := mutateLocalThreads(slug, func(threads *[]localThread) error {
 		for i := range *threads {
-			if (*threads)[i].ID != threadID {
+			if !sameLocalThread(&(*threads)[i], threadID) {
 				continue
 			}
 			(*threads)[i].Comments = append((*threads)[i].Comments, comment)
@@ -221,12 +241,12 @@ func editLocalComment(slug, threadID, commentID, body string) (*localComment, er
 	var edited *localComment
 	_, err := mutateLocalThreads(slug, func(threads *[]localThread) error {
 		for i := range *threads {
-			if (*threads)[i].ID != threadID {
+			if !sameLocalThread(&(*threads)[i], threadID) {
 				continue
 			}
 			for j := range (*threads)[i].Comments {
 				comment := &(*threads)[i].Comments[j]
-				if comment.ID != commentID {
+				if !sameLocalComment(comment, commentID) {
 					continue
 				}
 				if comment.AuthorKind != "human" || comment.Deleted {
@@ -268,12 +288,12 @@ func deleteLocalComment(slug, threadID, commentID string) (*localComment, error)
 	var deleted *localComment
 	_, err := mutateLocalThreads(slug, func(threads *[]localThread) error {
 		for i := range *threads {
-			if (*threads)[i].ID != threadID {
+			if !sameLocalThread(&(*threads)[i], threadID) {
 				continue
 			}
 			for j := range (*threads)[i].Comments {
 				comment := &(*threads)[i].Comments[j]
-				if comment.ID != commentID {
+				if !sameLocalComment(comment, commentID) {
 					continue
 				}
 				if comment.AuthorKind != "human" || comment.Deleted {
@@ -329,7 +349,7 @@ func setLocalThreadStatus(slug, threadID, status string) error {
 	}
 	_, err := mutateLocalThreads(slug, func(threads *[]localThread) error {
 		for i := range *threads {
-			if (*threads)[i].ID != threadID {
+			if !sameLocalThread(&(*threads)[i], threadID) {
 				continue
 			}
 			(*threads)[i].Status = status

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -122,12 +123,22 @@ type hostedShareRow struct {
 	Domains     []string `json:"domains"`
 }
 
+// hostedCommentRow and hostedThread are both the wire shape of the backend's
+// listing and what the daemon hands the browser for a hosted-born row, so the
+// merged answer in sync.go needs no third representation. Signature is the
+// dedupe key: set when this row is the backend's copy of something written
+// locally, empty when the row was born on the hosted side.
 type hostedCommentRow struct {
-	ID       string `json:"id"`
-	Author   string `json:"author"`
-	Body     string `json:"body"`
-	Created  int64  `json:"created"`
-	Provider string `json:"author_provider"`
+	ID        string `json:"id"`
+	Author    string `json:"author"`
+	Body      string `json:"body"`
+	Created   int64  `json:"created"`
+	Updated   int64  `json:"updated,omitempty"`
+	Provider  string `json:"author_provider,omitempty"`
+	Signature string `json:"signature,omitempty"`
+	Edited    bool   `json:"edited,omitempty"`
+	Deleted   bool   `json:"deleted,omitempty"`
+	CanEdit   bool   `json:"can_edit,omitempty"`
 }
 
 type hostedThread struct {
@@ -136,6 +147,9 @@ type hostedThread struct {
 	AnchorText             string             `json:"anchor_text"`
 	SnapshotVersionCreated int                `json:"snapshot_version_created"`
 	Status                 string             `json:"status"`
+	Signature              string             `json:"signature,omitempty"`
+	Created                int64              `json:"created,omitempty"`
+	Updated                int64              `json:"updated,omitempty"`
 	Comments               []hostedCommentRow `json:"comments"`
 }
 
@@ -319,6 +333,83 @@ func hostedThreads(c Config, slug string) ([]hostedThread, error) {
 		return nil, errors.New(out.Error)
 	}
 	return out.Threads, nil
+}
+
+// hostedThreadCall issues one owner-side discussion request and decodes the
+// backend's answer into out (which may be nil). It is the write half of the
+// double write: everything the daemon stores locally for a shared summary comes
+// back through here carrying the ids the backend assigned.
+func hostedThreadCall(c Config, method, slug, path string, body, out any) error {
+	if c.Hosted.Token == "" {
+		return errNotLoggedIn
+	}
+	resp, err := hostedAPI(c, method, "/v1/shares/"+url.PathEscape(slug)+path, body)
+	if err != nil {
+		return fmt.Errorf("hosted API unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode >= 300 {
+		var fail struct {
+			Error string `json:"error"`
+		}
+		json.Unmarshal(raw, &fail)
+		if fail.Error == "" {
+			fail.Error = resp.Status
+		}
+		return errors.New(fail.Error)
+	}
+	if out == nil {
+		return nil
+	}
+	return json.Unmarshal(raw, out)
+}
+
+// hostedPushThread sends a locally written thread up, stamped with the ids this
+// machine minted. Re-sending one is safe: the backend answers with the row it
+// already holds instead of creating a second one.
+func hostedPushThread(c Config, slug string, thread *localThread, first *localComment) (threadID, commentID string, err error) {
+	var out struct {
+		ID        string `json:"id"`
+		CommentID string `json:"comment_id"`
+	}
+	err = hostedThreadCall(c, http.MethodPost, slug, "/threads", map[string]string{
+		"selector":          thread.Selector,
+		"anchor_text":       thread.AnchorText,
+		"body":              first.Body,
+		"signature":         thread.ID,
+		"comment_signature": first.ID,
+	}, &out)
+	return out.ID, out.CommentID, err
+}
+
+func hostedPushComment(c Config, slug, hostedThreadID string, comment *localComment) (string, error) {
+	var out struct {
+		ID string `json:"id"`
+	}
+	err := hostedThreadCall(c, http.MethodPost, slug,
+		"/threads/"+url.PathEscape(hostedThreadID)+"/comments",
+		map[string]string{"body": comment.Body, "signature": comment.ID}, &out)
+	return out.ID, err
+}
+
+func hostedEditComment(c Config, slug, threadID, commentID, body string) error {
+	return hostedThreadCall(c, http.MethodPatch, slug,
+		"/threads/"+url.PathEscape(threadID)+"/comments/"+url.PathEscape(commentID),
+		map[string]string{"body": body}, nil)
+}
+
+func hostedDeleteComment(c Config, slug, threadID, commentID string) error {
+	return hostedThreadCall(c, http.MethodDelete, slug,
+		"/threads/"+url.PathEscape(threadID)+"/comments/"+url.PathEscape(commentID), nil, nil)
+}
+
+func hostedSetThreadStatus(c Config, slug, threadID, action string) error {
+	return hostedThreadCall(c, http.MethodPost, slug,
+		"/threads/"+url.PathEscape(threadID)+"/"+action, nil, nil)
 }
 
 func hostedThreadMutation(c Config, slug, path string, body any) error {
