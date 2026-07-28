@@ -1,16 +1,32 @@
 @import 'tailwindcss';
 
-@theme {
-  --color-paper: #ffffff;
-  --color-paper-2: #fafafa;
-  --color-ink: #141414;
-  --color-ink2: #545454;
-  --color-muted: #8b8b8b;
-  --color-line: #e6e6e4;
-  --color-line-2: #c9c9c6;
-  --color-line-strong: #1a1a1a;
+/* ---------------------------------------------------------------------------
+   Lattice — marketing surface
 
-  --font-serif: 'Fraunces Variable', ui-serif, Georgia, serif;
+   Monochrome product site: Newsreader for speech, Geist for UI. Near-white
+   paper, near-black ink. Soft 14–16px radii on surfaces, full pill on controls.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --color-paper: #fdfdfc;
+  --color-paper-2: #f6f6f4;
+  --color-surface: #ffffff;
+  --color-ink: #0f0f0e;
+  --color-ink2: #4a4a46;
+  --color-muted: #8a8a85;
+  --color-rule: #e7e7e4;
+  --color-rule-strong: #c9c9c5;
+
+  /* Inverted surface. The greys are pulled from the paper hue, not from a
+     neutral ramp, so a dark band reads as the same paper turned over. */
+  --color-deep: #0e0e0d;
+  --color-deep-ink: #f4f3f0;
+  --color-deep-ink2: #b8b6b0;
+  --color-deep-muted: #918f88;
+  --color-deep-rule: rgb(244 243 240 / 0.15);
+  --color-deep-rule-strong: rgb(244 243 240 / 0.26);
+
+  --font-serif: 'Newsreader Variable', ui-serif, Georgia, serif;
   --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
 
@@ -23,119 +39,193 @@
 
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: 5.5rem;
+  scroll-padding-top: 6rem;
 }
 
 body {
   @apply bg-paper font-sans text-ink antialiased;
   font-size: 16px;
-  line-height: 1.65;
+  line-height: 1.6;
   text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: #141414;
-  color: #ffffff;
+  background: var(--color-ink);
+  color: var(--color-paper);
 }
 
 :focus-visible {
-  outline: 2px solid #141414;
+  outline: 2px solid var(--color-ink);
   outline-offset: 3px;
-  border-radius: 1px;
+  border-radius: 2px;
 }
 
-/* ---------- layout primitives ---------- */
+/* ---------- shell ---------- */
 
-.wrap {
-  @apply mx-auto w-full max-w-[1160px] px-6 md:px-10;
+.shell {
+  @apply mx-auto w-full max-w-[1120px] px-6 md:px-10;
 }
 
-.wrap-narrow {
-  @apply mx-auto w-full max-w-[720px] px-6 md:px-10;
-}
-
-.section {
+.band {
   @apply py-24 md:py-32;
 }
 
-.eyebrow {
-  @apply block font-mono text-[13px] text-muted;
+/* Legacy stack helper for download / 404 while those pages catch up */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
-.eyebrow .idx {
-  @apply mr-3 text-ink;
+.note {
+  color: var(--color-ink2);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  max-width: 42ch;
 }
 
-.h-display {
-  @apply font-serif font-normal text-ink;
-  font-size: clamp(2rem, 4vw, 3.1rem);
-  line-height: 1.12;
-  letter-spacing: -0.015em;
+/* ---------- type ---------- */
+
+.display {
+  @apply font-serif text-ink;
+  font-size: clamp(2.6rem, 5vw, 4.6rem);
+  font-weight: 400;
+  font-variation-settings: 'opsz' 60;
+  letter-spacing: -0.022em;
+  line-height: 1.02;
+}
+
+.display em {
+  font-style: normal;
+}
+
+.h2 {
+  @apply font-serif text-ink;
+  font-size: clamp(2.1rem, 3.4vw, 3.1rem);
+  font-weight: 400;
+  font-variation-settings: 'opsz' 40;
+  letter-spacing: -0.018em;
+  line-height: 1.06;
   text-wrap: balance;
-  font-variation-settings: 'opsz' 100;
+}
+
+.h3 {
+  @apply font-serif text-ink;
+  font-size: clamp(1.35rem, 1.9vw, 1.6rem);
+  font-weight: 500;
+  font-variation-settings: 'opsz' 20;
+  letter-spacing: -0.012em;
+  line-height: 1.2;
+}
+
+.statement {
+  @apply font-serif text-ink;
+  font-size: clamp(1.7rem, 2.9vw, 2.5rem);
+  font-weight: 400;
+  font-variation-settings: 'opsz' 32;
+  letter-spacing: -0.016em;
+  line-height: 1.18;
+  text-wrap: balance;
 }
 
 .lede {
   @apply text-ink2;
-  max-width: 58ch;
-  font-size: 1.0625rem;
-  line-height: 1.7;
+  max-width: 54ch;
+  font-size: 1.125rem;
+  line-height: 1.62;
 }
 
-.prose-plain {
+.copy {
   @apply text-ink2;
-  max-width: 60ch;
+  max-width: 62ch;
+  font-size: 1rem;
+  line-height: 1.7;
+  text-wrap: pretty;
 }
 
-.prose-plain p + p {
-  @apply mt-5;
+.copy p + p {
+  margin-top: 1.15rem;
 }
 
-/* ---------- fine grain ---------- */
-
-.grain {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  pointer-events: none;
-  opacity: 0.035;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+.micro {
+  @apply text-muted;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 
-/* ---------- header ---------- */
-
-.site-header {
-  @apply fixed inset-x-0 top-0 z-50 border-b border-transparent;
-  transition:
-    background-color 0.3s ease,
-    border-color 0.3s ease;
+/* Ordinal that labels a step or a beat. Tabular so the column stays true. */
+.step-num {
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
 }
 
-.site-header.is-solid {
-  @apply border-line;
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(14px);
+/* ---------- inverted surface ----------
+   Wraps any run of content sitting on --color-deep. The type scale is the one
+   the rest of the page uses; only the ink swaps, so a dark band never needs a
+   hex in the template. */
+
+.on-deep .display,
+.on-deep .h2,
+.on-deep .h3,
+.on-deep .statement {
+  color: var(--color-deep-ink);
 }
 
-.nav-link {
-  @apply font-mono text-[13px] text-ink2 transition-colors duration-200 hover:text-ink;
+.on-deep .copy,
+.on-deep .lede {
+  color: var(--color-deep-ink2);
 }
 
-.locale-option {
-  @apply text-left text-ink2;
+.on-deep .micro,
+.on-deep .step-num {
+  color: var(--color-deep-muted);
 }
 
-.locale-option[aria-current='true'] {
+.on-deep .link-ink {
+  color: var(--color-deep-ink);
+  text-decoration-color: var(--color-deep-rule-strong);
+}
+
+.on-deep .link-ink:hover {
+  text-decoration-color: var(--color-deep-ink);
+}
+
+.on-deep :focus-visible {
+  outline-color: var(--color-deep-ink);
+}
+
+/* inline identifiers keep the body face; only quoted terminal input is mono */
+code {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.cmdblock-body code {
+  font-family: var(--font-mono);
+}
+
+.link-ink {
   @apply text-ink;
   text-decoration: underline;
-  text-underline-offset: 0.3em;
+  text-decoration-color: var(--color-rule-strong);
+  text-underline-offset: 0.28em;
+  transition: text-decoration-color 0.2s ease;
 }
 
-/* ---------- buttons ---------- */
+.link-ink:hover {
+  text-decoration-color: var(--color-ink);
+}
+
+/* ---------- controls ---------- */
 
 .btn {
-  @apply inline-flex h-12 items-center justify-center gap-2.5 rounded-full border px-6 font-mono text-[13.5px] whitespace-nowrap;
+  @apply inline-flex h-12 items-center justify-center gap-2.5 rounded-full border px-6 text-[15px] whitespace-nowrap;
+  font-weight: 500;
   transition:
     background-color 0.2s ease,
     color 0.2s ease,
@@ -147,58 +237,63 @@ body {
   transform: translateY(-1px);
 }
 
+.btn:active {
+  transform: translateY(0) scale(0.985);
+}
+
 .btn-primary {
   @apply border-ink bg-ink text-paper;
 }
 
 .btn-primary:hover {
-  background: #3a3a3a;
-  border-color: #3a3a3a;
+  background: #2f2f2c;
+  border-color: #2f2f2c;
 }
 
 .btn-ghost {
-  @apply border-line-2 bg-paper text-ink;
+  @apply border-rule-strong bg-transparent text-ink;
 }
 
 .btn-ghost:hover {
   @apply border-ink;
 }
 
-/* ---------- command blocks (light) ---------- */
+/* ---------- surfaces ---------- */
 
-.cmdblock {
-  @apply overflow-hidden rounded-[14px] border border-line bg-paper;
-  box-shadow: 0 12px 34px rgb(20 20 20 / 0.035);
+.panel {
+  border: 1px solid var(--color-rule);
+  border-radius: 14px;
+  background: var(--color-surface);
 }
 
-.cmdblock-head {
-  @apply flex items-center justify-between gap-4 border-b border-line bg-paper-2 px-4 py-2.5 font-mono text-xs text-muted;
+/* the one place a command is quoted: still sans, set apart by its surface */
+.command {
+  @apply inline-flex items-center gap-3 rounded-full border border-rule-strong bg-surface py-2.5 pr-3 pl-5 text-[14.5px] text-ink;
 }
 
-.cmdblock-body {
-  @apply overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-ink md:px-5;
-}
-
-.cmdblock-body .cm {
+.command span[data-prompt] {
   @apply text-muted;
 }
 
 .copy-btn {
-  @apply inline-flex items-center gap-1.5 rounded-full border border-line-2 bg-paper px-3 py-1 font-mono text-[11.5px] text-ink2 transition-colors duration-200;
+  @apply inline-flex items-center gap-1.5 rounded-full border border-rule-strong bg-surface px-3.5 py-1.5 text-[13px] text-ink2;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .copy-btn:hover {
   @apply border-ink text-ink;
 }
 
-/* ---------- reveal on scroll: restrained ---------- */
+/* ---------- motion ---------- */
 
 .reveal {
   opacity: 0;
-  transform: translateY(6px);
+  transform: translateY(10px);
   transition:
-    opacity 0.7s ease var(--d, 0s),
-    transform 0.7s ease var(--d, 0s);
+    opacity 0.75s var(--ease-out-expo) var(--d, 0s),
+    transform 0.75s var(--ease-out-expo) var(--d, 0s);
 }
 
 .reveal.is-visible {
@@ -210,30 +305,123 @@ body {
   html {
     scroll-behavior: auto;
   }
+
   .reveal {
     opacity: 1;
     transform: none;
     transition: none;
   }
-  .fog-drift {
-    animation: none !important;
+
+  .btn:hover {
+    transform: none;
   }
+}
+
+/* ---------- header ---------- */
+
+.site-header {
+  @apply fixed inset-x-0 top-0 z-50 border-b border-transparent;
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    backdrop-filter 0.3s ease,
+    opacity 0.3s ease,
+    transform 0.4s var(--ease-out-expo);
+}
+
+.site-header.is-solid {
+  border-color: var(--color-rule);
+  background: rgb(253 253 252 / 0.9);
+  backdrop-filter: blur(14px);
+}
+
+/* The pinned carousel owns the whole viewport: the bar drops its surface so
+   the panels read as a full page rather than as content under a chrome. */
+.site-header.is-clear {
+  border-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+/* And then leaves altogether, because a panel is exactly one screen tall and
+   the bar was standing on the top 4.5rem of it. */
+.site-header.is-gone {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Every viewport unit is a guess about a phone's browser chrome, and a guess
+   that is a few pixels short shows up as a strip of the next section under the
+   pinned panel. While the carousel holds the screen, the page paints the whole
+   viewport in the section's own colour: above everything below it, below the
+   panels themselves, and outside the pinned element — which on a touch device
+   GSAP pins with a transform, and a transform would trap a fixed child inside
+   the very box we are trying to paint past. */
+body.is-margin-locked::after {
+  content: '';
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  background: var(--color-paper-2);
+  pointer-events: none;
+}
+
+.nav-link {
+  @apply text-[15px] text-ink2;
+  transition: color 0.2s ease;
+}
+
+.nav-link:hover {
+  @apply text-ink;
+}
+
+.locale-option {
+  @apply text-left text-[14px] text-ink2;
+  transition: color 0.2s ease;
+}
+
+.locale-option:hover {
+  @apply text-ink;
+}
+
+.locale-option[aria-current='true'] {
+  @apply text-ink;
+  text-decoration: underline;
+  text-decoration-color: var(--color-ink);
+  text-underline-offset: 0.3em;
 }
 
 /* ---------- download page ---------- */
 
-.surface-card {
-  @apply rounded-[18px] border border-line bg-paper;
-  box-shadow: 0 18px 50px rgb(20 20 20 / 0.055);
+.cmdblock {
+  @apply overflow-hidden rounded-[14px] border border-rule bg-surface;
+}
+
+.cmdblock-head {
+  @apply flex items-center justify-between gap-4 border-b border-rule bg-paper-2 px-4 py-2.5 text-[13px] text-muted;
+}
+
+/* Terminal input is the one thing that stays monospaced: a command is quoted
+   exactly, and proportional glyphs make flags and paths ambiguous. */
+.cmdblock-body {
+  @apply overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-ink md:px-5;
+  font-variant-ligatures: none;
+  font-feature-settings:
+    'liga' 0,
+    'calt' 0;
+}
+
+.cmdblock-body .cm {
+  @apply text-muted;
 }
 
 .download-table {
-  @apply overflow-hidden rounded-[18px] border border-line bg-paper;
-  box-shadow: 0 18px 50px rgb(20 20 20 / 0.045);
+  @apply overflow-hidden rounded-[14px] border border-rule bg-surface;
 }
 
 .os-row {
-  @apply relative border-t border-line transition-colors duration-200;
+  @apply relative border-t border-rule transition-colors duration-200;
 }
 
 .os-row:first-child {

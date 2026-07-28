@@ -1,5 +1,7 @@
 import { initPlatform, detectOS } from './detect-os';
 import { getCurrentLocale, initLocale, translateLabel } from './locale';
+import { initMarginCarousel } from './margin-carousel';
+import { initMarginDemos } from './margin-demos';
 
 const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -38,7 +40,14 @@ function initReveals(): void {
   );
 
   document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
-  document.querySelectorAll('.hero .reveal').forEach((el) => el.classList.add('is-visible'));
+
+  // The hero plays its own entrance on load: two frames so the initial state
+  // paints first and the transition actually runs.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.hero .reveal').forEach((el) => el.classList.add('is-visible'));
+    });
+  });
 }
 
 function initCopy(): void {
@@ -84,3 +93,5 @@ initLocale();
 initHeader();
 initReveals();
 initCopy();
+initMarginCarousel();
+initMarginDemos();
