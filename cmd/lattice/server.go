@@ -397,14 +397,20 @@ func (s *server) serveSummary(w http.ResponseWriter, r *http.Request) {
 	if _, shared := sharedSlug(slug); shared {
 		poll = "20000"
 	}
+	// Theme accent from the user's config - comment/outline bridges prefer the
+	// summary's own --accent token, then this, then ink (monochrome).
+	accentAttr := ""
+	if accent := strings.ToLower(strings.TrimSpace(loadConfig().Theme.Accent)); hexColor.MatchString(accent) {
+		accentAttr = ` data-accent="` + accent + `"`
+	}
 	// State goes in before the poll bridge on purpose: poll.js fires the shared
 	// `lattice:ready` event, and a page waiting on it must find both bridges.
 	tags := `<script id="lattice-state" data-endpoint="/api/state/` + slug + `" data-poll="` + poll + `">` + string(s.stateJS()) + `</script>` +
 		`<script id="lattice-poll" data-endpoint="/api/polls/` + slug + `/submit" data-results="/api/polls/` + slug + `/results">` + string(s.pollJS()) + `</script>` +
-		`<script id="lattice-comments" data-endpoint="/api/comments/` + slug + `/threads">` + string(s.commentJS()) + `</script>` +
+		`<script id="lattice-comments" data-endpoint="/api/comments/` + slug + `/threads"` + accentAttr + `>` + string(s.commentJS()) + `</script>` +
 		// After the comment bridge on purpose: the rail reads its threads through
 		// window.lattice.comments and would come up empty if it ran first.
-		`<script id="lattice-outline">` + string(s.outlineJS()) + `</script>` +
+		`<script id="lattice-outline"` + accentAttr + `>` + string(s.outlineJS()) + `</script>` +
 		`<script id="lattice-reload" data-slug="` + slug + `">` + string(s.reloadJS()) + `</script>`
 	w.Write(injectNoindex(injectScript(b, tags)))
 }
