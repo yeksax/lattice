@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -17,6 +18,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -172,6 +174,8 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("GET /api/shares", s.listShares)
 	mux.HandleFunc("POST /api/shares", s.postShare)
 	mux.HandleFunc("DELETE /api/shares/{slug}", s.deleteShare)
+	mux.HandleFunc("GET /api/shares/{slug}/versions", s.listShareVersions)
+	mux.HandleFunc("GET /api/shares/{slug}/versions/{version}", s.getShareVersion)
 	mux.HandleFunc("GET /api/polls/{slug}", s.listPoll)
 	mux.HandleFunc("GET /api/polls/{slug}/results", s.pollResults)
 	mux.HandleFunc("POST /api/polls/{slug}/submit", s.submitPoll)
@@ -468,6 +472,53 @@ func (s *server) postShare(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusCreated)
 	writeJSON(w, map[string]any{"slug": req.Slug, "url": url, "domains": domains})
+}
+
+// Snapshot history. The list feeds the shared view's history panel; the single
+// version proxies the hosted bytes through the daemon so the dashboard can
+// frame a past revision same-origin, with the token never leaving this process.
+func (s *server) listShareVersions(w http.ResponseWriter, r *http.Request) {
+	c := loadConfig()
+	if c.Hosted.Token == "" {
+		httpErr(w, http.StatusUnauthorized, errNotLoggedIn.Error())
+		return
+	}
+	versions, err := hostedVersions(c, r.PathValue("slug"))
+	if errors.Is(err, errNoHistoryAPI) {
+		// Distinct status so the dashboard can say this in its own words.
+		httpErr(w, http.StatusNotImplemented, err.Error())
+		return
+	}
+	if err != nil {
+		httpErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	if versions == nil {
+		versions = []hostedVersion{}
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, versions)
+}
+
+func (s *server) getShareVersion(w http.ResponseWriter, r *http.Request) {
+	c := loadConfig()
+	if c.Hosted.Token == "" {
+		httpErr(w, http.StatusUnauthorized, errNotLoggedIn.Error())
+		return
+	}
+	version, err := strconv.Atoi(r.PathValue("version"))
+	if err != nil || version < 1 {
+		httpErr(w, http.StatusBadRequest, "version must be a positive integer")
+		return
+	}
+	html, err := hostedVersionHTML(c, r.PathValue("slug"), version)
+	if err != nil {
+		httpErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(html)
 }
 
 func (s *server) deleteShare(w http.ResponseWriter, r *http.Request) {

@@ -18,6 +18,11 @@ import (
 
 var errNotLoggedIn = errors.New("not logged in - run: lattice login <token>")
 
+// errNoHistoryAPI marks a backend older than the snapshot-history endpoints.
+// A self-hosted Worker can lag the CLI, and "method not allowed" is not an
+// answer anyone can act on.
+var errNoHistoryAPI = errors.New("this backend has no snapshot history API yet - deploy the current Worker")
+
 // --- config access from the CLI ----------------------------------------------
 //
 // The daemon owns the config file, so we go through its API when it's up (and
@@ -200,6 +205,73 @@ func hostedList(c Config) ([]hostedShareRow, error) {
 		shares[i].URL = hostedDisplayURL(c, shares[i].URL)
 	}
 	return shares, nil
+}
+
+type hostedVersion struct {
+	Version int   `json:"version"`
+	Created int64 `json:"created"`
+	Size    int64 `json:"size"`
+	Current bool  `json:"current"`
+}
+
+// hostedVersions lists a share's snapshot revisions, newest first.
+func hostedVersions(c Config, slug string) ([]hostedVersion, error) {
+	if c.Hosted.Token == "" {
+		return nil, errNotLoggedIn
+	}
+	resp, err := hostedAPI(c, http.MethodGet, "/v1/shares/"+slug+"/versions", nil)
+	if err != nil {
+		return nil, fmt.Errorf("hosted API unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	// A backend without these routes falls through to its slug handler, which
+	// answers 405 for a GET. A 404 here is a real "not shared" and keeps its
+	// own message.
+	if resp.StatusCode == http.StatusMethodNotAllowed {
+		return nil, errNoHistoryAPI
+	}
+	var out struct {
+		Versions []hostedVersion `json:"versions"`
+		Error    string          `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		if out.Error == "" {
+			out.Error = resp.Status
+		}
+		return nil, errors.New(out.Error)
+	}
+	return out.Versions, nil
+}
+
+// hostedVersionHTML fetches one past revision's bytes so the dashboard can
+// frame it locally instead of sending the reader to the hosted origin.
+func hostedVersionHTML(c Config, slug string, version int) ([]byte, error) {
+	if c.Hosted.Token == "" {
+		return nil, errNotLoggedIn
+	}
+	resp, err := hostedAPI(c, http.MethodGet, fmt.Sprintf("/v1/shares/%s/versions/%d", slug, version), nil)
+	if err != nil {
+		return nil, fmt.Errorf("hosted API unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		var out struct {
+			Error string `json:"error"`
+		}
+		json.Unmarshal(body, &out)
+		if out.Error == "" {
+			out.Error = resp.Status
+		}
+		return nil, errors.New(out.Error)
+	}
+	return body, nil
 }
 
 func hostedSubmissions(c Config, slug string) ([]json.RawMessage, error) {
