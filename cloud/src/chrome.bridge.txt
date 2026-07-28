@@ -58,11 +58,12 @@
     .title{min-width:0;flex:1;overflow:hidden;color:var(--ink);font-size:13px;font-weight:500;
       text-overflow:ellipsis;white-space:nowrap}
     .actions{display:inline-flex;align-items:center;flex:0 0 auto;gap:2px}
-    button,a{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:0;border-radius:999px;
+    /* .count/.comment-thread keep their own sizing (dashboard excludes them the same way). */
+    button:not(.count):not(.comment-thread),a{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:0;border-radius:999px;
       background:none;color:var(--ink-2);font:500 12.5px/1 inherit;text-decoration:none;cursor:pointer;
       transition:color 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}
-    button:hover,a:hover{color:var(--ink);background:var(--fill)}
-    button:active,a:active{scale:.96}
+    button:not(.count):not(.comment-thread):hover,a:hover{color:var(--ink);background:var(--fill)}
+    button:not(.count):not(.comment-thread):active,a:active{scale:.96}
     button:focus-visible,a:focus-visible{outline:2px solid var(--comment);outline-offset:2px}
     svg{width:14px;height:14px;flex-shrink:0}
     .gh{margin-left:4px;color:var(--muted)}
