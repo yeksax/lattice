@@ -17,6 +17,7 @@
   let editingCommentID = '';
   let deletingCommentID = '';
   let openReactionPickerID = '';
+  let replyingThreadID = ''; // reply composer is opt-in, not always on screen
   let commentActionError;
   let reactionError; // a toggle that bounced, shown under the chips it undid
 
@@ -67,8 +68,8 @@
     .thread.is-resolved .comment p,.thread.is-resolved .comment-head b{opacity:.62}
     .reactions{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:7px}.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:0;border-radius:999px;background:var(--sub);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink-2);cursor:pointer;font-size:11.5px;line-height:1;transition:background-color 120ms cubic-bezier(.2,0,0,1),box-shadow 120ms cubic-bezier(.2,0,0,1)}
     .chip:hover{background:var(--paper);box-shadow:inset 0 0 0 1px var(--muted)}.chip:active{scale:.96}.chip.is-mine{background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px var(--blue);color:var(--ink)}.chip-emoji{font-size:12.5px}.chip-count{font-variant-numeric:tabular-nums}.reactions .action-error{flex:0 0 100%;margin-top:3px}
-    .add-reaction{padding:0;justify-content:center;width:24px;background:transparent;box-shadow:none;color:var(--muted);font-size:14px;opacity:.55}.add-reaction:hover{background:var(--sub);box-shadow:none;color:var(--ink);opacity:1}.reaction-add{position:relative;display:inline-flex}
-    .reaction-picker{position:absolute;z-index:5;bottom:-4px;left:28px;display:grid;grid-template-columns:repeat(4,28px);gap:2px;padding:5px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #0002,0 14px 34px #0001}.reaction-picker button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;cursor:pointer;font-size:15px;line-height:1}.reaction-picker button:hover{background:var(--sub)}.reaction-picker button:active{scale:.92}
+    .add-reaction,.reply-action{display:inline-grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;box-shadow:none;color:var(--muted);cursor:pointer;font-size:17px;line-height:1;opacity:.72}.add-reaction:hover,.reply-action:hover{background:var(--sub);color:var(--ink);opacity:1}.add-reaction:active,.reply-action:active{scale:.96}.reply-action{font-size:15px}.reply-action.is-active{background:rgba(22,131,255,.12);color:var(--ink);opacity:1}.reaction-add{position:relative;display:inline-flex}
+    .reaction-picker{position:absolute;z-index:5;bottom:-4px;left:32px;display:grid;grid-template-columns:repeat(4,28px);gap:2px;padding:5px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #0002,0 14px 34px #0001}.reaction-picker button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;cursor:pointer;font-size:15px;line-height:1}.reaction-picker button:hover{background:var(--sub)}.reaction-picker button:active{scale:.92}
     .composer{display:grid;grid-template-columns:24px 1fr;gap:10px;margin-top:16px}.composer.is-reply{margin-left:26px}.composer.is-new-thread{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}.composer-box{position:relative}.composer textarea{display:block;width:100%;height:44px;min-height:44px;max-height:120px;resize:none;overflow-y:auto;padding:11px 44px 10px 12px;border:0;border-radius:12px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px transparent;transition:box-shadow 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}.composer textarea:focus{background:var(--paper);box-shadow:inset 0 0 0 1px var(--blue)}.send{position:absolute;right:6px;bottom:6px;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);cursor:pointer}.send:disabled{opacity:.24;cursor:default}.send:not(:disabled):active{scale:.96}.error{grid-column:2;color:#c43b3b;font-size:11px}
     .launcher{position:fixed;z-index:2147483645;right:18px;bottom:18px;display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);box-shadow:0 2px 5px #0002,0 10px 28px #0003;cursor:pointer}.launcher:active{scale:.96}
     @media(prefers-color-scheme:dark){:host{--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#777;--paper:#171717;--sub:#242424;--line:#303030}}
@@ -355,6 +356,7 @@
     editingCommentID = '';
     deletingCommentID = '';
     openReactionPickerID = '';
+    replyingThreadID = '';
     commentActionError = undefined;
     reactionError = undefined;
   };
@@ -451,10 +453,10 @@
     });
   };
 
-  // The reaction strip under a comment: the emoji already on it, and the button
-  // that adds one. Chips are toggles - clicking one you are already in takes
-  // your name back off it, which is why the same request serves both.
-  const reactionStrip = (thread, comment) => {
+  // The reaction strip under a comment: the emoji already on it, the button
+  // that adds one, and (on the root comment) the reply toggle. Chips are
+  // toggles - clicking one you are already in takes your name back off it.
+  const reactionStrip = (thread, comment, { canReply = false } = {}) => {
     const strip = document.createElement('div');
     strip.className = 'reactions';
     const toggle = async (emoji) => {
@@ -503,7 +505,7 @@
     });
 
     const add = document.createElement('button');
-    add.className = 'chip add-reaction';
+    add.className = 'add-reaction';
     add.type = 'button';
     add.textContent = '☺';
     add.setAttribute('aria-label', 'Add reaction');
@@ -533,6 +535,27 @@
       wrap.append(picker);
     }
     strip.append(wrap);
+    if (canReply) {
+      const replyBtn = document.createElement('button');
+      replyBtn.className = 'reply-action' + (replyingThreadID === thread.id ? ' is-active' : '');
+      replyBtn.type = 'button';
+      replyBtn.textContent = '↩';
+      replyBtn.title = 'Reply';
+      replyBtn.setAttribute('aria-label', 'Reply');
+      replyBtn.setAttribute('aria-expanded', String(replyingThreadID === thread.id));
+      replyBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (replyingThreadID === thread.id) {
+          replyingThreadID = '';
+        } else {
+          replyingThreadID = thread.id;
+          expandedThreads.add(thread.id);
+        }
+        openReactionPickerID = '';
+        render();
+      });
+      strip.append(replyBtn);
+    }
     // An optimistic chip that gets rolled back has to say why, or it just
     // flickers and lies.
     if (reactionError?.id === comment.id) {
@@ -645,7 +668,7 @@
       });
     } else {
       main.append(body);
-      if (!comment.deleted) main.append(reactionStrip(thread, comment));
+      if (!comment.deleted) main.append(reactionStrip(thread, comment, { canReply: !isReply }));
     }
     row.append(avatar(comment.author), main);
 
@@ -793,6 +816,7 @@
         await submit(body);
         composingSelector = '';
         newThreadSelector = '';
+        replyingThreadID = '';
         exitCommentMode(true);
       } catch (cause) {
         if (form.isConnected) {
@@ -903,47 +927,52 @@
         section.append(toggle);
         if (expanded) replies.forEach((comment) => section.append(commentRow(thread, comment, true)));
       }
-      const reply = composer('Reply', async (message) => {
-        const tempId = tempID('c');
-        const created = nowSecs();
-        const comment = {
-          id: tempId,
-          author: 'You',
-          author_kind: 'human',
-          body: message,
-          created,
-          updated: created,
-          can_edit: true,
-          reactions: [],
-        };
-        const op = { type: 'reply', tempId, threadId: thread.id, comment };
-        pendingCreates.push(op);
-        const current = findThread(thread.id) || thread;
-        current.comments = (current.comments || []).concat(comment);
-        current.updated = created;
-        // Answering a thread is asking to see it: never file your own reply
-        // away behind the toggle you just wrote past.
-        expandedThreads.add(thread.id);
-        commentActionError = undefined;
-        render();
-        try {
-          await request(`${endpoint}/${encodeURIComponent(thread.id)}/comments`, {
-            method: 'POST',
-            body: JSON.stringify({ body: message, author: 'You', author_kind: 'human' }),
-          });
-          dropPendingCreate(op);
-          await refresh();
-        } catch (cause) {
-          dropPendingCreate(op);
-          const live = findThread(thread.id);
-          if (live) live.comments = (live.comments || []).filter((row) => row.id !== tempId);
-          commentActionError = { id: thread.id, message: cause.message || 'Could not reply' };
+      if (replyingThreadID === thread.id) {
+        const reply = composer('Reply', async (message) => {
+          const tempId = tempID('c');
+          const created = nowSecs();
+          const comment = {
+            id: tempId,
+            author: 'You',
+            author_kind: 'human',
+            body: message,
+            created,
+            updated: created,
+            can_edit: true,
+            reactions: [],
+          };
+          const op = { type: 'reply', tempId, threadId: thread.id, comment };
+          pendingCreates.push(op);
+          const current = findThread(thread.id) || thread;
+          current.comments = (current.comments || []).concat(comment);
+          current.updated = created;
+          // Answering a thread is asking to see it: never file your own reply
+          // away behind the toggle you just wrote past.
+          expandedThreads.add(thread.id);
+          replyingThreadID = '';
+          commentActionError = undefined;
           render();
-          throw cause;
-        }
-      });
-      reply.form.classList.add('is-reply');
-      section.append(reply.form);
+          try {
+            await request(`${endpoint}/${encodeURIComponent(thread.id)}/comments`, {
+              method: 'POST',
+              body: JSON.stringify({ body: message, author: 'You', author_kind: 'human' }),
+            });
+            dropPendingCreate(op);
+            await refresh();
+          } catch (cause) {
+            dropPendingCreate(op);
+            const live = findThread(thread.id);
+            if (live) live.comments = (live.comments || []).filter((row) => row.id !== tempId);
+            replyingThreadID = thread.id;
+            commentActionError = { id: thread.id, message: cause.message || 'Could not reply' };
+            render();
+            throw cause;
+          }
+        });
+        reply.form.classList.add('is-reply');
+        section.append(reply.form);
+        queueMicrotask(() => reply.area.focus());
+      }
       body.append(section);
     });
     // Starting another thread here is not a mode you have to find a button for:
