@@ -91,8 +91,13 @@ async function route(req: Request, env: Env): Promise<Response> {
   // not answer with `thread-signature` cannot dedupe a pushed row, so the
   // daemon must not push at all - re-pushing into a store with no signatures
   // would grow a copy of every comment on every read.
+  // no-store because this is a capability probe, not a status page: an edge
+  // holding yesterday's answer would tell a current client that the deployment
+  // it is talking to cannot dedupe, and it would stop writing for no reason.
   if (path === '/' || path === '/health') {
-    return json({ ok: true, service: 'lattice-share', capabilities: CAPABILITIES });
+    return json({ ok: true, service: 'lattice-share', capabilities: CAPABILITIES }, 200, {
+      'Cache-Control': 'no-store',
+    });
   }
   return json({ error: 'not found' }, 404);
 }
@@ -701,9 +706,9 @@ function parseStringArray(value: string | null): string[] {
   }
 }
 
-function json(v: unknown, status = 200): Response {
+function json(v: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(v), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
   });
 }
