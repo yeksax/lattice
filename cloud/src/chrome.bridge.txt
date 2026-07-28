@@ -22,11 +22,35 @@
 
   const pt = (navigator.language || '').toLowerCase().startsWith('pt');
   const t = pt
-    ? { comment: 'Comentar', commentTitle: 'Adicionar ou ver comentários', download: 'Baixar', downloadTitle: 'Baixar o arquivo original' }
-    : { comment: 'Comment', commentTitle: 'Add or review comments', download: 'Download', downloadTitle: 'Download the original file' };
+    ? {
+        comment: 'Comentar',
+        commentTitle: 'Adicionar ou ver comentários',
+        threadsTitle: 'Ver discussões',
+        threadsAria: 'Discussões',
+        threadsEmpty: 'Nenhuma discussão ainda.',
+        someone: 'alguém',
+        edited: 'editado',
+        now: 'agora',
+        replies: (n) => (n === 1 ? '1 resposta' : n + ' respostas'),
+        download: 'Baixar',
+        downloadTitle: 'Baixar o arquivo original',
+      }
+    : {
+        comment: 'Comment',
+        commentTitle: 'Add or review comments',
+        threadsTitle: 'Browse comment threads',
+        threadsAria: 'Comment threads',
+        threadsEmpty: 'No threads yet.',
+        someone: 'someone',
+        edited: 'edited',
+        now: 'now',
+        replies: (n) => (n === 1 ? '1 reply' : n + ' replies'),
+        download: 'Download',
+        downloadTitle: 'Download the original file',
+      };
 
   const css = `
-    :host{all:initial;--paper:#fff;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--line:#e6e6e3;--fill:#f5f5f4;--blue:#1683ff;
+    :host{all:initial;--paper:#fff;--ink:#171717;--ink-2:#565656;--muted:#8c8c8c;--line:#e6e6e3;--fill:#f5f5f4;--bg-elev:#fff;--line-strong:#e6e6e3;--comment:var(--ink);
       font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
     *{box-sizing:border-box}
     .bar{position:fixed;z-index:2147483644;top:0;left:0;right:0;display:flex;align-items:center;gap:16px;
@@ -39,14 +63,58 @@
       transition:color 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}
     button:hover,a:hover{color:var(--ink);background:var(--fill)}
     button:active,a:active{scale:.96}
-    button:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+    button:focus-visible,a:focus-visible{outline:2px solid var(--comment);outline-offset:2px}
     svg{width:14px;height:14px;flex-shrink:0}
     .gh{margin-left:4px;color:var(--muted)}
     .gh svg{width:15px;height:15px}
-    #comment.is-active{color:var(--blue);background:color-mix(in srgb,var(--blue) 10%,transparent)}
-    .count{display:grid;place-items:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;
-      background:var(--blue);color:#fff;font-size:10px;font-weight:600;font-variant-numeric:tabular-nums}
-    .count[hidden]{display:none}
+    .comment-wrap{position:relative;display:inline-flex}
+    .reader-comment{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:7px 10px;color:var(--ink-2);
+      background:none;border-radius:999px;transition:color 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}
+    .reader-comment:hover{color:var(--ink);background:var(--fill)}
+    .reader-comment:has(.count:not([hidden])){padding-right:7px}
+    .reader-comment.is-active{color:var(--comment);background:color-mix(in srgb,var(--comment) 10%,transparent)}
+    #comment{min-height:0;padding:0;border-radius:0;color:inherit;background:transparent;font:inherit}
+    #comment:hover,#comment:active{background:transparent;scale:none}
+    .count{display:grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border:0;border-radius:999px;
+      background:var(--comment);color:#fff;font:600 11px/1 inherit;font-variant-numeric:tabular-nums;cursor:pointer;
+      transition:scale 120ms cubic-bezier(.2,0,0,1)}
+    .count:hover{scale:1.06}.count:active{scale:.94}.count[hidden]{display:none}.count[aria-expanded="true"]{scale:1.06}
+    .comment-pop{position:absolute;top:calc(100% + 8px);right:0;width:min(340px,calc(100vw - 24px));
+      max-height:min(420px,calc(100vh - 80px));overflow:auto;padding:6px;background:var(--bg-elev);
+      border:1px solid var(--line-strong);border-radius:20px;
+      box-shadow:0 16px 40px color-mix(in srgb,var(--ink) 10%,transparent);z-index:4}
+    .comment-pop[hidden]{display:none}
+    .comment-pop-empty{padding:14px 12px;color:var(--muted);font-size:12.5px;line-height:1.4}
+    .comment-thread{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px 10px;align-items:start;width:100%;
+      min-height:0;padding:10px 11px;border:0;border-radius:14px;background:transparent;color:var(--ink);
+      font:400 12.5px/1.4 inherit;text-align:left;cursor:pointer;
+      transition:background-color 140ms cubic-bezier(.2,0,0,1)}
+    .comment-thread:hover,.comment-thread:focus-visible{background:var(--fill);outline:none;scale:none}
+    .comment-thread:active{scale:.99}
+    .comment-thread.is-resolved .comment-thread-body,.comment-thread.is-resolved .comment-thread-author{opacity:.62}
+    .comment-thread-avatar{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;
+      background:var(--ink);color:var(--paper);font-size:11px;font-weight:600;line-height:1;text-transform:uppercase}
+    .comment-thread-main{display:flex;flex-direction:column;gap:4px;min-width:0}
+    .comment-thread-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;min-width:0;color:var(--muted);
+      font-size:11px;line-height:1.3}
+    .comment-thread-author{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);
+      font-size:12.5px;font-weight:600}
+    .comment-thread-edited{color:var(--muted)}
+    .comment-thread-body{margin:0;color:var(--ink-2);font-size:12.5px;line-height:1.45;display:-webkit-box;
+      overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:3;text-wrap:pretty;white-space:pre-wrap;
+      overflow-wrap:anywhere}
+    .comment-thread-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px;min-height:24px}
+    .comment-thread-replies{display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:11.5px;
+      font-variant-numeric:tabular-nums;line-height:1.3}
+    .comment-thread-replies[hidden]{display:none}
+    .comment-thread-replies svg{width:13px;height:13px;flex-shrink:0}
+    .comment-thread-reactions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:4px;margin-left:auto}
+    .comment-thread-reactions[hidden]{display:none}
+    .comment-thread-chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:8px;
+      background:transparent;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 10%,transparent);
+      color:var(--ink-2);font-size:11px;line-height:1}
+    .comment-thread-chip-emoji{font-size:13px;line-height:1}
+    .comment-thread-chip-count{font-variant-numeric:tabular-nums}
     /* Under ~560px the title is the first thing to go: the actions are why the
        bar exists, and the page states its own title two lines below anyway. */
     @media(max-width:560px){.title{display:none}.gh{display:none}}
@@ -54,7 +122,8 @@
   `;
 
   const icon = {
-    comment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/><path d="M8 10h8"/><path d="M12 6v8"/></svg>',
+    comment: '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24A104,104,0,0,0,36.18,176.88L24.83,210.93a16,16,0,0,0,20.24,20.24l34.05-11.35A104,104,0,1,0,128,24Zm0,192a87.87,87.87,0,0,1-44.06-11.81,8,8,0,0,0-6.54-.67L40,216,52.47,178.6a8,8,0,0,0-.66-6.54A88,88,0,1,1,128,216Z"/></svg>',
+    reply: '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M85.66,146.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,61.66L43.31,104ZM128,96H99.31l34.35-34.34a8,8,0,0,0-11.32-11.32l-48,48a8,8,0,0,0,0,11.32l48,48a8,8,0,0,0,11.32-11.32L99.31,112H128a88.1,88.1,0,0,1,88,88,8,8,0,0,0,16,0A104.11,104.11,0,0,0,128,96Z"/></svg>',
     download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>',
     // GitHub mark from svgl (id 575), same path the dashboard ships.
     github: '<svg viewBox="0 0 1024 1024" fill="none" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M512 0C229.12 0 0 229.12 0 512c0 226.56 146.56 417.92 350.08 485.76 25.6 4.48 35.2-10.88 35.2-24.32 0-12.16-.64-52.48-.64-95.36-128.64 23.68-161.92-31.36-172.16-60.16-5.76-14.72-30.72-60.16-52.48-72.32-17.92-9.6-43.52-33.28-.64-33.92 40.32-.64 69.12 37.12 78.72 52.48 46.08 77.44 119.68 55.68 149.12 42.24 4.48-33.28 17.92-55.68 32.64-68.48-113.92-12.8-232.96-56.96-232.96-252.8 0-55.68 19.84-101.76 52.48-137.6-5.12-12.8-23.04-65.28 5.12-135.68 0 0 42.88-13.44 140.8 52.48 40.96-11.52 84.48-17.28 128-17.28s87.04 5.76 128 17.28c97.92-66.56 140.8-52.48 140.8-52.48 28.16 70.4 10.24 122.88 5.12 135.68 32.64 35.84 52.48 81.28 52.48 137.6 0 196.48-119.68 240-233.6 252.8 18.56 16 34.56 46.72 34.56 94.72 0 68.48-.64 123.52-.64 140.8 0 13.44 9.6 29.44 35.2 24.32C877.44 929.92 1024 737.92 1024 512 1024 229.12 794.88 0 512 0"/></svg>',
@@ -70,9 +139,15 @@
   bar.innerHTML =
     '<span class="title"></span>' +
     '<span class="actions">' +
-      `<button id="comment" type="button" aria-pressed="false" title="${t.commentTitle}">` +
-        icon.comment + `<span>${t.comment}</span><span class="count" hidden></span>` +
-      '</button>' +
+      '<div class="comment-wrap">' +
+        '<div class="reader-comment" id="comment-shell">' +
+          `<button id="comment" type="button" aria-pressed="false" title="${t.commentTitle}">` +
+            `<span>${t.comment}</span>` + icon.comment +
+          '</button>' +
+          `<button id="count" type="button" class="count" hidden title="${t.threadsTitle}" aria-expanded="false" aria-haspopup="dialog"></button>` +
+        '</div>' +
+        `<div id="comment-pop" class="comment-pop" hidden role="dialog" aria-label="${t.threadsAria}"></div>` +
+      '</div>' +
       `<a id="download" href="${base}/download" download title="${t.downloadTitle}">` +
         icon.download + `<span>${t.download}</span>` +
       '</a>' +
@@ -82,11 +157,15 @@
     '</span>';
 
   const title = bar.querySelector('.title');
+  const commentShell = bar.querySelector('#comment-shell');
   const commentBtn = bar.querySelector('#comment');
-  const count = bar.querySelector('.count');
+  const count = bar.querySelector('#count');
+  const commentPop = bar.querySelector('#comment-pop');
   title.textContent = document.title || '';
 
   root.append(style, bar);
+
+  let threads = [];
 
   // Push the document down instead of covering its first lines. Reading the
   // computed value first keeps whatever padding the snapshot already had.
@@ -118,18 +197,33 @@
   if (document.body) mount();
   else addEventListener('DOMContentLoaded', mount, { once: true });
 
+  const HEX_ACCENT = /^#[0-9a-f]{6}$/i;
+  const parseAccent = (raw) => {
+    const value = String(raw || '').trim();
+    return HEX_ACCENT.test(value) ? value.toLowerCase() : '';
+  };
+
   // The snapshot owns the palette (it may carry a theme toggle of its own), so
   // the bar reads its tokens rather than declaring a second source of truth.
   const syncTheme = () => {
     const rootStyle = getComputedStyle(document.documentElement);
     const bodyStyle = getComputedStyle(document.body || document.documentElement);
     const value = (name, fallback) => rootStyle.getPropertyValue(name).trim() || fallback;
-    host.style.setProperty('--paper', value('--bg', bodyStyle.backgroundColor));
+    const paper = value('--bg', bodyStyle.backgroundColor);
+    const ink = value('--ink', bodyStyle.color);
+    const accent =
+      parseAccent(value('--lattice-accent', '')) ||
+      parseAccent(value('--accent', '')) ||
+      ink;
+    host.style.setProperty('--paper', paper);
+    host.style.setProperty('--bg-elev', paper);
     host.style.setProperty('--fill', value('--bg-sub', bodyStyle.backgroundColor));
-    host.style.setProperty('--ink', value('--ink', bodyStyle.color));
+    host.style.setProperty('--ink', ink);
     host.style.setProperty('--ink-2', value('--ink-2', bodyStyle.color));
     host.style.setProperty('--muted', value('--muted', bodyStyle.color));
     host.style.setProperty('--line', value('--line', 'rgba(128,128,128,.28)'));
+    host.style.setProperty('--line-strong', value('--line', 'rgba(128,128,128,.28)'));
+    host.style.setProperty('--comment', accent);
     host.style.colorScheme = rootStyle.colorScheme;
   };
   syncTheme();
@@ -144,27 +238,184 @@
   // and it listens back so Escape (or a click on the page) leaves the button in
   // the right state.
   const api = () => (window.lattice && window.lattice.comments) || null;
+
+  const closeCommentPop = () => {
+    commentPop.hidden = true;
+    count.setAttribute('aria-expanded', 'false');
+  };
+
+  const relativeTime = (seconds) => {
+    const created = Number(seconds) || 0;
+    if (!created) return '';
+    const delta = Math.max(0, Date.now() - created * 1000);
+    if (delta < 60_000) return t.now;
+    if (delta < 3_600_000) return Math.floor(delta / 60_000) + 'm';
+    if (delta < 86_400_000) return Math.floor(delta / 3_600_000) + 'h';
+    return new Date(created * 1000).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const initials = (name) => (name || '?').trim().slice(0, 1).toUpperCase();
+
+  const openThread = (thread) => {
+    closeCommentPop();
+    const c = api();
+    if (c && typeof c.open === 'function' && thread?.selector) {
+      c.open(thread.selector, { thread: thread.id });
+    }
+  };
+
+  const paintCommentPop = () => {
+    commentPop.replaceChildren();
+    if (!threads.length) {
+      const empty = document.createElement('p');
+      empty.className = 'comment-pop-empty';
+      empty.textContent = t.threadsEmpty;
+      commentPop.append(empty);
+      return;
+    }
+    threads.forEach((thread) => {
+      const author = thread.author || t.someone;
+      const row = document.createElement('button');
+      row.className = 'comment-thread' + (thread.status === 'resolved' ? ' is-resolved' : '');
+      row.type = 'button';
+
+      const avatar = document.createElement('span');
+      avatar.className = 'comment-thread-avatar';
+      avatar.setAttribute('aria-hidden', 'true');
+      avatar.textContent = initials(author);
+
+      const main = document.createElement('span');
+      main.className = 'comment-thread-main';
+
+      const head = document.createElement('span');
+      head.className = 'comment-thread-head';
+      const authorEl = document.createElement('b');
+      authorEl.className = 'comment-thread-author';
+      authorEl.textContent = author;
+      head.append(authorEl);
+      const when = relativeTime(thread.created);
+      if (when) {
+        const time = document.createElement('time');
+        time.textContent = when;
+        head.append(time);
+      }
+      if (thread.edited) {
+        const edited = document.createElement('span');
+        edited.className = 'comment-thread-edited';
+        edited.textContent = t.edited;
+        head.append(edited);
+      }
+      main.append(head);
+
+      if (thread.body) {
+        const body = document.createElement('p');
+        body.className = 'comment-thread-body';
+        body.textContent = thread.body;
+        main.append(body);
+      }
+
+      const reactionRows = Array.isArray(thread.reactions) ? thread.reactions : [];
+      const hasReplies = thread.replies > 0;
+      const hasReactions = reactionRows.length > 0;
+      if (hasReplies || hasReactions) {
+        const foot = document.createElement('span');
+        foot.className = 'comment-thread-foot';
+        const replies = document.createElement('span');
+        replies.className = 'comment-thread-replies';
+        if (hasReplies) {
+          replies.title = t.replies(thread.replies);
+          replies.innerHTML = icon.reply;
+          replies.append(document.createTextNode(t.replies(thread.replies)));
+        } else {
+          replies.hidden = true;
+        }
+        const reactions = document.createElement('span');
+        reactions.className = 'comment-thread-reactions';
+        if (hasReactions) {
+          reactionRows.slice(0, 6).forEach((reaction) => {
+            const chip = document.createElement('span');
+            chip.className = 'comment-thread-chip';
+            const emoji = document.createElement('span');
+            emoji.className = 'comment-thread-chip-emoji';
+            emoji.textContent = reaction.emoji;
+            const n = document.createElement('span');
+            n.className = 'comment-thread-chip-count';
+            n.textContent = String(reaction.count || 1);
+            chip.append(emoji, n);
+            reactions.append(chip);
+          });
+        } else {
+          reactions.hidden = true;
+        }
+        foot.append(replies, reactions);
+        main.append(foot);
+      }
+
+      row.append(avatar, main);
+      row.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openThread(thread);
+      });
+      commentPop.append(row);
+    });
+  };
+
+  const toggleCommentPop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (count.hidden) return;
+    if (!commentPop.hidden) {
+      closeCommentPop();
+      return;
+    }
+    paintCommentPop();
+    commentPop.hidden = false;
+    count.setAttribute('aria-expanded', 'true');
+  };
+
   commentBtn.addEventListener('click', () => {
     const c = api();
     if (!c) return;
+    closeCommentPop();
     commentBtn.getAttribute('aria-pressed') === 'true' ? c.stop() : c.start();
   });
+  count.addEventListener('click', toggleCommentPop);
 
   const setMode = (active) => {
     commentBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
     commentBtn.classList.toggle('is-active', !!active);
+    commentShell.classList.toggle('is-active', !!active);
   };
-  const setCount = (n) => {
+  const setCount = (n, items) => {
+    threads = Array.isArray(items) ? items : [];
     count.hidden = !n;
     count.textContent = n > 99 ? '99+' : String(n);
+    if (!n) closeCommentPop();
+    else if (!commentPop.hidden) paintCommentPop();
   };
 
   document.addEventListener('lattice:comment-mode-state', (e) => setMode(e.detail && e.detail.active));
-  document.addEventListener('lattice:comment-count', (e) => setCount((e.detail && e.detail.count) || 0));
-  document.addEventListener('lattice:comments-ready', (e) => {
-    const c = e.detail || api();
-    if (c && c.list) setCount(c.list().length);
+  // Count + thread list arrive after the comment bridge loads and refreshes
+  // (this script runs first so it can claim the launcher). Soft-deleted
+  // threads are already filtered out of the summary.
+  document.addEventListener('lattice:comment-count', (e) => {
+    const detail = e.detail || {};
+    setCount(detail.count || 0, detail.threads);
   });
-  const ready = api();
-  if (ready && ready.list) setCount(ready.list().length);
+
+  addEventListener('click', (event) => {
+    if (commentPop.hidden) return;
+    const path = event.composedPath ? event.composedPath() : [];
+    if (path.includes(commentPop) || path.includes(count)) return;
+    closeCommentPop();
+  });
+
+  addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || commentPop.hidden) return;
+    event.preventDefault();
+    closeCommentPop();
+  });
 })();

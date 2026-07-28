@@ -92,11 +92,18 @@ thread, comment, and state row for that share - a released subdomain must not
 hand its state to whatever share claims it next. Poll submissions retain the
 existing keep-on-unshare behavior.
 
-The poll and state bridges and the `/results` aggregation are byte/logic-identical
-to the local daemon (`src/poll.bridge.txt` mirrors `cmd/lattice/dashboard/poll.js`
-and `src/state.bridge.txt` mirrors `dashboard/state.js`; `aggregate()` ports
-`pollagg.go` and `src/state.ts` ports `state.go`), so a page behaves the same
-viewed locally or shared.
+The injected bridges and the `/results` aggregation stay in lockstep with the
+local daemon so a page behaves the same viewed locally or shared:
+
+- `src/poll.bridge.txt` mirrors `cmd/lattice/dashboard/poll.js`
+- `src/state.bridge.txt` mirrors `dashboard/state.js`
+- `src/thread.bridge.txt` mirrors `dashboard/comment.js`
+- `src/outline.bridge.txt` mirrors `dashboard/outline.js`
+- `aggregate()` ports `pollagg.go` and `src/state.ts` ports `state.go`
+
+`src/chrome.bridge.txt` is hosted-only (the dashboard already has its own
+reader chrome), but it should track the same comment affordances: accent badge,
+thread popover from the count, `comments.open` to jump into an anchor.
 
 ## Setup
 
