@@ -24,14 +24,14 @@ CLI at it with `--api` / `LATTICE_API_BASE`.
 | `GET /v1/shares/{slug}/versions` | Bearer | snapshot history: `[{version, created, size, current}]`, newest first |
 | `GET /v1/shares/{slug}/versions/{n}` | Bearer | one past revision's HTML, exactly as uploaded (owner-only) |
 | `GET /v1/shares/{slug}/results` | Bearer | dump submissions (same shape as local `.jsonl`) |
-| `GET /v1/shares/{slug}/threads` | Bearer | list threads and replies |
-| `POST /v1/shares/{slug}/threads` | Bearer | start a thread at `{selector, anchor_text?, body}` |
-| `POST /v1/shares/{slug}/threads/{id}/comments` | Bearer | reply with `{body}` |
+| `GET /v1/shares/{slug}/threads` | Bearer | list threads and replies, each with its dedupe `signature` |
+| `POST /v1/shares/{slug}/threads` | Bearer | start a thread at `{selector, anchor_text?, body, signature?, comment_signature?}` |
+| `POST /v1/shares/{slug}/threads/{id}/comments` | Bearer | reply with `{body, signature?}` |
 | `PATCH /v1/shares/{slug}/threads/{id}/comments/{comment}` | Bearer | edit the actor's own comment |
 | `DELETE /v1/shares/{slug}/threads/{id}/comments/{comment}` | Bearer | soft-delete the actor's own comment |
 | `POST /v1/shares/{slug}/threads/{id}/resolve` | Bearer | resolve a thread |
 | `POST /v1/shares/{slug}/threads/{id}/reopen` | Bearer | reopen a thread |
-| `GET /v1/shares/{slug}/state` | Bearer | dump the snapshot's persisted state, per scope and reader |
+| `GET /v1/shares/{slug}/state` | Bearer | dump the snapshot's persisted state, per scope and reader (`?meta=1` wraps values as `{v, t}`) |
 | `POST /v1/shares/{slug}/state` | Bearer | apply `{viewer?, ops:[{key, value, scope?, delete?}]}` |
 
 ## Hosted serving
@@ -61,6 +61,21 @@ the source HTML and its styles remain untouched.
 Comment edits and deletions append the previous body to `comment_revisions`.
 Deletion leaves a tombstone in the conversation so replies retain their context.
 Only the comment's actor can mutate it.
+
+## One conversation, two stores
+
+A shared summary is written from both sides: readers comment on the public
+snapshot, and its owner comments on the same document in the local dashboard.
+The daemon double-writes - local sidecar first, then here - and stamps each
+pushed row with the id it already minted for its own copy. That id lands in
+`threads.signature` / `comments.signature`, unique per share, so a push that is
+retried (or replayed after the laptop was offline) returns the existing row
+instead of creating a second one, and the daemon collapses the two copies into
+a single thread when it merges the stores for display. Rows born here have no
+signature and stay here; nothing is copied down.
+
+Page state works the same way, keyed by `(scope, viewer, key)`, with the newer
+`updated` winning when both sides know a key.
 
 Shares are public by URL unless they have a row in `share_access`. Passing
 `allowed_domains` during upload enables Google Workspace domain gating for the
@@ -102,6 +117,16 @@ pnpm run deploy    # applies the remote schema, then deploys production
 Production deploys apply the idempotent `schema.sql` to D1 before publishing
 the Worker. Keep that ordering when configuring a Git-connected Cloudflare
 build: use `pnpm run deploy`, not a bare `wrangler deploy`.
+
+Files under `migrations/` are the exception: `ALTER TABLE ADD COLUMN` fails once
+the column exists, so they cannot live in a file that is re-run on every deploy.
+A database created from the current `schema.sql` needs none of them. An older
+one needs each applied **once, before the deploy that expects it**:
+
+```sh
+wrangler d1 execute lattice --file migrations/0001-comment-signature.sql
+wrangler d1 execute lattice --remote --file migrations/0001-comment-signature.sql
+```
 
 ## Google identity
 

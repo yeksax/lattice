@@ -231,7 +231,7 @@ export async function handleOwnerThreads(
   const actor = await ownerActor(env, tok);
 
   if (rest === '/threads' && req.method === 'GET') {
-    return json({ slug, threads: await listThreads(env, share.sub, actor.id) });
+    return json({ slug, threads: await listThreads(env, share.sub, actor.id, true) });
   }
   if (rest === '/threads' && req.method === 'POST') {
     return createThread(req, env, share.sub, actor);
@@ -258,8 +258,18 @@ export async function handleOwnerThreads(
   return json({ error: 'not found' }, 404);
 }
 
+// signatureOf reads the dedupe key a pushing client stamps on a row. It is an
+// opaque token minted by whoever owns the other copy - the local daemon sends
+// the id from its own sidecar - so this side only checks that it is short and
+// leaves its meaning alone. Absent means "born here": no signature, no dedupe.
+function signatureOf(value: unknown): string | null {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw.length > 200) return null;
+  return raw;
+}
+
 async function createThread(req: Request, env: Env, sub: string, actor: Actor): Promise<Response> {
-  let body: { selector?: string; anchor_text?: string; body?: string };
+  let body: { selector?: string; anchor_text?: string; body?: string; signature?: string; comment_signature?: string };
   try {
     body = await req.json();
   } catch {
@@ -269,6 +279,29 @@ async function createThread(req: Request, env: Env, sub: string, actor: Actor): 
   const text = (body.body ?? '').trim();
   if (!selector || selector.length > 500) return json({ error: 'selector is required (max 500 chars)' }, 400);
   if (!validComment(text)) return json({ error: 'comment is required (max 16KB)' }, 400);
+
+  // A repeated push is the normal case, not an error: the daemon retries
+  // anything it could not confirm. Answer with the row that is already here.
+  const signature = signatureOf(body.signature);
+  if (signature) {
+    const seen = await env.DB.prepare(
+      'SELECT id, snapshot_version_created, status FROM threads WHERE sub = ? AND signature = ?',
+    )
+      .bind(sub, signature)
+      .first<{ id: string; snapshot_version_created: number; status: string }>();
+    if (seen) {
+      const first = await firstCommentID(env, seen.id, signatureOf(body.comment_signature));
+      return json({
+        id: seen.id,
+        selector,
+        signature,
+        comment_id: first,
+        snapshot_version_created: seen.snapshot_version_created,
+        status: seen.status,
+        deduped: true,
+      });
+    }
+  }
   if (await commentRateLimited(env, actor.id)) return json({ error: 'comment rate limit exceeded' }, 429);
 
   const id = 'thr_' + randomToken(12);
@@ -279,14 +312,33 @@ async function createThread(req: Request, env: Env, sub: string, actor: Actor): 
     env.DB.prepare(
       `INSERT INTO threads
          (id, sub, selector, anchor_text, snapshot_version_created, status,
-          created_by, created, updated)
-       VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
-    ).bind(id, sub, selector, (body.anchor_text ?? '').trim().slice(0, 500) || null, version, actor.id, created, created),
+          created_by, signature, created, updated)
+       VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)`,
+    ).bind(id, sub, selector, (body.anchor_text ?? '').trim().slice(0, 500) || null, version, actor.id, signature, created, created),
     env.DB.prepare(
-      'INSERT INTO comments (id, thread_id, actor_id, body, created, updated) VALUES (?, ?, ?, ?, ?, ?)',
-    ).bind(commentID, id, actor.id, text, created, created),
+      'INSERT INTO comments (id, thread_id, actor_id, body, signature, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).bind(commentID, id, actor.id, text, signatureOf(body.comment_signature), created, created),
   ]);
-  return json({ id, selector, snapshot_version_created: version, status: 'open' }, 201);
+  return json(
+    { id, selector, signature, comment_id: commentID, snapshot_version_created: version, status: 'open' },
+    201,
+  );
+}
+
+// firstCommentID resolves which comment on a deduped thread the caller meant,
+// so a client that lost the response can still learn the id it needs to mirror
+// later edits. Falls back to the opening comment when nothing matches.
+async function firstCommentID(env: Env, threadID: string, signature: string | null): Promise<string | null> {
+  if (signature) {
+    const row = await env.DB.prepare('SELECT id FROM comments WHERE thread_id = ? AND signature = ?')
+      .bind(threadID, signature)
+      .first<{ id: string }>();
+    if (row) return row.id;
+  }
+  const row = await env.DB.prepare('SELECT id FROM comments WHERE thread_id = ? ORDER BY created LIMIT 1')
+    .bind(threadID)
+    .first<{ id: string }>();
+  return row?.id ?? null;
 }
 
 async function addComment(
@@ -296,7 +348,7 @@ async function addComment(
   threadID: string,
   actor: Actor,
 ): Promise<Response> {
-  let body: { body?: string };
+  let body: { body?: string; signature?: string };
   try {
     body = await req.json();
   } catch {
@@ -304,20 +356,29 @@ async function addComment(
   }
   const text = (body.body ?? '').trim();
   if (!validComment(text)) return json({ error: 'comment is required (max 16KB)' }, 400);
-  if (await commentRateLimited(env, actor.id)) return json({ error: 'comment rate limit exceeded' }, 429);
   const thread = await env.DB.prepare('SELECT id FROM threads WHERE id = ? AND sub = ?')
     .bind(threadID, sub)
     .first();
   if (!thread) return json({ error: 'thread not found' }, 404);
+
+  const signature = signatureOf(body.signature);
+  if (signature) {
+    const seen = await env.DB.prepare('SELECT id, created FROM comments WHERE thread_id = ? AND signature = ?')
+      .bind(threadID, signature)
+      .first<{ id: string; created: number }>();
+    if (seen) return json({ id: seen.id, thread_id: threadID, signature, created: seen.created, deduped: true });
+  }
+  if (await commentRateLimited(env, actor.id)) return json({ error: 'comment rate limit exceeded' }, 429);
+
   const id = 'cmt_' + randomToken(12);
   const created = now();
   await env.DB.batch([
     env.DB.prepare(
-      'INSERT INTO comments (id, thread_id, actor_id, body, created, updated) VALUES (?, ?, ?, ?, ?, ?)',
-    ).bind(id, threadID, actor.id, text, created, created),
+      'INSERT INTO comments (id, thread_id, actor_id, body, signature, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).bind(id, threadID, actor.id, text, signature, created, created),
     env.DB.prepare('UPDATE threads SET updated = ? WHERE id = ?').bind(created, threadID),
   ]);
-  return json({ id, thread_id: threadID, created }, 201);
+  return json({ id, thread_id: threadID, signature, created }, 201);
 }
 
 async function mutateComment(
@@ -390,10 +451,18 @@ async function mutateComment(
   });
 }
 
-async function listThreads(env: Env, sub: string, viewerActorID: string | null): Promise<unknown[]> {
+// listThreads renders a snapshot's whole discussion. `withSignature` is on for
+// the owner listing only: the daemon needs the dedupe keys to reconcile its own
+// copy, and a public reader has no use for another store's internal ids.
+async function listThreads(
+  env: Env,
+  sub: string,
+  viewerActorID: string | null,
+  withSignature = false,
+): Promise<unknown[]> {
   const { results } = await env.DB.prepare(
     `SELECT t.id, t.selector, t.anchor_text, t.snapshot_version_created,
-            t.status, t.created, t.updated
+            t.status, t.signature, t.created, t.updated
       FROM threads t
       WHERE t.sub = ?
       ORDER BY t.updated DESC
@@ -406,13 +475,14 @@ async function listThreads(env: Env, sub: string, viewerActorID: string | null):
       anchor_text: string | null;
       snapshot_version_created: number;
       status: string;
+      signature: string | null;
       created: number;
       updated: number;
     }>();
   const out: unknown[] = [];
-  for (const thread of results ?? []) {
+  for (const { signature, ...thread } of results ?? []) {
     const comments = await env.DB.prepare(
-      `SELECT c.id, c.body, c.created, c.updated, c.actor_id, a.name AS author,
+      `SELECT c.id, c.body, c.created, c.updated, c.actor_id, c.signature, a.name AS author,
               EXISTS (
                 SELECT 1 FROM comment_revisions r
                  WHERE r.comment_id = c.id AND r.action = 'edit'
@@ -431,17 +501,19 @@ async function listThreads(env: Env, sub: string, viewerActorID: string | null):
         created: number;
         updated: number;
         actor_id: string;
+        signature: string | null;
         author: string;
         author_provider: string;
         edited: number;
       }>();
-    const visibleComments = (comments.results ?? []).map(({ actor_id, ...comment }) => ({
+    const visibleComments = (comments.results ?? []).map(({ actor_id, signature: sig, ...comment }) => ({
       ...comment,
+      ...(withSignature ? { signature: sig } : {}),
       edited: Boolean(comment.edited) && comment.body !== '',
       deleted: comment.body === '',
       can_edit: comment.body !== '' && actor_id === viewerActorID,
     }));
-    out.push({ ...thread, comments: visibleComments });
+    out.push({ ...thread, ...(withSignature ? { signature } : {}), comments: visibleComments });
   }
   return out;
 }

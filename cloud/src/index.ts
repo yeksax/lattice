@@ -43,6 +43,12 @@ export interface Env {
 // scan) is told to drop it instead of listing it.
 const NOINDEX = 'noindex, nofollow, noarchive, nosnippet, noimageindex';
 
+// What this deployment can do, for clients that have to work against an older
+// one. `thread-signature` is dedupe on pushed discussion rows; `state-meta` is
+// `?meta=1` on the owner state dump. Both were added together; both are listed
+// separately so a client can degrade one without losing the other.
+const CAPABILITIES = ['thread-signature', 'state-meta'];
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     let res: Response;
@@ -81,7 +87,13 @@ async function route(req: Request, env: Env): Promise<Response> {
     return servePublic(req, env, target.sub, target.rest);
   }
 
-  if (path === '/' || path === '/health') return json({ ok: true, service: 'lattice-share' });
+  // The daemon probes this before double-writing anything. A backend that does
+  // not answer with `thread-signature` cannot dedupe a pushed row, so the
+  // daemon must not push at all - re-pushing into a store with no signatures
+  // would grow a copy of every comment on every read.
+  if (path === '/' || path === '/health') {
+    return json({ ok: true, service: 'lattice-share', capabilities: CAPABILITIES });
+  }
   return json({ error: 'not found' }, 404);
 }
 
