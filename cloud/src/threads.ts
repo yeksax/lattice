@@ -244,6 +244,24 @@ export async function handleOwnerThreads(
   if (mutation && (req.method === 'PATCH' || req.method === 'DELETE')) {
     return mutateComment(req, env, share.sub, mutation[1], mutation[2], actor);
   }
+  // Deleting a thread is owner-only and final, unlike the soft delete a comment
+  // gets: a tombstone keeps a conversation readable, but a thread nobody should
+  // have started has nothing worth keeping the shape of.
+  const drop = rest.match(/^\/threads\/([^/]+)$/);
+  if (drop && req.method === 'DELETE') {
+    const thread = await env.DB.prepare('SELECT id FROM threads WHERE id = ? AND sub = ?')
+      .bind(drop[1], share.sub)
+      .first<{ id: string }>();
+    if (!thread) return json({ error: 'thread not found' }, 404);
+    await env.DB.batch([
+      env.DB.prepare(
+        'DELETE FROM comment_revisions WHERE comment_id IN (SELECT id FROM comments WHERE thread_id = ?)',
+      ).bind(thread.id),
+      env.DB.prepare('DELETE FROM comments WHERE thread_id = ?').bind(thread.id),
+      env.DB.prepare('DELETE FROM threads WHERE id = ? AND sub = ?').bind(thread.id, share.sub),
+    ]);
+    return json({ id: thread.id, deleted: true });
+  }
   const status = rest.match(/^\/threads\/([^/]+)\/(resolve|reopen)$/);
   if (status && req.method === 'POST') {
     const next = status[2] === 'resolve' ? 'resolved' : 'open';

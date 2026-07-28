@@ -29,6 +29,7 @@ CLI at it with `--api` / `LATTICE_API_BASE`.
 | `POST /v1/shares/{slug}/threads/{id}/comments` | Bearer | reply with `{body, signature?}` |
 | `PATCH /v1/shares/{slug}/threads/{id}/comments/{comment}` | Bearer | edit the actor's own comment |
 | `DELETE /v1/shares/{slug}/threads/{id}/comments/{comment}` | Bearer | soft-delete the actor's own comment |
+| `DELETE /v1/shares/{slug}/threads/{id}` | Bearer | delete a thread and its comments for good (owner only) |
 | `POST /v1/shares/{slug}/threads/{id}/resolve` | Bearer | resolve a thread |
 | `POST /v1/shares/{slug}/threads/{id}/reopen` | Bearer | reopen a thread |
 | `GET /v1/shares/{slug}/state` | Bearer | dump the snapshot's persisted state, per scope and reader (`?meta=1` wraps values as `{v, t}`) |

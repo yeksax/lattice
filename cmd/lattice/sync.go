@@ -587,6 +587,21 @@ func syncCommentMutation(slug, threadID, commentID, body string) {
 	threadCache.drop(slug)
 }
 
+// syncThreadDrop follows a deletion to the pushed copy. Unlike the other
+// mirrors this one is reported back: a thread that is gone here but still on the
+// public snapshot is the exact failure the double write exists to avoid, so the
+// caller gets to tell the user instead of the log.
+func syncThreadDrop(slug string, thread *localThread) error {
+	if !syncedSlug(slug, "thread-signature") || thread.HostedID == "" {
+		return nil
+	}
+	if err := hostedDropThread(loadConfig(), slug, thread.HostedID); err != nil {
+		return err
+	}
+	threadCache.drop(slug)
+	return nil
+}
+
 func syncThreadStatus(slug, threadID, action string) {
 	if !syncedSlug(slug, "thread-signature") {
 		return

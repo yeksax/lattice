@@ -63,6 +63,7 @@ usage:
   lattice reply <slug> <thread-id> <message> [--hosted]
   lattice resolve <slug> <thread-id> [--hosted]
   lattice reopen <slug> <thread-id> [--hosted]
+  lattice uncomment <slug> <thread-id> [--hosted]   delete a thread for good
 
 Sharing publishes a hosted snapshot to lattice.pub (stays up with your laptop
 closed) and requires "lattice login <token>" first.
@@ -235,6 +236,15 @@ func main() {
 		} else {
 			err = localThreadStatus(fs.Arg(0), fs.Arg(1), os.Args[1])
 		}
+	case "uncomment":
+		fs := flag.NewFlagSet("uncomment", flag.ExitOnError)
+		hosted := fs.Bool("hosted", false, "delete only the hosted thread")
+		fs.Parse(reorderFlags(os.Args[2:]))
+		if fs.NArg() != 2 {
+			err = fmt.Errorf("usage: lattice uncomment <slug> <thread-id> [--hosted]")
+			break
+		}
+		err = localDropThread(fs.Arg(0), fs.Arg(1), *hosted)
 	case "help", "-h", "--help":
 		fmt.Println(usage)
 	default:

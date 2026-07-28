@@ -125,6 +125,40 @@ func localReply(slug, threadID, message string) error {
 	)
 }
 
+// localDropThread deletes a thread through the daemon, which removes the local
+// copy and the hosted one together. `--hosted` skips the local half, for a
+// thread that only ever existed on the public snapshot.
+func localDropThread(slug, threadID string, onlyHosted bool) error {
+	if onlyHosted {
+		if err := hostedDropThread(loadConfigClient(), slug, threadID); err != nil {
+			return err
+		}
+		fmt.Printf("deleted %s\n", threadID)
+		return nil
+	}
+	resp, err := localCommentsAPI(
+		http.MethodDelete,
+		"/api/comments/"+url.PathEscape(slug)+"/threads/"+url.PathEscape(threadID),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		var out struct {
+			Error string `json:"error"`
+		}
+		json.NewDecoder(resp.Body).Decode(&out)
+		if out.Error == "" {
+			out.Error = resp.Status
+		}
+		return errors.New(out.Error)
+	}
+	fmt.Printf("deleted %s\n", threadID)
+	return nil
+}
+
 func localThreadStatus(slug, threadID, action string) error {
 	if err := localThreadMutation(
 		slug,

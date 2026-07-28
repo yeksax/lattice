@@ -343,6 +343,29 @@ func markLocalCommentPermission(comment *localComment) {
 	comment.Revisions = nil
 }
 
+// dropLocalThread removes a thread outright. Comments get a tombstone because a
+// conversation still has to read; a thread that should not exist has no shape
+// worth preserving.
+func dropLocalThread(slug, threadID string) (*localThread, error) {
+	var dropped *localThread
+	_, err := mutateLocalThreads(slug, func(threads *[]localThread) error {
+		for i := range *threads {
+			if !sameLocalThread(&(*threads)[i], threadID) {
+				continue
+			}
+			copy := (*threads)[i]
+			dropped = &copy
+			*threads = append((*threads)[:i], (*threads)[i+1:]...)
+			return nil
+		}
+		return errors.New("thread not found")
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dropped, nil
+}
+
 func setLocalThreadStatus(slug, threadID, status string) error {
 	if status != "open" && status != "resolved" {
 		return errors.New("invalid thread status")

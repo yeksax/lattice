@@ -188,6 +188,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("POST /api/comments/{slug}/threads/{thread}/comments", s.replyCommentThread)
 	mux.HandleFunc("PATCH /api/comments/{slug}/threads/{thread}/comments/{comment}", s.editComment)
 	mux.HandleFunc("DELETE /api/comments/{slug}/threads/{thread}/comments/{comment}", s.deleteComment)
+	mux.HandleFunc("DELETE /api/comments/{slug}/threads/{thread}", s.deleteCommentThread)
 	mux.HandleFunc("POST /api/comments/{slug}/threads/{thread}/{action}", s.setCommentThreadStatus)
 	// Blanket disallow, unlike the hosted Worker, which lets crawlers fetch a
 	// snapshot so they can read its noindex. Here the whole library is behind
@@ -777,6 +778,33 @@ func (s *server) mutateHostedComment(w http.ResponseWriter, cause error, slug, t
 		"edited":    body != "",
 		"can_edit":  body != "",
 	})
+}
+
+// deleteCommentThread removes a thread from both stores. The hosted half is not
+// best effort: leaving a thread up on the public snapshot after telling someone
+// it was deleted is the one failure worth surfacing.
+func (s *server) deleteCommentThread(w http.ResponseWriter, r *http.Request) {
+	slug, threadID := r.PathValue("slug"), r.PathValue("thread")
+	thread, err := dropLocalThread(slug, threadID)
+	if err != nil {
+		hostedID, ok := hostedThreadRef(slug, threadID)
+		if err.Error() != "thread not found" || !ok {
+			httpErr(w, localCommentMutationStatus(err), err.Error())
+			return
+		}
+		if herr := hostedDropThread(loadConfig(), slug, hostedID); herr != nil {
+			httpErr(w, http.StatusBadGateway, herr.Error())
+			return
+		}
+		threadCache.drop(slug)
+		writeJSON(w, map[string]any{"id": hostedID, "deleted": true})
+		return
+	}
+	if herr := syncThreadDrop(slug, thread); herr != nil {
+		httpErr(w, http.StatusBadGateway, herr.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"id": thread.ID, "deleted": true})
 }
 
 func localCommentMutationStatus(err error) int {

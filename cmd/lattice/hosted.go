@@ -407,6 +407,10 @@ func hostedDeleteComment(c Config, slug, threadID, commentID string) error {
 		"/threads/"+url.PathEscape(threadID)+"/comments/"+url.PathEscape(commentID), nil, nil)
 }
 
+func hostedDropThread(c Config, slug, threadID string) error {
+	return hostedThreadCall(c, http.MethodDelete, slug, "/threads/"+url.PathEscape(threadID), nil, nil)
+}
+
 func hostedSetThreadStatus(c Config, slug, threadID, action string) error {
 	return hostedThreadCall(c, http.MethodPost, slug,
 		"/threads/"+url.PathEscape(threadID)+"/"+action, nil, nil)
