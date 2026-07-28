@@ -106,6 +106,13 @@ CREATE INDEX IF NOT EXISTS idx_auth_states_expires ON auth_states(expires);
 
 -- A thread is anchored by a stable CSS selector and records the snapshot
 -- version where the conversation began. anchor_text is recovery context only.
+--
+-- `signature` is how a conversation stays one conversation across two stores.
+-- The local daemon writes every comment to its own sidecar and pushes the same
+-- row here, carrying the id it minted; that id lands in this column. A row born
+-- on the hosted side has no signature (NULL), and SQLite treats NULLs as
+-- distinct, so the unique index binds only the pushed rows - re-pushing one is
+-- a no-op instead of a second copy, and neither side double counts.
 CREATE TABLE IF NOT EXISTS threads (
   id                       TEXT PRIMARY KEY,
   sub                      TEXT NOT NULL,
@@ -115,20 +122,24 @@ CREATE TABLE IF NOT EXISTS threads (
   status                   TEXT NOT NULL DEFAULT 'open'
                            CHECK (status IN ('open', 'resolved')),
   created_by               TEXT NOT NULL,
+  signature                TEXT,
   created                  INTEGER NOT NULL,
   updated                  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_threads_sub ON threads(sub, updated);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_signature ON threads(sub, signature);
 
 CREATE TABLE IF NOT EXISTS comments (
   id         TEXT PRIMARY KEY,
   thread_id  TEXT NOT NULL,
   actor_id   TEXT NOT NULL,
   body       TEXT NOT NULL,
+  signature  TEXT,
   created    INTEGER NOT NULL,
   updated    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_comments_thread ON comments(thread_id, created);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_comments_signature ON comments(thread_id, signature);
 
 -- Append-only audit trail. The current row remains fast to read while every
 -- edit or soft deletion preserves the previous body and the actor responsible.

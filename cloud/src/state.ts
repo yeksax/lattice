@@ -94,18 +94,24 @@ export async function handleOwnerState(
   if (!share) return json({ error: `not shared: ${slug}` }, 404);
 
   if (req.method === 'GET') {
+    // ?meta=1 wraps each value as {v, t}, the same shape the daemon keeps on
+    // disk. It is what lets a double-writing daemon merge the two stores by
+    // recency instead of guessing which side is stale. The bare dump stays the
+    // default: `lattice state --hosted` has read it that way since it existed.
+    const meta = new URL(req.url).searchParams.get('meta') === '1';
     const { results } = await env.DB.prepare(
-      'SELECT scope, viewer, "key", "value" FROM doc_state WHERE sub = ? ORDER BY scope, viewer, "key"',
+      'SELECT scope, viewer, "key", "value", updated FROM doc_state WHERE sub = ? ORDER BY scope, viewer, "key"',
     )
       .bind(share.sub)
-      .all<{ scope: string; viewer: string; key: string; value: string }>();
+      .all<{ scope: string; viewer: string; key: string; value: string; updated: number }>();
     const document: Record<string, unknown> = {};
     const users: Record<string, Record<string, unknown>> = {};
     for (const row of results ?? []) {
+      const value = meta ? { v: parse(row.value), t: row.updated } : parse(row.value);
       if (row.scope === USER) {
-        (users[row.viewer] ??= {})[row.key] = parse(row.value);
+        (users[row.viewer] ??= {})[row.key] = value;
       } else {
-        document[row.key] = parse(row.value);
+        document[row.key] = value;
       }
     }
     return json({ slug, sub: share.sub, document, users });

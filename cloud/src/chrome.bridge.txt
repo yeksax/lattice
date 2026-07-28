@@ -90,11 +90,30 @@
 
   // Push the document down instead of covering its first lines. Reading the
   // computed value first keeps whatever padding the snapshot already had.
+  //
+  // Sticky top:0 parks at the viewport top — the same edge this bar occupies.
+  // Without a bump, the first ~52px of every stuck block (live counters, the
+  // template header, …) slides under the chrome and vanishes. The dashboard
+  // never hits this path: the iframe early-return above skips the bar entirely.
+  const clearStickyUnderChrome = () => {
+    document.querySelectorAll('body *').forEach((el) => {
+      if (el === host || host.contains(el)) return;
+      const s = getComputedStyle(el);
+      if (s.position !== 'sticky') return;
+      const top = parseFloat(s.top);
+      if (!Number.isFinite(top) || top >= BAR) return;
+      if (el.dataset.latticeChromeTop) return;
+      el.dataset.latticeChromeTop = '1';
+      el.style.top = top + BAR + 'px';
+    });
+  };
+
   const mount = () => {
     document.body.append(host);
     const prev = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
     document.body.style.paddingTop = prev + BAR + 'px';
     document.documentElement.style.scrollPaddingTop = BAR + 'px';
+    clearStickyUnderChrome();
   };
   if (document.body) mount();
   else addEventListener('DOMContentLoaded', mount, { once: true });

@@ -373,9 +373,16 @@ func (s *server) serveSummary(w http.ResponseWriter, r *http.Request) {
 		w.Write(b)
 		return
 	}
+	// A shared summary's state is merged with the hosted copy on every read, so
+	// its poll slows to the cadence the public snapshot uses. Polling a backend
+	// four times a second to watch for a checkbox is not worth the round trips.
+	poll := "4000"
+	if _, shared := sharedSlug(slug); shared {
+		poll = "20000"
+	}
 	// State goes in before the poll bridge on purpose: poll.js fires the shared
 	// `lattice:ready` event, and a page waiting on it must find both bridges.
-	tags := `<script id="lattice-state" data-endpoint="/api/state/` + slug + `" data-poll="4000">` + string(s.stateJS()) + `</script>` +
+	tags := `<script id="lattice-state" data-endpoint="/api/state/` + slug + `" data-poll="` + poll + `">` + string(s.stateJS()) + `</script>` +
 		`<script id="lattice-poll" data-endpoint="/api/polls/` + slug + `/submit" data-results="/api/polls/` + slug + `/results">` + string(s.pollJS()) + `</script>` +
 		`<script id="lattice-comments" data-endpoint="/api/comments/` + slug + `/threads">` + string(s.commentJS()) + `</script>` +
 		`<script id="lattice-reload" data-slug="` + slug + `">` + string(s.reloadJS()) + `</script>`
@@ -471,6 +478,9 @@ func (s *server) postShare(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	// The summary now has a second store. Learn that immediately rather than
+	// after the TTL, so the next comment is double-written instead of stranded.
+	refreshBindings(true)
 	w.WriteHeader(http.StatusCreated)
 	writeJSON(w, map[string]any{"slug": req.Slug, "url": url, "domains": domains})
 }
@@ -528,10 +538,17 @@ func (s *server) deleteShare(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusUnauthorized, errNotLoggedIn.Error())
 		return
 	}
-	if err := hostedDelete(c, r.PathValue("slug")); err != nil {
+	slug := r.PathValue("slug")
+	if err := hostedDelete(c, slug); err != nil {
 		httpErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	// Unsharing drops the hosted threads and state with the snapshot. The local
+	// copy is what is left, and it must stop being merged against a store that
+	// no longer has this summary in it.
+	refreshBindings(true)
+	threadCache.drop(slug)
+	stateCache.drop(slug)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -557,7 +574,7 @@ func (s *server) getState(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	w.Header().Set("Cache-Control", "no-store")
 	if r.URL.Query().Get("all") == "1" {
-		snapshot, err := stateSnapshot(slug)
+		snapshot, err := mergedStateDoc(slug)
 		if err != nil {
 			httpErr(w, http.StatusBadRequest, err.Error())
 			return
@@ -565,7 +582,7 @@ func (s *server) getState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, unwrapState(slug, snapshot))
 		return
 	}
-	view, err := readState(slug, r.URL.Query().Get("viewer"))
+	view, err := mergedStateView(slug, r.URL.Query().Get("viewer"))
 	if err != nil {
 		httpErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -582,7 +599,13 @@ func (s *server) postState(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, `body must be JSON: {"viewer"?, "ops":[{"key","value","scope"?,"delete"?}]}`)
 		return
 	}
-	view, err := applyState(r.PathValue("slug"), req.Viewer, req.Ops)
+	slug := r.PathValue("slug")
+	if _, err := applyState(slug, req.Viewer, req.Ops); err != nil {
+		httpErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	syncStateOps(slug, req.Viewer, req.Ops)
+	view, err := mergedStateView(slug, req.Viewer)
 	if err != nil {
 		httpErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -597,21 +620,27 @@ func (s *server) deleteState(w http.ResponseWriter, r *http.Request) {
 	if raw := q.Get("scope"); raw != "" {
 		scope = normalizeScope(raw)
 	}
-	removed, err := clearState(r.PathValue("slug"), scope, q.Get("viewer"), q.Get("key"))
+	slug := r.PathValue("slug")
+	removed, err := clearState(slug, scope, q.Get("viewer"), q.Get("key"))
 	if err != nil {
 		httpErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, map[string]any{"slug": r.PathValue("slug"), "removed": removed})
+	syncStateClear(slug, scope, q.Get("viewer"), q.Get("key"))
+	writeJSON(w, map[string]any{"slug": slug, "removed": removed})
 }
 
+// Discussion endpoints write locally first and mirror to the hosted backend
+// when the summary is shared (see sync.go). The local file stays the source of
+// truth; the mirror is what makes the dashboard and the public snapshot one
+// conversation instead of two.
 func (s *server) listComments(w http.ResponseWriter, r *http.Request) {
-	threads, err := readLocalThreads(r.PathValue("slug"))
+	threads, err := mergedThreads(r.PathValue("slug"))
 	if err != nil {
 		httpErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	markLocalCommentPermissions(threads)
+	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, threads)
 }
 
@@ -639,6 +668,7 @@ func (s *server) createCommentThread(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	syncNewThread(r.PathValue("slug"), thread)
 	w.WriteHeader(http.StatusCreated)
 	writeJSON(w, thread)
 }
@@ -653,14 +683,15 @@ func (s *server) replyCommentThread(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, "body must be JSON")
 		return
 	}
-	comment, err := replyLocalThread(
-		r.PathValue("slug"),
-		r.PathValue("thread"),
-		req.Body,
-		req.Author,
-		req.AuthorKind,
-	)
+	slug, threadID := r.PathValue("slug"), r.PathValue("thread")
+	comment, err := replyLocalThread(slug, threadID, req.Body, req.Author, req.AuthorKind)
 	if err != nil {
+		// The thread may be one a reader started on the public snapshot: there
+		// is no local row to append to, so the reply belongs to the backend.
+		if hostedID, ok := hostedThreadRef(slug, threadID); err.Error() == "thread not found" && ok {
+			s.replyHostedThread(w, slug, hostedID, req.Body)
+			return
+		}
 		status := http.StatusBadRequest
 		if err.Error() == "thread not found" {
 			status = http.StatusNotFound
@@ -668,8 +699,21 @@ func (s *server) replyCommentThread(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, status, err.Error())
 		return
 	}
+	syncNewComment(slug, threadID, comment)
 	w.WriteHeader(http.StatusCreated)
 	writeJSON(w, comment)
+}
+
+func (s *server) replyHostedThread(w http.ResponseWriter, slug, hostedThreadID, body string) {
+	comment := localComment{Body: body}
+	id, err := hostedPushComment(loadConfig(), slug, hostedThreadID, &comment)
+	if err != nil {
+		httpErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	threadCache.drop(slug)
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, map[string]any{"id": id, "thread_id": hostedThreadID, "body": body})
 }
 
 func (s *server) editComment(w http.ResponseWriter, r *http.Request) {
@@ -680,32 +724,59 @@ func (s *server) editComment(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, "body must be JSON")
 		return
 	}
-	comment, err := editLocalComment(
-		r.PathValue("slug"),
-		r.PathValue("thread"),
-		r.PathValue("comment"),
-		req.Body,
-	)
+	slug, threadID, commentID := r.PathValue("slug"), r.PathValue("thread"), r.PathValue("comment")
+	comment, err := editLocalComment(slug, threadID, commentID, req.Body)
 	if err != nil {
-		httpErr(w, localCommentMutationStatus(err), err.Error())
+		s.mutateHostedComment(w, err, slug, threadID, commentID, req.Body)
 		return
 	}
+	syncCommentMutation(slug, threadID, commentID, comment.Body)
 	markLocalCommentPermission(comment)
 	writeJSON(w, comment)
 }
 
 func (s *server) deleteComment(w http.ResponseWriter, r *http.Request) {
-	comment, err := deleteLocalComment(
-		r.PathValue("slug"),
-		r.PathValue("thread"),
-		r.PathValue("comment"),
-	)
+	slug, threadID, commentID := r.PathValue("slug"), r.PathValue("thread"), r.PathValue("comment")
+	comment, err := deleteLocalComment(slug, threadID, commentID)
 	if err != nil {
-		httpErr(w, localCommentMutationStatus(err), err.Error())
+		s.mutateHostedComment(w, err, slug, threadID, commentID, "")
 		return
 	}
+	syncCommentMutation(slug, threadID, commentID, "")
 	markLocalCommentPermission(comment)
 	writeJSON(w, comment)
+}
+
+// mutateHostedComment is the fallback for a comment that has no local row: one
+// written on the public snapshot, including by this owner signed in there. An
+// empty body is the deletion. Anything that is not a missing row keeps the
+// local error - "not editable" means exactly that, on either side.
+func (s *server) mutateHostedComment(w http.ResponseWriter, cause error, slug, threadID, commentID, body string) {
+	hostedThreadID, hostedCommentID, ok := hostedCommentRef(slug, threadID, commentID)
+	if !ok || (cause.Error() != "thread not found" && cause.Error() != "comment not found") {
+		httpErr(w, localCommentMutationStatus(cause), cause.Error())
+		return
+	}
+	c := loadConfig()
+	var err error
+	if body == "" {
+		err = hostedDeleteComment(c, slug, hostedThreadID, hostedCommentID)
+	} else {
+		err = hostedEditComment(c, slug, hostedThreadID, hostedCommentID, body)
+	}
+	if err != nil {
+		httpErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	threadCache.drop(slug)
+	writeJSON(w, map[string]any{
+		"id":        hostedCommentID,
+		"thread_id": hostedThreadID,
+		"body":      body,
+		"deleted":   body == "",
+		"edited":    body != "",
+		"can_edit":  body != "",
+	})
 }
 
 func localCommentMutationStatus(err error) int {
@@ -731,15 +802,27 @@ func (s *server) setCommentThreadStatus(w http.ResponseWriter, r *http.Request) 
 		httpErr(w, http.StatusNotFound, "unknown action")
 		return
 	}
-	if err := setLocalThreadStatus(r.PathValue("slug"), r.PathValue("thread"), status); err != nil {
-		code := http.StatusBadRequest
-		if err.Error() == "thread not found" {
-			code = http.StatusNotFound
+	slug, threadID := r.PathValue("slug"), r.PathValue("thread")
+	if err := setLocalThreadStatus(slug, threadID, status); err != nil {
+		hostedID, ok := hostedThreadRef(slug, threadID)
+		if err.Error() != "thread not found" || !ok {
+			code := http.StatusBadRequest
+			if err.Error() == "thread not found" {
+				code = http.StatusNotFound
+			}
+			httpErr(w, code, err.Error())
+			return
 		}
-		httpErr(w, code, err.Error())
+		if herr := hostedSetThreadStatus(loadConfig(), slug, hostedID, action); herr != nil {
+			httpErr(w, http.StatusBadGateway, herr.Error())
+			return
+		}
+		threadCache.drop(slug)
+		writeJSON(w, map[string]string{"id": hostedID, "status": status})
 		return
 	}
-	writeJSON(w, map[string]string{"id": r.PathValue("thread"), "status": status})
+	syncThreadStatus(slug, threadID, action)
+	writeJSON(w, map[string]string{"id": threadID, "status": status})
 }
 
 // watchSummary is the SSE stream behind hot reload. It stat-polls the

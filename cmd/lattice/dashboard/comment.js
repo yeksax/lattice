@@ -20,10 +20,10 @@
   pageStyle.id = 'lattice-comment-page-style';
   pageStyle.textContent = `
     [data-lattice-comment-target]{position:relative;isolation:isolate}
-    body[data-lattice-comment-mode="true"] [data-lattice-comment-target]{
+    body[data-lattice-comment-mode="true"]:not([data-lattice-comment-open]) [data-lattice-comment-target]{
       cursor:none!important
     }
-    body[data-lattice-comment-mode="true"] [data-lattice-comment-target] *{
+    body[data-lattice-comment-mode="true"]:not([data-lattice-comment-open]) [data-lattice-comment-target] *{
       cursor:none!important
     }
     body[data-lattice-comment-mode="true"] [data-lattice-comment-target]::after{
@@ -224,15 +224,29 @@
     const wrap = document.createElement('span');
     wrap.className = 'marker-wrap';
     root.append(style, wrap);
-    const position = getComputedStyle(element).position;
-    if (position === 'static') element.style.position = 'relative';
     element.append(host);
     markerHosts.set(selector, host);
     return host;
   };
 
+  // A marker anchored inside its element needs a positioning context there.
+  // Measuring naively reads our own comment-mode rule, which already sets
+  // position:relative on every target - the element then looks positioned, gets
+  // no inline style, and falls back to static the moment comment mode ends,
+  // dropping the marker in the page's top-right corner. Measure with the
+  // attribute off, once per element, and keep the answer.
+  const ensurePositioned = (element) => {
+    if (element.hasAttribute('data-lattice-comment-positioned')) return;
+    const wasTarget = element.hasAttribute('data-lattice-comment-target');
+    element.removeAttribute('data-lattice-comment-target');
+    if (getComputedStyle(element).position === 'static') element.style.position = 'relative';
+    if (wasTarget) element.setAttribute('data-lattice-comment-target', '');
+    element.setAttribute('data-lattice-comment-positioned', '');
+  };
+
   const placeHost = (host, element, hasThreads) => {
     if (hasThreads) {
+      ensurePositioned(element);
       if (host.parentElement !== element) element.append(host);
       host.style.cssText = 'position:absolute;right:-8px;top:12px;left:auto;transform:none;z-index:2147483000';
       host.classList.remove('is-hovered');
@@ -623,6 +637,9 @@
   };
 
   const render = () => {
+    // The comment-mode cursor is hidden because the marker replaces it. With a
+    // popover open the marker is parked, so the real cursor has to come back.
+    document.body.toggleAttribute('data-lattice-comment-open', Boolean(openSelector));
     const anchors = eligibleAnchors();
     threads.forEach((thread) => {
       try {
@@ -654,6 +671,7 @@
   const exitCommentMode = (renderNow = true) => {
     commentMode = false;
     delete document.body.dataset.latticeCommentMode;
+    document.body.removeAttribute('data-lattice-comment-open');
     document.querySelectorAll('[data-lattice-comment-target]').forEach((element) => {
       element.removeAttribute('data-lattice-comment-target');
       element.classList.remove('is-lattice-cursor-target');
@@ -715,8 +733,11 @@
     cursorTarget = null;
   };
 
+  // An open popover freezes the cursor tracking. The marker under the pointer
+  // has become the thread you are writing in: moving it (or re-targeting the
+  // highlight) while you type pulls the composer out from under the caret.
   document.addEventListener('pointermove', (event) => {
-    if (!commentMode) return;
+    if (!commentMode || openSelector) return;
     const insideMarker = event.composedPath().some((node) =>
       node.classList && node.classList.contains('lattice-comment-marker'));
     if (insideMarker) return;
