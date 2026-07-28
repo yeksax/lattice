@@ -35,7 +35,7 @@
       content:"";
       position:absolute;
       inset:-12px;
-      z-index:2147482000;
+      z-index:0;
       border-radius:8px;
       background:rgba(22,131,255,.10);
       box-shadow:inset 0 0 0 1px rgba(22,131,255,.72);
@@ -56,9 +56,9 @@
     .marker::before{content:"";position:absolute;inset:-6px;border-radius:50%}.marker:hover,.marker:focus-visible{scale:1.06;box-shadow:0 2px 5px #0002,0 8px 20px #0002;outline:none}.marker:active{scale:.96}.marker.is-new{background:var(--blue);color:#fff;cursor:none;pointer-events:none;font-size:17px;font-weight:400}
     .preview{position:absolute;right:38px;top:-3px;width:260px;padding:12px 14px;border-radius:12px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 14px 36px #0002;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(3px) scale(.98);transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1),visibility 160ms}
     .marker-wrap:hover .preview,.marker:focus-visible+.preview{opacity:1;visibility:visible;transform:none}.preview[hidden]{display:none}.preview-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}.avatar{display:grid;place-items:center;flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:10px;text-transform:uppercase}.preview b{font-weight:600}.preview-time{color:var(--muted)}.preview-body{display:-webkit-box;overflow:hidden;color:var(--ink-2);-webkit-box-orient:vertical;-webkit-line-clamp:2}.preview-replies{margin-top:4px;color:var(--muted);font-size:11px}
-    .popover{position:absolute;z-index:2;right:38px;top:-8px;width:min(360px,calc(100vw - 56px));overflow:hidden;border-radius:16px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 18px 48px #0002;opacity:1;pointer-events:auto;transform:none;transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1)}
-    .popover[hidden]{display:block;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(4px) scale(.98)}.pop-head{display:flex;align-items:center;min-height:52px;padding:0 6px 0 18px;background:var(--paper);border-bottom:1px solid var(--line)}.pop-head strong{min-width:0;flex:1;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pop-actions{display:flex;align-items:center;flex:0 0 auto}.close,.new-thread{display:grid;place-items:center;width:40px;height:40px;border:0;background:none;border-radius:50%;cursor:pointer;color:var(--muted)}.close{font-size:19px}.new-thread{font-size:18px}.close:hover,.new-thread:hover{background:var(--sub);color:var(--ink)}.close:active,.new-thread:active{scale:.96}
-    .pop-body{display:block;max-height:min(430px,66vh);overflow:auto;padding:18px 18px 20px}.thread{display:block}.thread+.thread{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}.thread-meta{display:flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--muted);font-size:10.5px}.comment{position:relative;display:grid;grid-template-columns:24px 1fr;gap:10px;margin-bottom:16px;padding-right:28px}.comment-main{min-width:0}.comment-head{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}.comment-head b{font-weight:600}.comment-head time,.edited{color:var(--muted);font-size:10.5px}.comment p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-2)}.comment p.is-deleted{color:var(--muted);font-style:italic}
+    .popover{position:absolute;z-index:2;right:38px;top:-8px;display:flex;flex-direction:column;width:min(360px,calc(100vw - 56px));max-height:min(420px,calc(100vh - 20px));overflow:hidden;border-radius:16px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 18px 48px #0002;opacity:1;pointer-events:auto;transform:none;transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1)}
+    .popover[hidden]{display:flex;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(4px) scale(.98)}.pop-head{display:flex;align-items:center;flex:0 0 auto;min-height:52px;padding:0 6px 0 18px;background:var(--paper);border-bottom:1px solid var(--line)}.pop-head strong{min-width:0;flex:1;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pop-actions{display:flex;align-items:center;flex:0 0 auto}.close,.new-thread{display:grid;place-items:center;width:40px;height:40px;border:0;background:none;border-radius:50%;cursor:pointer;color:var(--muted)}.close{font-size:19px}.new-thread{font-size:18px}.close:hover,.new-thread:hover{background:var(--sub);color:var(--ink)}.close:active,.new-thread:active{scale:.96}
+    .pop-body{display:block;flex:1 1 auto;min-height:0;overflow:auto;padding:18px 18px 20px}.thread{display:block}.thread+.thread{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}.thread-meta{display:flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--muted);font-size:10.5px}.comment{position:relative;display:grid;grid-template-columns:24px 1fr;gap:10px;margin-bottom:16px;padding-right:28px}.comment-main{min-width:0}.comment-head{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}.comment-head b{font-weight:600}.comment-head time,.edited{color:var(--muted);font-size:10.5px}.comment p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-2)}.comment p.is-deleted{color:var(--muted);font-style:italic}
     .comment-actions{position:absolute;z-index:3;top:-6px;right:-6px}.comment-menu-trigger{position:relative;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:10px;background:transparent;color:var(--muted);cursor:pointer;font-size:7px;letter-spacing:1.5px;opacity:.72}.comment-menu-trigger::before{content:"";position:absolute;inset:-4px;border-radius:13px}.comment-menu-trigger:hover,.comment-menu-trigger:focus-visible{background:var(--sub);color:var(--ink);opacity:1;outline:none}.comment-menu-trigger:active{scale:.96}.comment-menu{position:absolute;z-index:4;top:36px;right:0;width:132px;padding:5px;border-radius:10px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #0002,0 14px 34px #0001}.comment-menu button{display:flex;align-items:center;width:100%;min-height:38px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--ink);cursor:pointer;text-align:left}.comment-menu button:hover,.comment-menu button:focus-visible{background:var(--sub);outline:none}.comment-menu button:active{scale:.96}.comment-menu .danger{color:#c43b3b}.delete-confirm{padding:7px}.delete-confirm p{margin:0 0 8px;color:var(--ink);font-size:11.5px;line-height:1.35}.delete-confirm-actions{display:flex;gap:4px}.delete-confirm-actions button{justify-content:center;min-height:34px;padding:0 8px}.delete-confirm-actions .danger{background:#c43b3b;color:#fff}.delete-confirm-actions .danger:hover{background:#ad3030}
     .inline-edit{margin-top:5px}.inline-edit textarea{display:block;width:100%;min-height:72px;max-height:160px;resize:vertical;padding:10px 11px;border:0;border-radius:10px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px var(--blue)}.inline-edit-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}.inline-edit-actions button{min-height:36px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--ink);cursor:pointer}.inline-edit-actions button:hover{background:var(--sub)}.inline-edit-actions button:active{scale:.96}.inline-edit-actions .save{background:var(--ink);color:var(--paper)}.inline-edit-actions .save:disabled{opacity:.3;cursor:default}.action-error{margin-top:7px;color:#c43b3b;font-size:11px}
     .comment.is-reply{margin-left:26px}
@@ -74,7 +74,7 @@
     .composer{display:grid;grid-template-columns:24px 1fr;gap:10px;margin-top:16px}.composer.is-reply{margin-left:26px}.composer.is-new-thread{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}.composer-box{position:relative}.composer textarea{display:block;width:100%;height:44px;min-height:44px;max-height:120px;resize:none;overflow-y:auto;padding:11px 44px 10px 12px;border:0;border-radius:12px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px transparent;transition:box-shadow 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1);color-scheme:inherit}.composer textarea:focus{background:var(--paper);box-shadow:inset 0 0 0 1px var(--blue)}.send{position:absolute;right:6px;bottom:6px;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);cursor:pointer}.send:disabled{opacity:.24;cursor:default}.send:not(:disabled):active{scale:.96}.error{grid-column:2;color:#c43b3b;font-size:11px}
     .launcher{position:fixed;z-index:2147483645;right:18px;bottom:18px;display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);box-shadow:0 2px 5px #0002,0 10px 28px #0003;cursor:pointer}.launcher:active{scale:.96}
     @media(prefers-color-scheme:dark){:host{color-scheme:dark;--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#777;--paper:#171717;--sub:#242424;--line:#303030}}
-    @media(max-width:560px){.popover{position:fixed;inset:auto 12px 12px;width:auto;max-height:70vh;transform-origin:bottom center}.preview{display:none}}
+    @media(max-width:560px){.popover{position:fixed;inset:auto 12px 12px;width:auto;max-height:70vh;transform-origin:bottom center}.popover[hidden]{inset:auto 12px 12px}.preview{display:none}}
     @media(prefers-reduced-motion:reduce){*{transition:none!important}}
   `;
 
@@ -293,12 +293,113 @@
     if (host.parentElement !== element) element.append(host);
     // Set properties individually - cssText would wipe the theme tokens
     // reportTheme wrote on the host, and the next paint flashes dark inputs.
+    // z-index stays local to the anchor: only the portaled popover floats high.
     host.style.position = 'absolute';
     host.style.right = '-8px';
     host.style.top = '12px';
     host.style.left = 'auto';
     host.style.transform = 'none';
-    host.style.zIndex = '2147483000';
+    host.style.zIndex = '1';
+  };
+
+  // Open popovers live on a body-level layer so they can sit above the page
+  // without dragging the marker's z-index up through neighbouring sections.
+  let popoverLayer;
+  const ensurePopoverLayer = () => {
+    if (popoverLayer) return popoverLayer;
+    popoverLayer = document.createElement('div');
+    popoverLayer.className = 'lattice-comment-popover-layer';
+    const root = popoverLayer.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = css + '.popover{pointer-events:auto}';
+    const mount = document.createElement('div');
+    mount.className = 'popover-mount';
+    root.append(style, mount);
+    popoverLayer.style.cssText =
+      'position:fixed;inset:0;z-index:2147483000;pointer-events:none';
+    document.body.append(popoverLayer);
+    return popoverLayer;
+  };
+  const popoverMount = () => ensurePopoverLayer().shadowRoot.querySelector('.popover-mount');
+  const clearPopoverLayer = () => {
+    if (!popoverLayer) return;
+    popoverMount().replaceChildren();
+  };
+
+  // Open popovers leave the marker and sit in the viewport. Without this they
+  // scroll with the anchor and slide under the reader chrome (or off the top
+  // of the iframe). Keep a small margin so they never kiss the header edge.
+  const POP_EDGE = 10;
+  const clearPopoverPin = (popover) => {
+    if (!popover) return;
+    popover.style.position = '';
+    popover.style.top = '';
+    popover.style.left = '';
+    popover.style.right = '';
+    popover.style.maxHeight = '';
+  };
+  const pinPopoverToMarker = (marker, popover) => {
+    if (!popover || popover.hidden || !marker || matchMedia('(max-width:560px)').matches) {
+      clearPopoverPin(popover);
+      return;
+    }
+    const markerRect = marker.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const maxH = Math.max(160, vh - POP_EDGE * 2);
+    popover.style.maxHeight = maxH + 'px';
+    popover.style.position = 'fixed';
+    popover.style.right = 'auto';
+    const popW = popover.offsetWidth || 340;
+    const popH = popover.offsetHeight || 120;
+    let top = markerRect.top - 8;
+    top = Math.max(POP_EDGE, Math.min(top, vh - popH - POP_EDGE));
+    // Prefer the existing left-of-marker placement (CSS right:38px on the host).
+    let left = markerRect.right - 38 - popW;
+    if (left < POP_EDGE) left = markerRect.left + 38;
+    left = Math.max(POP_EDGE, Math.min(left, vw - popW - POP_EDGE));
+    popover.style.top = top + 'px';
+    popover.style.left = left + 'px';
+  };
+  const pinOpenPopovers = () => {
+    if (openSelector) {
+      const host = markerHosts.get(openSelector);
+      const marker = host && host.shadowRoot && host.shadowRoot.querySelector('.marker');
+      const popover = popoverLayer && popoverMount().querySelector('.popover');
+      if (marker && popover) pinPopoverToMarker(marker, popover);
+    }
+    if (cursorHost && newThreadSelector) {
+      const marker = cursorHost.shadowRoot && cursorHost.shadowRoot.querySelector('.marker');
+      const popover = cursorHost.shadowRoot && cursorHost.shadowRoot.querySelector('.popover');
+      if (marker && popover) {
+        // Cursor host is already fixed; keep the composer beside the "+" tip.
+        const markerRect = marker.getBoundingClientRect();
+        const hostRect = cursorHost.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const maxH = Math.max(160, vh - POP_EDGE * 2);
+        popover.style.maxHeight = maxH + 'px';
+        popover.style.position = 'absolute';
+        popover.style.right = 'auto';
+        const popW = popover.offsetWidth || 340;
+        const popH = popover.offsetHeight || 120;
+        let top = markerRect.top - 8;
+        top = Math.max(POP_EDGE, Math.min(top, vh - popH - POP_EDGE));
+        let left = markerRect.right - 38 - popW;
+        if (left < POP_EDGE) left = markerRect.left + 38;
+        left = Math.max(POP_EDGE, Math.min(left, vw - popW - POP_EDGE));
+        popover.style.top = (top - hostRect.top) + 'px';
+        popover.style.left = (left - hostRect.left) + 'px';
+      }
+    }
+  };
+  let pinRaf = 0;
+  const schedulePin = () => {
+    if (pinRaf) return;
+    pinRaf = requestAnimationFrame(() => {
+      pinRaf = 0;
+      pinOpenPopovers();
+    });
   };
 
   // The cursor marker is one host for the whole page, not one per anchor. It
@@ -1076,16 +1177,18 @@
     return box;
   };
 
-  // An anchor's own marker: the count, pinned to the element, and the popover
-  // listing what is already there. It exists only while the anchor has threads.
+  // An anchor's own marker: the count, pinned to the element. The open popover
+  // is portaled to the body layer so only it - not the badge - stacks high.
   const renderMarker = (selector, element, items) => {
     const host = markerHosts.get(selector) || makeHost(selector, element);
     placeHost(host, element);
     host.classList.toggle('is-open', openSelector === selector);
     const wrap = host.shadowRoot.querySelector('.marker-wrap');
-    // Rebuilding the popover is how every reaction, menu and edit redraws, and
-    // a conversation that jumps back to its first line each time is unreadable.
-    const scrolled = wrap.querySelector('.pop-body')?.scrollTop || 0;
+    const open = openSelector === selector;
+    const layerPop = popoverLayer && popoverMount().querySelector('.popover');
+    const scrolled = (open && layerPop
+      ? layerPop.querySelector('.pop-body')?.scrollTop
+      : wrap.querySelector('.pop-body')?.scrollTop) || 0;
     wrap.replaceChildren();
     const button = document.createElement('button');
     button.className = 'marker';
@@ -1094,19 +1197,21 @@
     button.setAttribute('aria-label', `${items.length} discussion threads`);
     button.addEventListener('click', (event) => {
       event.stopPropagation();
-      const open = openSelector === selector;
+      const wasOpen = openSelector === selector;
       closePopovers();
-      openSelector = open ? '' : selector;
+      openSelector = wasOpen ? '' : selector;
       render();
     });
-    wrap.append(
-      button,
-      preview(items),
-      popover(selector, items, composingSelector === selector, openSelector === selector),
-    );
-    if (scrolled) {
-      const body = wrap.querySelector('.pop-body');
-      if (body) body.scrollTop = scrolled;
+    wrap.append(button, preview(items));
+    if (open) {
+      const box = popover(selector, items, composingSelector === selector, true);
+      popoverMount().replaceChildren(box);
+      if (scrolled) {
+        const body = box.querySelector('.pop-body');
+        if (body) body.scrollTop = scrolled;
+      }
+    } else if (!openSelector) {
+      clearPopoverLayer();
     }
   };
 
@@ -1135,6 +1240,7 @@
     composingSelector = '';
     newThreadSelector = '';
     resetCommentActions();
+    clearPopoverLayer();
   };
 
   const render = () => {
@@ -1168,8 +1274,13 @@
       host.remove();
       markerHosts.delete(selector);
     });
+    if (openSelector && !anchored.has(openSelector)) {
+      openSelector = '';
+      clearPopoverLayer();
+    }
     renderCursorMarker();
     reportTheme();
+    schedulePin();
   };
 
   const enterCommentMode = () => {
@@ -1235,7 +1346,7 @@
       '--line': value('--line', bodyStyle.color),
     };
     const scheme = schemeFor(theme['--paper'], rootStyle.colorScheme);
-    [...markerHosts.values(), cursorHost].forEach((host) => {
+    [...markerHosts.values(), cursorHost, popoverLayer].forEach((host) => {
       if (!host) return;
       Object.entries(theme).forEach(([name, color]) => host.style.setProperty(name, color));
       host.style.colorScheme = scheme;
@@ -1302,9 +1413,13 @@
         return;
       }
     }
-    const insideMarker = event.composedPath().some((node) =>
-      node.classList && node.classList.contains('lattice-comment-marker'));
-    if (!insideMarker && (openSelector || newThreadSelector)) {
+    const insideComments = event.composedPath().some((node) =>
+      node.classList && (
+        node.classList.contains('lattice-comment-marker') ||
+        node.classList.contains('lattice-comment-popover-layer') ||
+        node.classList.contains('popover')
+      ));
+    if (!insideComments && (openSelector || newThreadSelector)) {
       closePopovers();
       render();
     }
@@ -1322,6 +1437,10 @@
       exitCommentMode();
     }
   });
+
+  // Capture so nested scroll containers inside the summary still re-pin.
+  addEventListener('scroll', schedulePin, true);
+  addEventListener('resize', schedulePin);
 
   addEventListener('message', (event) => {
     if (event.origin !== location.origin || event.data?.type !== 'lattice:comment-mode') return;
