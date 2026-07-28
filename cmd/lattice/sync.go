@@ -587,6 +587,34 @@ func syncCommentMutation(slug, threadID, commentID, body string) {
 	threadCache.drop(slug)
 }
 
+// syncReaction follows a toggled emoji to the pushed copy. Both sides treat the
+// same emoji twice as taking it back, and both are driven by the same click, so
+// they toggle in step.
+func syncReaction(slug, threadID, commentID, emoji string) {
+	if !syncedSlug(slug, "thread-signature") {
+		return
+	}
+	thread, ok := findLocalThread(slug, threadID)
+	if !ok || thread.HostedID == "" {
+		return
+	}
+	var hostedComment string
+	for i := range thread.Comments {
+		if sameLocalComment(&thread.Comments[i], commentID) {
+			hostedComment = thread.Comments[i].HostedID
+			break
+		}
+	}
+	if hostedComment == "" {
+		return
+	}
+	if err := hostedToggleReaction(loadConfig(), slug, thread.HostedID, hostedComment, emoji); err != nil {
+		log.Printf("comments: mirroring reaction on %s of %s: %v", commentID, slug, err)
+		return
+	}
+	threadCache.drop(slug)
+}
+
 // syncThreadDrop follows a deletion to the pushed copy. Unlike the other
 // mirrors this one is reported back: a thread that is gone here but still on the
 // public snapshot is the exact failure the double write exists to avoid, so the

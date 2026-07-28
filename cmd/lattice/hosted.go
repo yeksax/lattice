@@ -139,6 +139,14 @@ type hostedCommentRow struct {
 	Edited    bool   `json:"edited,omitempty"`
 	Deleted   bool   `json:"deleted,omitempty"`
 	CanEdit   bool   `json:"can_edit,omitempty"`
+
+	Reactions []hostedReaction `json:"reactions,omitempty"`
+}
+
+type hostedReaction struct {
+	Emoji string `json:"emoji"`
+	Count int    `json:"count"`
+	Mine  bool   `json:"mine"`
 }
 
 type hostedThread struct {
@@ -405,6 +413,12 @@ func hostedEditComment(c Config, slug, threadID, commentID, body string) error {
 func hostedDeleteComment(c Config, slug, threadID, commentID string) error {
 	return hostedThreadCall(c, http.MethodDelete, slug,
 		"/threads/"+url.PathEscape(threadID)+"/comments/"+url.PathEscape(commentID), nil, nil)
+}
+
+func hostedToggleReaction(c Config, slug, threadID, commentID, emoji string) error {
+	return hostedThreadCall(c, http.MethodPost, slug,
+		"/threads/"+url.PathEscape(threadID)+"/comments/"+url.PathEscape(commentID)+"/reactions",
+		map[string]string{"emoji": emoji}, nil)
 }
 
 func hostedDropThread(c Config, slug, threadID string) error {

@@ -7,6 +7,7 @@
   const endpoint = (script && script.dataset.endpoint) || '/threads';
   const isEmbedded = window.parent !== window;
   const markerHosts = new Map();
+  const expandedThreads = new Set(); // replies are folded away until asked for
   let threads = [];
   let commentMode = false;
   let openSelector = '';      // an anchor's existing threads are on screen
@@ -15,6 +16,7 @@
   let openCommentMenuID = '';
   let editingCommentID = '';
   let deletingCommentID = '';
+  let openReactionPickerID = '';
   let commentActionError;
 
   const pageStyle = document.createElement('style');
@@ -54,10 +56,19 @@
     .marker-wrap:hover .preview,.marker:focus-visible+.preview{opacity:1;visibility:visible;transform:none}.preview[hidden]{display:none}.preview-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}.avatar{display:grid;place-items:center;flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:10px;text-transform:uppercase}.preview b{font-weight:600}.preview-time{color:var(--muted)}.preview-body{display:-webkit-box;overflow:hidden;color:var(--ink-2);-webkit-box-orient:vertical;-webkit-line-clamp:2}.preview-replies{margin-top:4px;color:var(--muted);font-size:11px}
     .popover{position:absolute;z-index:2;right:38px;top:-8px;width:min(360px,calc(100vw - 56px));overflow:hidden;border-radius:16px;background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 6px #0001,0 18px 48px #0002;opacity:1;pointer-events:auto;transform:none;transform-origin:top right;transition:opacity 160ms cubic-bezier(.2,0,0,1),transform 180ms cubic-bezier(.2,0,0,1)}
     .popover[hidden]{display:block;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(4px) scale(.98)}.pop-head{display:flex;align-items:center;min-height:52px;padding:0 6px 0 18px;background:var(--paper);border-bottom:1px solid var(--line)}.pop-head strong{min-width:0;flex:1;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pop-actions{display:flex;align-items:center;flex:0 0 auto}.close,.new-thread{display:grid;place-items:center;width:40px;height:40px;border:0;background:none;border-radius:50%;cursor:pointer;color:var(--muted)}.close{font-size:19px}.new-thread{font-size:18px}.close:hover,.new-thread:hover{background:var(--sub);color:var(--ink)}.close:active,.new-thread:active{scale:.96}
-    .pop-body{display:block;max-height:min(430px,66vh);overflow:auto;padding:18px 18px 20px}.thread{display:block}.thread+.thread{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}.thread-meta{display:block;margin-bottom:14px;color:var(--muted);font-size:10.5px}.comment{position:relative;display:grid;grid-template-columns:24px 1fr;gap:10px;margin-bottom:16px;padding-right:28px}.comment-main{min-width:0}.comment-head{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}.comment-head b{font-weight:600}.comment-head time,.edited{color:var(--muted);font-size:10.5px}.comment p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-2)}.comment p.is-deleted{color:var(--muted);font-style:italic}
+    .pop-body{display:block;max-height:min(430px,66vh);overflow:auto;padding:18px 18px 20px}.thread{display:block}.thread+.thread{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}.thread-meta{display:flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--muted);font-size:10.5px}.comment{position:relative;display:grid;grid-template-columns:24px 1fr;gap:10px;margin-bottom:16px;padding-right:28px}.comment-main{min-width:0}.comment-head{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}.comment-head b{font-weight:600}.comment-head time,.edited{color:var(--muted);font-size:10.5px}.comment p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-2)}.comment p.is-deleted{color:var(--muted);font-style:italic}
     .comment-actions{position:absolute;z-index:3;top:-6px;right:-6px}.comment-menu-trigger{position:relative;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:10px;background:transparent;color:var(--muted);cursor:pointer;font-size:7px;letter-spacing:1.5px;opacity:.72}.comment-menu-trigger::before{content:"";position:absolute;inset:-4px;border-radius:13px}.comment-menu-trigger:hover,.comment-menu-trigger:focus-visible{background:var(--sub);color:var(--ink);opacity:1;outline:none}.comment-menu-trigger:active{scale:.96}.comment-menu{position:absolute;z-index:4;top:36px;right:0;width:132px;padding:5px;border-radius:10px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #0002,0 14px 34px #0001}.comment-menu button{display:flex;align-items:center;width:100%;min-height:38px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--ink);cursor:pointer;text-align:left}.comment-menu button:hover,.comment-menu button:focus-visible{background:var(--sub);outline:none}.comment-menu button:active{scale:.96}.comment-menu .danger{color:#c43b3b}.delete-confirm{padding:7px}.delete-confirm p{margin:0 0 8px;color:var(--ink);font-size:11.5px;line-height:1.35}.delete-confirm-actions{display:flex;gap:4px}.delete-confirm-actions button{justify-content:center;min-height:34px;padding:0 8px}.delete-confirm-actions .danger{background:#c43b3b;color:#fff}.delete-confirm-actions .danger:hover{background:#ad3030}
     .inline-edit{margin-top:5px}.inline-edit textarea{display:block;width:100%;min-height:72px;max-height:160px;resize:vertical;padding:10px 11px;border:0;border-radius:10px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px var(--blue)}.inline-edit-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}.inline-edit-actions button{min-height:36px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--ink);cursor:pointer}.inline-edit-actions button:hover{background:var(--sub)}.inline-edit-actions button:active{scale:.96}.inline-edit-actions .save{background:var(--ink);color:var(--paper)}.inline-edit-actions .save:disabled{opacity:.3;cursor:default}.action-error{margin-top:7px;color:#c43b3b;font-size:11px}
-    .composer{display:grid;grid-template-columns:24px 1fr;gap:10px;margin-top:16px}.composer-box{position:relative}.composer textarea{display:block;width:100%;height:44px;min-height:44px;max-height:120px;resize:none;overflow-y:auto;padding:11px 44px 10px 12px;border:0;border-radius:12px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px transparent;transition:box-shadow 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}.composer textarea:focus{background:var(--paper);box-shadow:inset 0 0 0 1px var(--blue)}.send{position:absolute;right:6px;bottom:6px;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);cursor:pointer}.send:disabled{opacity:.24;cursor:default}.send:not(:disabled):active{scale:.96}.error{grid-column:2;color:#c43b3b;font-size:11px}
+    .comment.is-reply{margin-left:26px}
+    .replies-toggle{display:inline-flex;align-items:center;gap:6px;margin:0 0 16px 26px;padding:0;border:0;background:none;color:var(--muted);cursor:pointer;font-size:11.5px}.replies-toggle:hover{color:var(--ink)}.replies-toggle::before{content:"";width:18px;height:1px;background:currentColor;opacity:.45}
+    .thread-meta .label{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .thread-resolve{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border:0;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);cursor:pointer;font-size:10.5px}.thread-resolve:hover{background:var(--sub);color:var(--ink)}.thread-resolve:active{scale:.96}.thread-resolve.is-resolved{background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px var(--blue);color:var(--ink)}
+    .thread.is-resolved .comment p,.thread.is-resolved .comment-head b{opacity:.62}
+    .reactions{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:7px}.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:0;border-radius:999px;background:var(--sub);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink-2);cursor:pointer;font-size:11.5px;line-height:1;transition:background-color 120ms cubic-bezier(.2,0,0,1),box-shadow 120ms cubic-bezier(.2,0,0,1)}
+    .chip:hover{background:var(--paper);box-shadow:inset 0 0 0 1px var(--muted)}.chip:active{scale:.96}.chip.is-mine{background:rgba(22,131,255,.12);box-shadow:inset 0 0 0 1px var(--blue);color:var(--ink)}.chip-emoji{font-size:12.5px}.chip-count{font-variant-numeric:tabular-nums}
+    .add-reaction{padding:0;justify-content:center;width:24px;background:transparent;box-shadow:none;color:var(--muted);font-size:14px;opacity:.55}.add-reaction:hover{background:var(--sub);box-shadow:none;color:var(--ink);opacity:1}.reaction-add{position:relative;display:inline-flex}
+    .reaction-picker{position:absolute;z-index:5;bottom:-4px;left:28px;display:grid;grid-template-columns:repeat(4,28px);gap:2px;padding:5px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),0 4px 14px #0002,0 14px 34px #0001}.reaction-picker button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;cursor:pointer;font-size:15px;line-height:1}.reaction-picker button:hover{background:var(--sub)}.reaction-picker button:active{scale:.92}
+    .composer{display:grid;grid-template-columns:24px 1fr;gap:10px;margin-top:16px}.composer.is-reply{margin-left:26px}.composer.is-new-thread{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}.composer-box{position:relative}.composer textarea{display:block;width:100%;height:44px;min-height:44px;max-height:120px;resize:none;overflow-y:auto;padding:11px 44px 10px 12px;border:0;border-radius:12px;background:var(--sub);color:var(--ink);outline:none;box-shadow:inset 0 0 0 1px transparent;transition:box-shadow 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}.composer textarea:focus{background:var(--paper);box-shadow:inset 0 0 0 1px var(--blue)}.send{position:absolute;right:6px;bottom:6px;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);cursor:pointer}.send:disabled{opacity:.24;cursor:default}.send:not(:disabled):active{scale:.96}.error{grid-column:2;color:#c43b3b;font-size:11px}
     .launcher{position:fixed;z-index:2147483645;right:18px;bottom:18px;display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:50%;background:var(--ink);color:var(--paper);box-shadow:0 2px 5px #0002,0 10px 28px #0003;cursor:pointer}.launcher:active{scale:.96}
     @media(prefers-color-scheme:dark){:host{--ink:#f2f2f2;--ink-2:#b5b5b5;--muted:#777;--paper:#171717;--sub:#242424;--line:#303030}}
     @media(max-width:560px){.popover{position:fixed;inset:auto 12px 12px;width:auto;max-height:70vh;transform-origin:bottom center}.preview{display:none}}
@@ -342,15 +353,87 @@
     openCommentMenuID = '';
     editingCommentID = '';
     deletingCommentID = '';
+    openReactionPickerID = '';
     commentActionError = undefined;
   };
 
   const commentMutationURL = (thread, comment) =>
     `${endpoint}/${encodeURIComponent(thread.id)}/comments/${encodeURIComponent(comment.id)}`;
 
-  const commentRow = (thread, comment) => {
+  const REACTIONS = ['👍', '👎', '❤️', '🎉', '👀', '🚀', '😄', '✅'];
+
+  // The reaction strip under a comment: the emoji already on it, and the button
+  // that adds one. Chips are toggles - clicking one you are already in takes
+  // your name back off it, which is why the same request serves both.
+  const reactionStrip = (thread, comment) => {
+    const strip = document.createElement('div');
+    strip.className = 'reactions';
+    const toggle = async (emoji) => {
+      try {
+        await request(commentMutationURL(thread, comment) + '/reactions', {
+          method: 'POST',
+          body: JSON.stringify({ emoji }),
+        });
+        openReactionPickerID = '';
+        await refresh();
+      } catch (cause) {
+        commentActionError = { id: comment.id, message: cause.message || 'Could not react' };
+        render();
+      }
+    };
+    (comment.reactions || []).forEach((reaction) => {
+      const chip = document.createElement('button');
+      chip.className = 'chip' + (reaction.mine ? ' is-mine' : '');
+      chip.type = 'button';
+      chip.title = reaction.mine ? 'Remove your reaction' : 'React';
+      chip.append(
+        Object.assign(document.createElement('span'), { className: 'chip-emoji', textContent: reaction.emoji }),
+        Object.assign(document.createElement('span'), { className: 'chip-count', textContent: String(reaction.count) }),
+      );
+      chip.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggle(reaction.emoji);
+      });
+      strip.append(chip);
+    });
+
+    const add = document.createElement('button');
+    add.className = 'chip add-reaction';
+    add.type = 'button';
+    add.textContent = '☺';
+    add.setAttribute('aria-label', 'Add reaction');
+    add.setAttribute('aria-expanded', String(openReactionPickerID === comment.id));
+    add.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openReactionPickerID = openReactionPickerID === comment.id ? '' : comment.id;
+      render();
+    });
+    const wrap = document.createElement('span');
+    wrap.className = 'reaction-add';
+    wrap.append(add);
+    if (openReactionPickerID === comment.id) {
+      const picker = document.createElement('div');
+      picker.className = 'reaction-picker';
+      REACTIONS.forEach((emoji) => {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.textContent = emoji;
+        option.setAttribute('aria-label', emoji);
+        option.addEventListener('click', (event) => {
+          event.stopPropagation();
+          toggle(emoji);
+        });
+        picker.append(option);
+      });
+      wrap.append(picker);
+    }
+    strip.append(wrap);
+    return strip;
+  };
+
+  const commentRow = (thread, comment, isReply) => {
     const row = document.createElement('article');
-    row.className = 'comment';
+    row.className = 'comment' + (isReply ? ' is-reply' : '');
     const main = document.createElement('div');
     main.className = 'comment-main';
     const head = document.createElement('div');
@@ -431,6 +514,7 @@
       });
     } else {
       main.append(body);
+      if (!comment.deleted) main.append(reactionStrip(thread, comment));
     }
     row.append(avatar(comment.author), main);
 
@@ -597,60 +681,98 @@
     });
     const actions = document.createElement('div');
     actions.className = 'pop-actions';
-    if (items.length) {
-      const fresh = document.createElement('button');
-      fresh.className = 'new-thread';
-      fresh.type = 'button';
-      fresh.setAttribute('aria-label', 'Start another thread');
-      fresh.textContent = '+';
-      fresh.addEventListener('click', (event) => {
-        event.stopPropagation();
-        composingSelector = composingSelector === selector ? '' : selector;
-        resetCommentActions();
-        render();
-      });
-      actions.append(fresh);
-    }
     actions.append(close);
     head.append(title, actions);
     const body = document.createElement('div');
     body.className = 'pop-body';
     items.forEach((thread) => {
+      const resolved = thread.status === 'resolved';
       const section = document.createElement('div');
-      section.className = 'thread';
+      section.className = 'thread' + (resolved ? ' is-resolved' : '');
       const meta = document.createElement('span');
       meta.className = 'thread-meta';
       const source = typeof thread.snapshot_version_created === 'number'
         ? ` · snapshot v${thread.snapshot_version_created}`
         : ' · local source';
-      meta.textContent = (thread.status === 'resolved' ? 'resolved' : 'open') + source;
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = (resolved ? 'resolved' : 'open') + source;
+      const resolve = document.createElement('button');
+      resolve.className = 'thread-resolve' + (resolved ? ' is-resolved' : '');
+      resolve.type = 'button';
+      resolve.textContent = resolved ? '✓ Resolved' : '✓ Resolve';
+      resolve.title = resolved ? 'Reopen this thread' : 'Mark this thread resolved';
+      resolve.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        resolve.disabled = true;
+        try {
+          await request(`${endpoint}/${encodeURIComponent(thread.id)}/${resolved ? 'reopen' : 'resolve'}`, {
+            method: 'POST',
+          });
+          await refresh();
+        } catch (cause) {
+          commentActionError = { id: thread.id, message: cause.message || 'Could not change status' };
+          resolve.disabled = false;
+          render();
+        }
+      });
+      meta.append(label, resolve);
       section.append(meta);
-      (thread.comments || []).forEach((comment) => section.append(commentRow(thread, comment)));
-      const reply = composer('Reply', (message) =>
-        request(`${endpoint}/${encodeURIComponent(thread.id)}/comments`, {
+
+      // The opening comment sits at the root and is the whole thread until you
+      // ask for the rest: a popover that unrolls every answer to every thread
+      // buries the one you came to read. Replies are indented, never boxed in.
+      const comments = thread.comments || [];
+      const [first, ...replies] = comments;
+      if (first) section.append(commentRow(thread, first, false));
+      if (replies.length) {
+        const expanded = expandedThreads.has(thread.id);
+        const toggle = document.createElement('button');
+        toggle.className = 'replies-toggle';
+        toggle.type = 'button';
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.textContent = expanded
+          ? 'Hide replies'
+          : `${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}`;
+        toggle.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (expanded) expandedThreads.delete(thread.id);
+          else expandedThreads.add(thread.id);
+          render();
+        });
+        section.append(toggle);
+        if (expanded) replies.forEach((comment) => section.append(commentRow(thread, comment, true)));
+      }
+      const reply = composer('Reply', async (message) => {
+        await request(`${endpoint}/${encodeURIComponent(thread.id)}/comments`, {
           method: 'POST',
           body: JSON.stringify({ body: message, author: 'You', author_kind: 'human' }),
-        }),
-      );
+        });
+        // Answering a thread is asking to see it: never file your own reply
+        // away behind the toggle you just wrote past.
+        expandedThreads.add(thread.id);
+      });
+      reply.form.classList.add('is-reply');
       section.append(reply.form);
       body.append(section);
     });
-    if (isComposing || !items.length) {
-      const fresh = composer('Add a comment', (message) =>
-        request(endpoint, {
-          method: 'POST',
-          body: JSON.stringify({
-            selector,
-            anchor_text: element ? anchorText(element) : '',
-            body: message,
-            author: 'You',
-            author_kind: 'human',
-          }),
+    // Starting another thread here is not a mode you have to find a button for:
+    // the box is simply there, under whatever is already being discussed.
+    const fresh = composer(items.length ? 'Start another thread' : 'Add a comment', (message) =>
+      request(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({
+          selector,
+          anchor_text: element ? anchorText(element) : '',
+          body: message,
+          author: 'You',
+          author_kind: 'human',
         }),
-      );
-      body.append(fresh.form);
-      queueMicrotask(() => fresh.area.focus());
-    }
+      }),
+    );
+    if (items.length) fresh.form.classList.add('is-new-thread');
+    body.append(fresh.form);
+    if (isComposing || !items.length) queueMicrotask(() => fresh.area.focus());
     box.append(head, body);
     return box;
   };
@@ -662,6 +784,9 @@
     placeHost(host, element);
     host.classList.toggle('is-open', openSelector === selector);
     const wrap = host.shadowRoot.querySelector('.marker-wrap');
+    // Rebuilding the popover is how every reaction, menu and edit redraws, and
+    // a conversation that jumps back to its first line each time is unreadable.
+    const scrolled = wrap.querySelector('.pop-body')?.scrollTop || 0;
     wrap.replaceChildren();
     const button = document.createElement('button');
     button.className = 'marker';
@@ -680,6 +805,10 @@
       preview(items),
       popover(selector, items, composingSelector === selector, openSelector === selector),
     );
+    if (scrolled) {
+      const body = wrap.querySelector('.pop-body');
+      if (body) body.scrollTop = scrolled;
+    }
   };
 
   // The cursor marker: the "+" that follows the pointer, and the composer for a

@@ -188,6 +188,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("POST /api/comments/{slug}/threads/{thread}/comments", s.replyCommentThread)
 	mux.HandleFunc("PATCH /api/comments/{slug}/threads/{thread}/comments/{comment}", s.editComment)
 	mux.HandleFunc("DELETE /api/comments/{slug}/threads/{thread}/comments/{comment}", s.deleteComment)
+	mux.HandleFunc("POST /api/comments/{slug}/threads/{thread}/comments/{comment}/reactions", s.toggleCommentReaction)
 	mux.HandleFunc("DELETE /api/comments/{slug}/threads/{thread}", s.deleteCommentThread)
 	mux.HandleFunc("POST /api/comments/{slug}/threads/{thread}/{action}", s.setCommentThreadStatus)
 	// Blanket disallow, unlike the hosted Worker, which lets crawlers fetch a
@@ -778,6 +779,36 @@ func (s *server) mutateHostedComment(w http.ResponseWriter, cause error, slug, t
 		"edited":    body != "",
 		"can_edit":  body != "",
 	})
+}
+
+func (s *server) toggleCommentReaction(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Emoji string `json:"emoji"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&req); err != nil {
+		httpErr(w, http.StatusBadRequest, `body must be JSON: {"emoji"}`)
+		return
+	}
+	slug, threadID, commentID := r.PathValue("slug"), r.PathValue("thread"), r.PathValue("comment")
+	comment, err := toggleLocalReaction(slug, threadID, commentID, req.Emoji)
+	if err != nil {
+		// A comment written on the public snapshot has no local row to react on.
+		hostedThreadID, hostedCommentID, ok := hostedCommentRef(slug, threadID, commentID)
+		if !ok || (err.Error() != "thread not found" && err.Error() != "comment not found") {
+			httpErr(w, localCommentMutationStatus(err), err.Error())
+			return
+		}
+		if herr := hostedToggleReaction(loadConfig(), slug, hostedThreadID, hostedCommentID, req.Emoji); herr != nil {
+			httpErr(w, http.StatusBadGateway, herr.Error())
+			return
+		}
+		threadCache.drop(slug)
+		writeJSON(w, map[string]any{"id": hostedCommentID, "thread_id": hostedThreadID})
+		return
+	}
+	syncReaction(slug, threadID, commentID, req.Emoji)
+	markLocalCommentPermission(comment)
+	writeJSON(w, comment)
 }
 
 // deleteCommentThread removes a thread from both stores. The hosted half is not

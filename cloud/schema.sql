@@ -141,6 +141,18 @@ CREATE TABLE IF NOT EXISTS comments (
 CREATE INDEX IF NOT EXISTS idx_comments_thread ON comments(thread_id, created);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_comments_signature ON comments(thread_id, signature);
 
+-- One row per (comment, actor, emoji). The unique key is the whole point: a
+-- reaction is a fact about a person, so reacting twice with the same emoji is
+-- not two reactions, and the toggle in the UI is a delete of this exact row.
+CREATE TABLE IF NOT EXISTS comment_reactions (
+  comment_id TEXT NOT NULL,
+  actor_id   TEXT NOT NULL,
+  emoji      TEXT NOT NULL,
+  created    INTEGER NOT NULL,
+  PRIMARY KEY (comment_id, actor_id, emoji)
+);
+CREATE INDEX IF NOT EXISTS idx_comment_reactions_comment ON comment_reactions(comment_id);
+
 -- Append-only audit trail. The current row remains fast to read while every
 -- edit or soft deletion preserves the previous body and the actor responsible.
 CREATE TABLE IF NOT EXISTS comment_revisions (

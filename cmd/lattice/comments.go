@@ -36,7 +36,19 @@ type localComment struct {
 	Edited     bool                   `json:"edited,omitempty"`
 	CanEdit    bool                   `json:"can_edit,omitempty"`
 	HostedID   string                 `json:"hosted_id,omitempty"`
+	Reactions  []localReaction        `json:"reactions,omitempty"`
 	Revisions  []localCommentRevision `json:"revisions,omitempty"`
+}
+
+// localReaction is one emoji on one comment. A local library has exactly one
+// reader, so the count is always one and it is always yours - the shape still
+// carries both because it is the same shape the hosted store answers with, and
+// the merge in sync.go hands the browser rows from either side.
+type localReaction struct {
+	Emoji   string `json:"emoji"`
+	Count   int    `json:"count"`
+	Mine    bool   `json:"mine"`
+	Created int64  `json:"created,omitempty"`
 }
 
 type localCommentRevision struct {
@@ -341,6 +353,60 @@ func markLocalCommentPermission(comment *localComment) {
 	comment.Edited = len(comment.Revisions) > 0 && !comment.Deleted
 	comment.CanEdit = comment.AuthorKind == "human" && !comment.Deleted
 	comment.Revisions = nil
+}
+
+// toggleLocalReaction adds or takes back one emoji on a comment. Sending the
+// same emoji twice is the way to remove it, so a client never has to know what
+// it already sent.
+func toggleLocalReaction(slug, threadID, commentID, emoji string) (*localComment, error) {
+	emoji = strings.TrimSpace(emoji)
+	if emoji == "" || len([]rune(emoji)) > 4 || len(emoji) > 32 {
+		return nil, errors.New("emoji is required")
+	}
+	var out *localComment
+	_, err := mutateLocalThreads(slug, func(threads *[]localThread) error {
+		for i := range *threads {
+			if !sameLocalThread(&(*threads)[i], threadID) {
+				continue
+			}
+			for j := range (*threads)[i].Comments {
+				comment := &(*threads)[i].Comments[j]
+				if !sameLocalComment(comment, commentID) {
+					continue
+				}
+				if comment.Deleted {
+					return errors.New("comment not editable")
+				}
+				kept := comment.Reactions[:0]
+				found := false
+				for _, reaction := range comment.Reactions {
+					if reaction.Emoji == emoji {
+						found = true
+						continue
+					}
+					kept = append(kept, reaction)
+				}
+				comment.Reactions = kept
+				if !found {
+					comment.Reactions = append(comment.Reactions, localReaction{
+						Emoji:   emoji,
+						Count:   1,
+						Mine:    true,
+						Created: time.Now().Unix(),
+					})
+				}
+				copy := *comment
+				out = &copy
+				return nil
+			}
+			return errors.New("comment not found")
+		}
+		return errors.New("thread not found")
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // dropLocalThread removes a thread outright. Comments get a tombstone because a

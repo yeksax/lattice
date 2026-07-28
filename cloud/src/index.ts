@@ -369,6 +369,14 @@ async function deleteShare(env: Env, tok: Token, slug: string): Promise<Response
           WHERE t.sub = ?
         )`,
     ).bind(row.sub),
+    env.DB.prepare(
+      `DELETE FROM comment_reactions
+        WHERE comment_id IN (
+          SELECT c.id FROM comments c
+          JOIN threads t ON t.id = c.thread_id
+          WHERE t.sub = ?
+        )`,
+    ).bind(row.sub),
     env.DB.prepare('DELETE FROM comments WHERE thread_id IN (SELECT id FROM threads WHERE sub = ?)')
       .bind(row.sub),
     env.DB.prepare('DELETE FROM threads WHERE sub = ?').bind(row.sub),

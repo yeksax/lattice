@@ -214,6 +214,10 @@ export async function handlePublicThreads(
   if (mutation && (req.method === 'PATCH' || req.method === 'DELETE')) {
     return mutateComment(req, env, sub, mutation[1], mutation[2], actor);
   }
+  const reaction = rest.match(/^\/threads\/([^/]+)\/comments\/([^/]+)\/reactions$/);
+  if (reaction && req.method === 'POST') {
+    return toggleReaction(req, env, sub, reaction[1], reaction[2], actor);
+  }
   return json({ error: 'not found' }, 404);
 }
 
@@ -244,6 +248,10 @@ export async function handleOwnerThreads(
   if (mutation && (req.method === 'PATCH' || req.method === 'DELETE')) {
     return mutateComment(req, env, share.sub, mutation[1], mutation[2], actor);
   }
+  const reaction = rest.match(/^\/threads\/([^/]+)\/comments\/([^/]+)\/reactions$/);
+  if (reaction && req.method === 'POST') {
+    return toggleReaction(req, env, share.sub, reaction[1], reaction[2], actor);
+  }
   // Deleting a thread is owner-only and final, unlike the soft delete a comment
   // gets: a tombstone keeps a conversation readable, but a thread nobody should
   // have started has nothing worth keeping the shape of.
@@ -256,6 +264,9 @@ export async function handleOwnerThreads(
     await env.DB.batch([
       env.DB.prepare(
         'DELETE FROM comment_revisions WHERE comment_id IN (SELECT id FROM comments WHERE thread_id = ?)',
+      ).bind(thread.id),
+      env.DB.prepare(
+        'DELETE FROM comment_reactions WHERE comment_id IN (SELECT id FROM comments WHERE thread_id = ?)',
       ).bind(thread.id),
       env.DB.prepare('DELETE FROM comments WHERE thread_id = ?').bind(thread.id),
       env.DB.prepare('DELETE FROM threads WHERE id = ? AND sub = ?').bind(thread.id, share.sub),
@@ -399,6 +410,94 @@ async function addComment(
   return json({ id, thread_id: threadID, signature, created }, 201);
 }
 
+// A reaction is a toggle, not an append: sending the same emoji twice takes it
+// back. The client can therefore fire the same request for both directions and
+// never has to track what it already sent.
+async function toggleReaction(
+  req: Request,
+  env: Env,
+  sub: string,
+  threadID: string,
+  commentID: string,
+  actor: Actor,
+): Promise<Response> {
+  let body: { emoji?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: 'body must be JSON' }, 400);
+  }
+  const emoji = validEmoji(body.emoji);
+  if (!emoji) return json({ error: 'emoji is required' }, 400);
+
+  const comment = await env.DB.prepare(
+    `SELECT c.id FROM comments c JOIN threads t ON t.id = c.thread_id
+      WHERE c.id = ? AND c.thread_id = ? AND t.sub = ? AND c.body <> ''`,
+  )
+    .bind(commentID, threadID, sub)
+    .first<{ id: string }>();
+  if (!comment) return json({ error: 'comment not found' }, 404);
+
+  const existing = await env.DB.prepare(
+    'SELECT 1 FROM comment_reactions WHERE comment_id = ? AND actor_id = ? AND emoji = ?',
+  )
+    .bind(commentID, actor.id, emoji)
+    .first();
+  if (existing) {
+    await env.DB.prepare(
+      'DELETE FROM comment_reactions WHERE comment_id = ? AND actor_id = ? AND emoji = ?',
+    )
+      .bind(commentID, actor.id, emoji)
+      .run();
+  } else {
+    await env.DB.prepare(
+      'INSERT INTO comment_reactions (comment_id, actor_id, emoji, created) VALUES (?, ?, ?, ?)',
+    )
+      .bind(commentID, actor.id, emoji, now())
+      .run();
+  }
+  const grouped = await reactionsFor(env, [commentID], actor.id);
+  return json({ id: commentID, thread_id: threadID, reactions: grouped[commentID] ?? [] });
+}
+
+// An emoji arrives from a client and is stored verbatim, so the cap is on size
+// rather than on a list this side would have to keep in step with the picker.
+function validEmoji(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw || [...raw].length > 4 || raw.length > 32) return '';
+  return raw;
+}
+
+// reactionsFor folds the rows of one or more comments into what a reader needs:
+// which emoji, how many people, and whether they are one of them.
+async function reactionsFor(
+  env: Env,
+  commentIDs: string[],
+  viewerActorID: string | null,
+): Promise<Record<string, { emoji: string; count: number; mine: boolean }[]>> {
+  const out: Record<string, { emoji: string; count: number; mine: boolean }[]> = {};
+  if (!commentIDs.length) return out;
+  const slots = commentIDs.map(() => '?').join(',');
+  const { results } = await env.DB.prepare(
+    `SELECT comment_id, emoji, COUNT(*) AS count,
+            MAX(CASE WHEN actor_id = ? THEN 1 ELSE 0 END) AS mine
+       FROM comment_reactions
+      WHERE comment_id IN (${slots})
+      GROUP BY comment_id, emoji
+      ORDER BY count DESC, emoji`,
+  )
+    .bind(viewerActorID ?? '', ...commentIDs)
+    .all<{ comment_id: string; emoji: string; count: number; mine: number }>();
+  for (const row of results ?? []) {
+    (out[row.comment_id] ??= []).push({
+      emoji: row.emoji,
+      count: row.count,
+      mine: Boolean(row.mine),
+    });
+  }
+  return out;
+}
+
 async function mutateComment(
   req: Request,
   env: Env,
@@ -456,6 +555,10 @@ async function mutateComment(
     ).bind(nextBody, updated, commentID, actor.id),
     env.DB.prepare('UPDATE threads SET updated = ? WHERE id = ? AND sub = ?')
       .bind(updated, threadID, sub),
+    // A tombstone carries no reactions: they were about words that are gone.
+    ...(action === 'delete'
+      ? [env.DB.prepare('DELETE FROM comment_reactions WHERE comment_id = ?').bind(commentID)]
+      : []),
   ]);
   return json({
     id: commentID,
@@ -524,12 +627,15 @@ async function listThreads(
         author_provider: string;
         edited: number;
       }>();
-    const visibleComments = (comments.results ?? []).map(({ actor_id, signature: sig, ...comment }) => ({
+    const rows = comments.results ?? [];
+    const reactions = await reactionsFor(env, rows.map((c) => c.id), viewerActorID);
+    const visibleComments = rows.map(({ actor_id, signature: sig, ...comment }) => ({
       ...comment,
       ...(withSignature ? { signature: sig } : {}),
       edited: Boolean(comment.edited) && comment.body !== '',
       deleted: comment.body === '',
       can_edit: comment.body !== '' && actor_id === viewerActorID,
+      reactions: reactions[comment.id] ?? [],
     }));
     out.push({ ...thread, ...(withSignature ? { signature } : {}), comments: visibleComments });
   }
