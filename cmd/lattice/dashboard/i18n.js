@@ -34,9 +34,9 @@
     'theme.aria': 'Theme: {name}. Click to cycle.',
 
     'reader.share': 'Share',
-    'reader.share.title': 'Share this summary at a public URL',
+    'reader.share.title': 'Share this summary at a public URL (⇧S)',
     'reader.comment': 'Comment',
-    'reader.comment.title': 'Add or review comments',
+    'reader.comment.title': 'Add or review comments (C)',
     'reader.comment.threads.title': 'Browse comment threads',
     'reader.comment.threads.aria': 'Comment threads',
     'reader.comment.threads.empty': 'No threads yet.',
@@ -250,9 +250,9 @@
     'theme.aria': 'Tema: {name}. Clique para alternar.',
 
     'reader.share': 'Compartilhar',
-    'reader.share.title': 'Publicar este sumário numa URL pública',
+    'reader.share.title': 'Publicar este sumário numa URL pública (⇧S)',
     'reader.comment': 'Comentar',
-    'reader.comment.title': 'Adicionar ou revisar comentários',
+    'reader.comment.title': 'Adicionar ou revisar comentários (C)',
     'reader.comment.threads.title': 'Ver discussões',
     'reader.comment.threads.aria': 'Discussões',
     'reader.comment.threads.empty': 'Nenhuma discussão ainda.',

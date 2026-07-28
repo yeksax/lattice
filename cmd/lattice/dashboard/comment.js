@@ -316,10 +316,12 @@
     element.setAttribute('data-lattice-comment-positioned', '');
   };
 
-  // Sticky master headers (template <header>, live counters, …) sit at
-  // z-index:20. Comment UI stacks just under that so markers and popovers
-  // clear ordinary page chrome without covering the bar the reader pins.
+  // Stacking: markers 15 < outline peek 18 < open popovers 19 < sticky
+  // master headers 20 (template <header>, live counters, …). Popovers must
+  // sit above neighbour markers — same z as the anchors lets a later
+  // section's badge paint over the open card.
   const COMMENT_Z = '15';
+  const POPOVER_Z = '19';
 
   const placeHost = (host, element) => {
     ensurePositioned(element);
@@ -363,7 +365,7 @@
     mount.className = 'popover-mount';
     root.append(style, mount);
     popoverLayer.style.cssText =
-      `position:fixed;inset:0;z-index:${COMMENT_Z};pointer-events:none`;
+      `position:fixed;inset:0;z-index:${POPOVER_Z};pointer-events:none`;
     document.body.append(popoverLayer);
     return popoverLayer;
   };
@@ -482,6 +484,8 @@
     root.append(style, wrap);
     cursorHost.style.cssText =
       `position:fixed;left:0;top:0;display:none;width:28px;height:28px;z-index:${COMMENT_Z}`;
+    // Composing lifts this host to POPOVER_Z in renderCursorMarker so the
+    // new-thread card clears neighbour markers the same way the layer does.
     document.body.append(cursorHost);
     moveCursorHost(-100, -100);
     return cursorHost;
@@ -1354,6 +1358,9 @@
     const composing = Boolean(newThreadSelector);
     const visible = commentMode && (Boolean(cursorTarget) || composing);
     host.style.display = visible ? 'block' : 'none';
+    // New-thread composer stays on this host (not the portal layer). Lift it
+    // above neighbour markers while composing; drop back when only tracking.
+    host.style.zIndex = composing ? POPOVER_Z : COMMENT_Z;
     const wrap = host.shadowRoot.querySelector('.marker-wrap');
     wrap.replaceChildren();
     if (!visible) return;
@@ -1585,16 +1592,33 @@
   }, true);
 
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    if (openCommentMenuID || editingCommentID || deletingCommentID) {
-      resetCommentActions();
-      render();
-    } else if (openSelector || newThreadSelector) {
-      closePopovers();
-      render();
-    } else if (commentMode) {
-      exitCommentMode();
+    if (event.key === 'Escape') {
+      if (openCommentMenuID || editingCommentID || deletingCommentID) {
+        resetCommentActions();
+        render();
+      } else if (openSelector || newThreadSelector) {
+        closePopovers();
+        render();
+      } else if (commentMode) {
+        exitCommentMode();
+      }
+      return;
     }
+
+    // Dashboard reader shortcuts: focus lives in this iframe while reading, so
+    // forward letter keys to the parent chrome (Comment / Share / Download).
+    // Hosted pages own their own shortcuts in the chrome bridge instead.
+    if (window.parent === window || window.latticeChrome) return;
+    const tag = document.activeElement?.tagName;
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+    if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+    let action = '';
+    if (event.code === 'KeyC' && !event.shiftKey) action = 'comment';
+    else if (event.code === 'KeyS' && event.shiftKey) action = 'share';
+    else if (event.code === 'KeyD' && event.shiftKey) action = 'download';
+    if (!action) return;
+    event.preventDefault();
+    window.parent.postMessage({ type: 'lattice:shortcut', action }, location.origin);
   });
 
   // Capture so nested scroll containers inside the summary still re-pin.

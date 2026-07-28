@@ -24,7 +24,7 @@
   const t = pt
     ? {
         comment: 'Comentar',
-        commentTitle: 'Adicionar ou ver comentários',
+        commentTitle: 'Adicionar ou ver comentários (C)',
         threadsTitle: 'Ver discussões',
         threadsAria: 'Discussões',
         threadsEmpty: 'Nenhuma discussão ainda.',
@@ -33,11 +33,12 @@
         now: 'agora',
         replies: (n) => (n === 1 ? '1 resposta' : n + ' respostas'),
         download: 'Baixar',
-        downloadTitle: 'Baixar o arquivo original',
+        downloadTitle: 'Baixar o arquivo original (⇧D)',
+        linkCopied: 'Link copiado',
       }
     : {
         comment: 'Comment',
-        commentTitle: 'Add or review comments',
+        commentTitle: 'Add or review comments (C)',
         threadsTitle: 'Browse comment threads',
         threadsAria: 'Comment threads',
         threadsEmpty: 'No threads yet.',
@@ -46,7 +47,8 @@
         now: 'now',
         replies: (n) => (n === 1 ? '1 reply' : n + ' replies'),
         download: 'Download',
-        downloadTitle: 'Download the original file',
+        downloadTitle: 'Download the original file (⇧D)',
+        linkCopied: 'Link copied',
       };
 
   const css = `
@@ -58,11 +60,12 @@
     .title{min-width:0;flex:1;overflow:hidden;color:var(--ink);font-size:13px;font-weight:500;
       text-overflow:ellipsis;white-space:nowrap}
     .actions{display:inline-flex;align-items:center;flex:0 0 auto;gap:2px}
-    button,a{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:0;border-radius:999px;
+    /* .count/.comment-thread keep their own sizing (dashboard excludes them the same way). */
+    button:not(.count):not(.comment-thread),a{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:0;border-radius:999px;
       background:none;color:var(--ink-2);font:500 12.5px/1 inherit;text-decoration:none;cursor:pointer;
       transition:color 140ms cubic-bezier(.2,0,0,1),background-color 140ms cubic-bezier(.2,0,0,1)}
-    button:hover,a:hover{color:var(--ink);background:var(--fill)}
-    button:active,a:active{scale:.96}
+    button:not(.count):not(.comment-thread):hover,a:hover{color:var(--ink);background:var(--fill)}
+    button:not(.count):not(.comment-thread):active,a:active{scale:.96}
     button:focus-visible,a:focus-visible{outline:2px solid var(--comment);outline-offset:2px}
     svg{width:14px;height:14px;flex-shrink:0}
     .gh{margin-left:4px;color:var(--muted)}
@@ -414,8 +417,43 @@
   });
 
   addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || commentPop.hidden) return;
-    event.preventDefault();
-    closeCommentPop();
+    if (event.key === 'Escape') {
+      if (commentPop.hidden) return;
+      event.preventDefault();
+      closeCommentPop();
+      return;
+    }
+
+    const tag = document.activeElement?.tagName;
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+    if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+
+    if (event.code === 'KeyC' && !event.shiftKey) {
+      event.preventDefault();
+      commentBtn.click();
+      return;
+    }
+    if (event.code === 'KeyS' && event.shiftKey) {
+      event.preventDefault();
+      const url = location.href;
+      const done = () => {
+        const prev = title.textContent;
+        title.textContent = t.linkCopied;
+        setTimeout(() => { title.textContent = prev; }, 1200);
+      };
+      navigator.clipboard.writeText(url).then(done).catch(() => {
+        const tip = document.createElement('input');
+        tip.value = url;
+        document.body.appendChild(tip);
+        tip.select();
+        try { document.execCommand('copy'); done(); } catch (_) {}
+        tip.remove();
+      });
+      return;
+    }
+    if (event.code === 'KeyD' && event.shiftKey) {
+      event.preventDefault();
+      bar.querySelector('#download')?.click();
+    }
   });
 })();
